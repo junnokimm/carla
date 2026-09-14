@@ -33,3 +33,14 @@ class MockVehicleClient:
             lane_id=None,
             indicator="off",
         )
+
+
+from src.vehicle.carla_client import CarlaVehicleClient, HeroVehicleNotFoundError
+
+__all__ = [
+    "CarlaVehicleClient",
+    "HeroVehicleNotFoundError",
+    "MockVehicleClient",
+    "VehicleClient",
+    "VehicleState",
+]
