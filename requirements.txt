@@ -3,6 +3,7 @@ iniconfig==2.1.0
 packaging==26.3
 pluggy==1.6.0
 Pygments==2.21.0
+pygame==2.6.1
 pytest==8.4.2
 python-dotenv==1.2.1
 ruff==0.16.5
