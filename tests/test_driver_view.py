@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import carla
 import pygame
 import pytest
 
@@ -29,6 +30,7 @@ class FakeSensor:
         self.callback = None
         self.stop_count = 0
         self.destroy_count = 0
+        self.transforms: list[carla.Transform] = []
 
     def listen(self, callback) -> None:
         self.callback = callback
@@ -40,13 +42,23 @@ class FakeSensor:
         self.destroy_count += 1
         return True
 
+    def set_transform(self, transform: carla.Transform) -> None:
+        self.transforms.append(transform)
+
 
 class FakeHero:
     def __init__(self) -> None:
         self.autopilot_calls: list[bool] = []
+        self.control_calls: list[carla.VehicleControl] = []
+        self.operations: list[tuple[str, bool | carla.VehicleControl]] = []
 
     def set_autopilot(self, enabled: bool) -> None:
         self.autopilot_calls.append(enabled)
+        self.operations.append(("autopilot", enabled))
+
+    def apply_control(self, control: carla.VehicleControl) -> None:
+        self.control_calls.append(control)
+        self.operations.append(("control", control))
 
 
 @dataclass
@@ -152,6 +164,75 @@ def test_p_keydown_toggles_driving_mode_once() -> None:
 
     assert viewer.driving_mode is DrivingMode.MANUAL
     assert hero.autopilot_calls == [True, False]
+
+
+def test_manual_mode_applies_held_keys_each_frame_with_smooth_steering(
+    monkeypatch,
+) -> None:
+    from src.scenario.driver_view import DriverView
+
+    held_keys = {pygame.K_w, pygame.K_a, pygame.K_SPACE}
+
+    class HeldKeys:
+        def __getitem__(self, key: int) -> bool:
+            return key in held_keys
+
+    hero = FakeHero()
+    viewer = DriverView(FakeWorld(), hero)
+    viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_p)])
+    monkeypatch.setattr(pygame.key, "get_pressed", HeldKeys)
+
+    viewer._apply_manual_control()
+    viewer._apply_manual_control()
+
+    first, second = hero.control_calls[-2:]
+    assert first.throttle == pytest.approx(1.0)
+    assert first.brake == pytest.approx(0.0)
+    assert first.hand_brake is True
+    assert -1.0 < second.steer < first.steer < 0.0
+
+    held_keys.clear()
+    held_keys.update({pygame.K_s, pygame.K_d})
+    viewer._apply_manual_control()
+    viewer._apply_manual_control()
+    viewer._apply_manual_control()
+
+    braking_right = hero.control_calls[-1]
+    assert braking_right.throttle == pytest.approx(0.0)
+    assert braking_right.brake == pytest.approx(1.0)
+    assert braking_right.hand_brake is False
+    assert 0.0 < braking_right.steer < 1.0
+
+
+def test_manual_to_autopilot_neutralizes_control_before_enabling_autopilot(
+    monkeypatch,
+) -> None:
+    from src.scenario.driver_view import DriverView
+
+    class HeldThrottle:
+        def __getitem__(self, key: int) -> bool:
+            return key == pygame.K_w
+
+    hero = FakeHero()
+    viewer = DriverView(FakeWorld(), hero)
+    toggle = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_p)
+    viewer._handle_mode_events([toggle])
+    monkeypatch.setattr(pygame.key, "get_pressed", HeldThrottle)
+    viewer._apply_manual_control()
+
+    viewer._handle_mode_events([toggle])
+    calls_after_toggle = len(hero.control_calls)
+    viewer._apply_manual_control()
+
+    neutral_operation, autopilot_operation = hero.operations[-2:]
+    assert neutral_operation[0] == "control"
+    neutral_control = neutral_operation[1]
+    assert isinstance(neutral_control, carla.VehicleControl)
+    assert neutral_control.throttle == pytest.approx(0.0)
+    assert neutral_control.brake == pytest.approx(0.0)
+    assert neutral_control.steer == pytest.approx(0.0)
+    assert autopilot_operation == ("autopilot", True)
+    assert len(hero.control_calls) == calls_after_toggle
 
 
 def test_draw_keeps_front_raw_and_flips_both_mirrors(monkeypatch) -> None:

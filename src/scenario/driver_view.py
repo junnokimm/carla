@@ -13,6 +13,7 @@ from src.vehicle.driving_mode import DrivingMode, DrivingModeController
 CAMERA_BLUEPRINT_ID: Final = "sensor.camera.rgb"
 CAMERA_FOV: Final = 90.0
 FRAME_RATE: Final = 60
+STEER_INCREMENT: Final = 0.04
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +34,6 @@ class CameraTransform:
             carla.Rotation(pitch=self.pitch, yaw=self.yaw, roll=self.roll),
         )
 
-
 @dataclass(frozen=True, slots=True)
 class DriverViewConfig:
     """Small set of easily adjustable driver-view prototype settings."""
@@ -47,6 +47,7 @@ class DriverViewConfig:
     mirror_fov: float = 100.0
     initial_driving_mode: DrivingMode = DrivingMode.AUTONOMOUS
     front_transform: CameraTransform = CameraTransform(x=1.4, y=0.0, z=1.3, pitch=-2.0)
+    cockpit_transform: CameraTransform = CameraTransform(x=0.2, y=-0.35, z=1.25, pitch=-3.0)
     left_mirror_transform: CameraTransform = CameraTransform(
         x=0.3, y=-1.0, z=1.2, yaw=-150.0
     )
@@ -114,6 +115,8 @@ class DriverView:
         self._driving_mode_controller = DrivingModeController(
             hero, self._config.initial_driving_mode
         )
+        self._steer = 0.0
+        self._cockpit_view = False
         self._feeds: list[CameraFeed] = []
 
     @property
@@ -134,24 +137,9 @@ class DriverView:
     def attach(self) -> None:
         """Create and attach the front, left-mirror, and right-mirror RGB cameras."""
         mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
-            (
-                "front",
-                self._config.front_transform,
-                self._config.front_resolution,
-                self._config.fov,
-            ),
-            (
-                "left",
-                self._config.left_mirror_transform,
-                self._config.mirror_resolution,
-                self._config.mirror_fov,
-            ),
-            (
-                "right",
-                self._config.right_mirror_transform,
-                self._config.mirror_resolution,
-                self._config.mirror_fov,
-            ),
+            ("front", self._config.front_transform, self._config.front_resolution, self._config.fov),
+            ("left", self._config.left_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
+            ("right", self._config.right_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
         )
         blueprint = self._world.get_blueprint_library().find(CAMERA_BLUEPRINT_ID)
         for role, transform, resolution, fov in mounts:
@@ -183,6 +171,7 @@ class DriverView:
                 if self._exit_requested(events):
                     exited_by_user = True
                     break
+                self._apply_manual_control()
                 self._draw(screen)
                 pygame.display.flip()
                 clock.tick(FRAME_RATE)
@@ -234,8 +223,42 @@ class DriverView:
     def _handle_mode_events(self, events: Sequence[pygame.event.Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+                was_manual = self.driving_mode is DrivingMode.MANUAL
+                if was_manual:
+                    self._reset_manual_control()
                 mode = self._driving_mode_controller.toggle()
+                if not was_manual:
+                    self._reset_manual_control()
                 print(f"[driver-view] driving-mode={mode.value}")
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_v:
+                self._cockpit_view = not self._cockpit_view
+                transform = self._config.cockpit_transform if self._cockpit_view else self._config.front_transform
+                front = self._feeds[0]
+                front.sensor.stop()
+                front.sensor.destroy()
+                blueprint = self._world.get_blueprint_library().find(CAMERA_BLUEPRINT_ID)
+                blueprint.set_attribute("image_size_x", str(self._config.front_resolution[0]))
+                blueprint.set_attribute("image_size_y", str(self._config.front_resolution[1]))
+                blueprint.set_attribute("fov", str(self._config.fov))
+                front.sensor = self._world.spawn_actor(blueprint, transform.to_carla(), attach_to=self._hero)
+                front.sensor.listen(front.receive)
+                print(f"[driver-view] view={'COCKPIT' if self._cockpit_view else 'DRIVER'}")
+
+    def _apply_manual_control(self) -> None:
+        if self.driving_mode is not DrivingMode.MANUAL:
+            return
+        keys = pygame.key.get_pressed()
+        target_steer = float(keys[pygame.K_d]) - float(keys[pygame.K_a])
+        self._steer = max(self._steer - STEER_INCREMENT, min(self._steer + STEER_INCREMENT, target_steer))
+        control = carla.VehicleControl(
+            throttle=1.0 if keys[pygame.K_w] else 0.0, brake=1.0 if keys[pygame.K_s] else 0.0,
+            steer=self._steer, hand_brake=keys[pygame.K_SPACE],
+        )
+        self._hero.apply_control(control)
+
+    def _reset_manual_control(self) -> None:
+        self._steer = 0.0
+        self._hero.apply_control(carla.VehicleControl())
 
     @staticmethod
     def _blit_image(
