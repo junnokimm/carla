@@ -49,9 +49,9 @@ def test_v_respawns_only_front_sensor_with_cockpit_relative_transform() -> None:
     assert old_front.transforms == []
     assert new_front is not old_front
     assert new_front.callback == front_feed.receive
-    assert spawn.transform.location.x == pytest.approx(0.2)
+    assert spawn.transform.location.x == pytest.approx(0.10)
     assert spawn.transform.location.y == pytest.approx(-0.35)
-    assert spawn.transform.location.z == pytest.approx(1.3)
+    assert spawn.transform.location.z == pytest.approx(1.20)
     assert spawn.transform.rotation.pitch == pytest.approx(-1.5)
     assert spawn.attached_to is hero
     assert current_left is left_mirror
@@ -81,10 +81,10 @@ def test_second_v_restores_driver_sensor_and_cleanup_owns_active_front() -> None
     assert cockpit_front.stop_count == 1
     assert cockpit_front.destroy_count == 1
     assert driver_front is not cockpit_front
-    assert spawn.transform.location.x == pytest.approx(0.10)
-    assert spawn.transform.location.y == pytest.approx(-0.35)
-    assert spawn.transform.location.z == pytest.approx(1.20)
-    assert spawn.transform.rotation.pitch == pytest.approx(-1.5)
+    assert spawn.transform.location.x == pytest.approx(1.4)
+    assert spawn.transform.location.y == pytest.approx(0.0)
+    assert spawn.transform.location.z == pytest.approx(1.3)
+    assert spawn.transform.rotation.pitch == pytest.approx(-2.0)
     assert current_left is left_mirror
     assert current_right is right_mirror
     assert len(viewer.sensors) == 3
