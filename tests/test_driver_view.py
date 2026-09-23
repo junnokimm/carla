@@ -75,6 +75,7 @@ class SpawnCall:
     blueprint: FakeBlueprint
     transform: object
     attached_to: object
+    attributes: dict[str, str]
 
 
 class FakeWorld:
@@ -91,7 +92,9 @@ class FakeWorld:
         if self.fail_at_camera == len(self.spawn_calls) + 1:
             raise RuntimeError("camera spawn failed")
         sensor = FakeSensor()
-        self.spawn_calls.append(SpawnCall(blueprint, transform, attach_to))
+        self.spawn_calls.append(
+            SpawnCall(blueprint, transform, attach_to, blueprint.attributes.copy())
+        )
         self.sensors.append(sensor)
         return sensor
 

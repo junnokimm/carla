@@ -18,7 +18,7 @@ from src.scenario.driver_hud import (
 from src.vehicle.driving_mode import DrivingMode, DrivingModeController
 
 CAMERA_BLUEPRINT_ID: Final = "sensor.camera.rgb"
-CAMERA_FOV: Final = 90.0
+CAMERA_FOV: Final = 100.0
 FRAME_RATE: Final = 60
 STEER_INCREMENT: Final = 0.04
 
@@ -51,6 +51,7 @@ class DriverViewConfig:
     mirror_size: tuple[int, int] = (320, 180)
     mirror_margin: int = 24
     fov: float = CAMERA_FOV
+    cockpit_fov: float = 105.0
     mirror_fov: float = 100.0
     hud_anchor_ratio: tuple[float, float] = (0.62, 0.62)
     hud_toast_y_ratio: float = 0.58
@@ -172,7 +173,7 @@ class DriverView:
             blueprint.set_attribute("image_size_x", str(width))
             blueprint.set_attribute("image_size_y", str(height))
             blueprint.set_attribute("fov", str(fov))
-            
+
             if role == "front": # 새로 추가한 부분, front 카메라의 exposure를 살짝 올려보기
                 blueprint.set_attribute("exposure_compensation", "0.5")
             else:
@@ -299,13 +300,14 @@ class DriverView:
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_v:
                 self._cockpit_view = not self._cockpit_view
                 transform = self._config.cockpit_transform if self._cockpit_view else self._config.front_transform
+                fov = self._config.cockpit_fov if self._cockpit_view else self._config.fov
                 front = self._feeds[0]
                 front.sensor.stop()
                 front.sensor.destroy()
                 blueprint = self._world.get_blueprint_library().find(CAMERA_BLUEPRINT_ID)
                 blueprint.set_attribute("image_size_x", str(self._config.front_resolution[0]))
                 blueprint.set_attribute("image_size_y", str(self._config.front_resolution[1]))
-                blueprint.set_attribute("fov", str(self._config.fov))
+                blueprint.set_attribute("fov", str(fov))
                 blueprint.set_attribute("exposure_compensation", "0.5") # 새롭게 추가한 부분
                 # 현재 v를 누르면 front camera를 삭제하고 다시 만들기 때문
                 # 0.5로 했는데도 어두우면 0.8, 1.0 등으로 올려서 테스트해보기
