@@ -4,11 +4,15 @@ import argparse
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Final
 
 import carla
 
 from src.config import CARLA_HOST, CARLA_PORT, CARLA_TIMEOUT
 from src.scenario.driver_view import DriverView
+
+# HERO_VEHICLE_BLUEPRINT_ID: Final = "vehicle.audi.a2"
+HERO_VEHICLE_BLUEPRINT_ID: Final = "vehicle.mercedes.coupe_2020"
 
 
 class HighwayScenarioError(RuntimeError):
@@ -61,11 +65,7 @@ class HighwayScenario:
             )
 
         world = self.world
-        blueprints = world.get_blueprint_library().filter("vehicle.*")
-        if len(blueprints) == 0:
-            raise HighwayScenarioError(
-                "No vehicle blueprint is available in the current CARLA world."
-            )
+        blueprint = world.get_blueprint_library().find(HERO_VEHICLE_BLUEPRINT_ID)
 
         spawn_points = world.get_map().get_spawn_points()
         if len(spawn_points) == 0:
@@ -73,7 +73,6 @@ class HighwayScenario:
                 "No vehicle spawn point is available on the current CARLA map."
             )
 
-        blueprint = blueprints[0]
         if blueprint.has_attribute("role_name"):
             blueprint.set_attribute("role_name", "hero")
         try:
@@ -115,7 +114,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         print(f"Current map: {scenario.current_map_name()}")
         hero = scenario.setup()
-        print(f"Spawned hero vehicle {hero.id}; autopilot enabled.")
+        print(f"Spawned hero vehicle {hero.id} ({hero.type_id}); autopilot enabled.")
         if config.driver_view:
             viewer = DriverView(scenario.world, hero)
             viewer.attach()

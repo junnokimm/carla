@@ -36,9 +36,13 @@ class FakeWorld:
         self.vehicle = vehicle
         self.spawn_error = spawn_error
         self.spawn_calls: list[tuple[FakeBlueprint, SimpleNamespace]] = []
+        self.blueprint_requests: list[str] = []
 
     def get_blueprint_library(self) -> SimpleNamespace:
-        return SimpleNamespace(filter=lambda pattern: [self.blueprint])
+        return SimpleNamespace(
+            find=lambda identifier: self.blueprint_requests.append(identifier)
+            or self.blueprint
+        )
 
     def get_map(self) -> SimpleNamespace:
         return SimpleNamespace(get_spawn_points=lambda: [self.spawn_point])
@@ -72,6 +76,8 @@ def test_setup_spawns_one_hero_vehicle_enables_autopilot_and_tracks_actor():
     hero = scenario.setup()
 
     assert hero is vehicle
+    # assert world.blueprint_requests == ["vehicle.audi.a2"]
+    assert world.blueprint_requests == ["vehicle.mercedes.coupe_2020"]
     assert world.spawn_calls == [(world.blueprint, world.spawn_point)]
     assert world.blueprint.attributes == [("role_name", "hero")]
     assert vehicle.autopilot_enabled is True

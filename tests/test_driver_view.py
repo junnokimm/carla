@@ -51,14 +51,23 @@ class FakeHero:
         self.autopilot_calls: list[bool] = []
         self.control_calls: list[carla.VehicleControl] = []
         self.operations: list[tuple[str, bool | carla.VehicleControl]] = []
+        self.velocity = carla.Vector3D()
+        self.current_control = carla.VehicleControl()
 
     def set_autopilot(self, enabled: bool) -> None:
         self.autopilot_calls.append(enabled)
         self.operations.append(("autopilot", enabled))
 
     def apply_control(self, control: carla.VehicleControl) -> None:
+        self.current_control = control
         self.control_calls.append(control)
         self.operations.append(("control", control))
+
+    def get_velocity(self) -> carla.Vector3D:
+        return self.velocity
+
+    def get_control(self) -> carla.VehicleControl:
+        return self.current_control
 
 
 @dataclass
@@ -164,6 +173,30 @@ def test_p_keydown_toggles_driving_mode_once() -> None:
 
     assert viewer.driving_mode is DrivingMode.MANUAL
     assert hero.autopilot_calls == [True, False]
+
+
+def test_h_keydown_toggles_hud_without_changing_vehicle_state() -> None:
+    from src.scenario.driver_view import DriverView
+
+    hero = FakeHero()
+    world = FakeWorld()
+    viewer = DriverView(world, hero)
+    viewer.attach()
+    sensors = viewer.sensors
+    autopilot_calls = tuple(hero.autopilot_calls)
+    control_calls = tuple(hero.control_calls)
+    toggle = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_h)
+
+    viewer._handle_mode_events([toggle])
+
+    assert viewer.hud_enabled is False
+    assert viewer.sensors == sensors
+    assert tuple(hero.autopilot_calls) == autopilot_calls
+    assert tuple(hero.control_calls) == control_calls
+
+    viewer._handle_mode_events([toggle])
+
+    assert viewer.hud_enabled is True
 
 
 def test_manual_mode_applies_held_keys_each_frame_with_smooth_steering(
