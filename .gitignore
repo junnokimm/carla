@@ -5,3 +5,6 @@ __pycache__/
 .env
 data/*
 !data/.gitkeep
+
+# Research documents
+/docs/CARLA_Experiment_Original_Scenario_20260918.md
