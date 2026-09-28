@@ -15,6 +15,7 @@ from src.scenario.driver_hud import (
     calculate_speed_kmh,
     gear_from_control,
 )
+from src.scenario.turn_signal_audio import TurnSignalAudio
 from src.vehicle.driving_mode import DrivingMode, DrivingModeController
 
 CAMERA_BLUEPRINT_ID: Final = "sensor.camera.rgb"
@@ -138,6 +139,7 @@ class DriverView:
             anchor_ratio=self._config.hud_anchor_ratio,
             toast_y_ratio=self._config.hud_toast_y_ratio,
         )
+        self._turn_signal_audio = TurnSignalAudio()
         self._feeds: list[CameraFeed] = []
 
     @property
@@ -190,7 +192,7 @@ class DriverView:
 
     def run(self, duration: float) -> bool:
         """Show the composed view until duration elapses or the user exits it."""
-        pygame.init()
+        pygame.display.init()
         try:
             screen = pygame.display.set_mode(self._config.window_size)
             pygame.display.set_caption("CARLA driver view")
@@ -204,15 +206,20 @@ class DriverView:
                     exited_by_user = True
                     break
                 self._apply_manual_control()
+                self._update_turn_signal_audio()
                 self._draw(screen)
                 pygame.display.flip()
                 clock.tick(FRAME_RATE)
         finally:
-            pygame.quit()
+            try:
+                self._turn_signal_audio.close()
+            finally:
+                pygame.quit()
         return exited_by_user
 
     def close(self) -> None:
         """Stop and destroy every sensor, including sensors from partial setup."""
+        self._turn_signal_audio.close()
         feeds = tuple(self._feeds)
         self._feeds.clear()
         errors: list[RuntimeError] = []
@@ -297,6 +304,14 @@ class DriverView:
                 if not self._hud_enabled:
                     self._mode_toast_started_at = None
                 print(f"[driver-view] hud={'ON' if self._hud_enabled else 'OFF'}")
+            elif event.type == pygame.KEYDOWN and event.key in (pygame.K_z, pygame.K_x):
+                if self.driving_mode is DrivingMode.MANUAL:
+                    selected = (
+                        carla.VehicleLightState.LeftBlinker
+                        if event.key == pygame.K_z
+                        else carla.VehicleLightState.RightBlinker
+                    )
+                    self._toggle_turn_signal(selected)
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_v:
                 self._cockpit_view = not self._cockpit_view
                 transform = self._config.cockpit_transform if self._cockpit_view else self._config.front_transform
@@ -316,6 +331,31 @@ class DriverView:
                 front.sensor = self._world.spawn_actor(blueprint, transform.to_carla(), attach_to=self._hero)
                 front.sensor.listen(front.receive)
                 print(f"[driver-view] view={'COCKPIT' if self._cockpit_view else 'DRIVER'}")
+
+    def _toggle_turn_signal(self, selected: carla.VehicleLightState) -> None:
+        current = self._hero.get_light_state()
+        blinkers = (
+            carla.VehicleLightState.LeftBlinker
+            | carla.VehicleLightState.RightBlinker
+        )
+        without_blinkers = current & ~blinkers
+        updated = (
+            without_blinkers
+            if current & selected
+            else without_blinkers | selected
+        )
+        self._hero.set_light_state(carla.VehicleLightState(updated))
+
+    def _update_turn_signal_audio(self) -> None:
+        lights = self._hero.get_light_state()
+        blinkers = (
+            carla.VehicleLightState.LeftBlinker
+            | carla.VehicleLightState.RightBlinker
+        )
+        self._turn_signal_audio.update(
+            active=bool(lights & blinkers),
+            now=time.monotonic(),
+        )
 
     def _apply_manual_control(self) -> None:
         if self.driving_mode is not DrivingMode.MANUAL:
