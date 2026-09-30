@@ -36,12 +36,17 @@ class FakeActors:
 class FakeWorld:
     def __init__(self, vehicles: list[FakeVehicle]) -> None:
         self.actors = FakeActors(vehicles)
+        self.snapshot_call_count = 0
 
     def get_actors(self) -> FakeActors:
         return self.actors
 
     def get_snapshot(self) -> SimpleNamespace:
-        return SimpleNamespace(timestamp=SimpleNamespace(elapsed_seconds=12.5))
+        self.snapshot_call_count += 1
+        return SimpleNamespace(
+            frame=321,
+            timestamp=SimpleNamespace(elapsed_seconds=12.5),
+        )
 
     def get_map(self) -> SimpleNamespace:
         return SimpleNamespace(
@@ -59,6 +64,42 @@ class FakeClient:
 
     def get_world(self) -> FakeWorld:
         return self.world
+
+
+def test_get_observation_combines_one_snapshot_with_vehicle_telemetry(monkeypatch):
+    from src.vehicle import carla_client
+
+    monotonic_readings = iter((1_000, 1_250))
+    hero = FakeVehicle(light_state=carla_client.carla.VehicleLightState.RightBlinker)
+    world = FakeWorld([hero])
+    fake_client = FakeClient(world)
+    monkeypatch.setattr(carla_client.carla, "Client", lambda host, port: fake_client)
+    monkeypatch.setattr(carla_client.time, "monotonic_ns", lambda: next(monotonic_readings))
+    monkeypatch.setattr(carla_client.time, "time_ns", lambda: 1_700_000_000_000_000_000)
+
+    observation = carla_client.CarlaVehicleClient("127.0.0.1", 2000).get_observation()
+
+    assert world.snapshot_call_count == 1
+    assert observation.timestamp.host.monotonic_ns == 1_250
+    assert observation.timestamp.host.utc_ns == 1_700_000_000_000_000_000
+    assert observation.timestamp.carla_snapshot is not None
+    assert observation.timestamp.carla_snapshot.frame == 321
+    assert observation.timestamp.carla_snapshot.simulation_seconds == 12.5
+    assert observation.timestamp.carla_snapshot.host_capture_started_monotonic_ns == 1_000
+    assert observation.timestamp.carla_snapshot.host_capture_completed_monotonic_ns == 1_250
+    assert (
+        observation.timestamp.carla_snapshot.host_capture_started_monotonic_ns
+        <= observation.timestamp.carla_snapshot.host_capture_completed_monotonic_ns
+    )
+    assert observation.state == VehicleState(
+        timestamp=12.5,
+        speed_kmh=18.0,
+        steering=-0.2,
+        throttle=0.7,
+        brake=0.1,
+        lane_id=-2,
+        indicator="right",
+    )
 
 
 def test_get_state_reads_hero_vehicle_and_converts_speed(monkeypatch):

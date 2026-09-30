@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from src.experiment.timestamp import TimestampEnvelope
+
 
 @dataclass(frozen=True)
 class VehicleState:
@@ -13,6 +15,12 @@ class VehicleState:
     brake: float
     lane_id: int | None
     indicator: str
+
+
+@dataclass(frozen=True, slots=True)
+class VehicleObservation:
+    timestamp: TimestampEnvelope
+    state: VehicleState
 
 
 class VehicleClient(Protocol):
@@ -42,5 +50,6 @@ __all__ = [
     "HeroVehicleNotFoundError",
     "MockVehicleClient",
     "VehicleClient",
+    "VehicleObservation",
     "VehicleState",
 ]
