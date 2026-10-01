@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Protocol
 
 import carla
 import pygame
@@ -22,6 +22,12 @@ CAMERA_BLUEPRINT_ID: Final = "sensor.camera.rgb"
 CAMERA_FOV: Final = 100.0
 FRAME_RATE: Final = 60
 STEER_INCREMENT: Final = 0.04
+
+
+class RuntimeIterationScheduler(Protocol):
+    """Run optional work once during an existing driver-view iteration."""
+
+    def update(self) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,7 +196,11 @@ class DriverView:
             self._feeds.append(feed)
             sensor.listen(feed.receive)
 
-    def run(self, duration: float) -> bool:
+    def run(
+        self,
+        duration: float,
+        scheduler: RuntimeIterationScheduler | None = None,
+    ) -> bool:
         """Show the composed view until duration elapses or the user exits it."""
         pygame.display.init()
         try:
@@ -205,7 +215,9 @@ class DriverView:
                 if self._exit_requested(events):
                     exited_by_user = True
                     break
-                self._apply_manual_control()
+                control_applied = scheduler.update() if scheduler is not None else False
+                if not control_applied:
+                    self._apply_manual_control()
                 self._update_turn_signal_audio()
                 self._draw(screen)
                 pygame.display.flip()

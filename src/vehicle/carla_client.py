@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import time
 
 import carla
@@ -12,6 +11,7 @@ from src.experiment.timestamp import (
     TimestampEnvelope,
 )
 from src.vehicle import VehicleObservation, VehicleState
+from src.vehicle.speed import calculate_speed_kmh
 
 
 class HeroVehicleNotFoundError(RuntimeError):
@@ -78,9 +78,7 @@ class CarlaVehicleClient:
             ),
             state=VehicleState(
                 timestamp=simulation_seconds,
-                speed_kmh=(
-                    math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2) * 3.6
-                ),
+                speed_kmh=calculate_speed_kmh(velocity.x, velocity.y, velocity.z),
                 steering=control.steer,
                 throttle=control.throttle,
                 brake=control.brake,
