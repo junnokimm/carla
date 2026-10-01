@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol, assert_never
+from typing import Final, Protocol, assert_never
 
 import pygame
 
+from src.vehicle import speed as vehicle_speed
 from src.vehicle.driving_mode import DrivingMode
+
+calculate_speed_kmh: Final = vehicle_speed.calculate_speed_kmh
 
 
 class Gear(StrEnum):
@@ -32,11 +34,6 @@ class HudRenderer(Protocol):
     """Draw a typed HUD state without owning the vehicle that produced it."""
 
     def draw(self, screen: pygame.Surface, state: HudState) -> None: ...
-
-
-def calculate_speed_kmh(x: float, y: float, z: float) -> float:
-    """Convert a CARLA velocity vector expressed in metres per second to km/h."""
-    return math.sqrt(x**2 + y**2 + z**2) * 3.6
 
 
 def gear_from_control(*, reverse: bool, gear: int) -> Gear:
@@ -79,9 +76,7 @@ class DriverHudRenderer:
         self._speed_font = pygame.font.SysFont(
             "segoeui", max(38, round(height * 0.075))
         )
-        self._unit_font = pygame.font.SysFont(
-            "segoeui", max(13, round(height * 0.020))
-        )
+        self._unit_font = pygame.font.SysFont("segoeui", max(13, round(height * 0.020)))
         self._gear_font = pygame.font.SysFont(
             "segoeui", max(18, round(height * 0.030)), bold=True
         )
