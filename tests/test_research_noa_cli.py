@@ -77,6 +77,16 @@ def test_cli_builds_explicit_validated_control_config() -> None:
     assert config.vehicle_blueprint == "vehicle.mercedes.coupe_2020"
 
 
+def test_dry_run_preserves_duration_without_live_smoke_cap() -> None:
+    from src.scenario.research_noa import parse_arguments
+
+    config = parse_arguments(
+        ["--dry-run", "--duration", "30", *EXPLICIT_CONTROL_ARGUMENTS]
+    )
+
+    assert config.duration == 30.0
+
+
 def test_cli_reports_existing_controller_validation_error(capsys) -> None:
     from src.scenario.research_noa import parse_arguments
 
@@ -120,7 +130,10 @@ def test_live_smoke_requires_explicit_spawn_index(capsys) -> None:
 @pytest.mark.parametrize(
     ("option", "unsafe_value", "expected_message"),
     [
-        ("--duration", "5.01", "duration must be <= 5.0"),
+        ("--duration", "20.0001", "duration must be <= 20.0"),
+        ("--duration", "20.1", "duration must be <= 20.0"),
+        ("--duration", "21.0", "duration must be <= 20.0"),
+        ("--duration", "30", "duration must be <= 20.0"),
         ("--target-speed-kmh", "20.01", "target_speed_kmh must be <= 20.0"),
         ("--max-throttle", "0.251", "max_throttle must be <= 0.25"),
         ("--max-brake", "0.501", "max_brake must be <= 0.5"),
@@ -155,7 +168,10 @@ def test_live_smoke_rejects_values_above_safety_caps(
     assert expected_message in capsys.readouterr().err
 
 
-def test_live_smoke_accepts_safety_boundaries() -> None:
+@pytest.mark.parametrize("duration", [5.0, 10.0, 20.0])
+def test_live_smoke_accepts_duration_windows_and_safety_boundaries(
+    duration: float,
+) -> None:
     from src.scenario.research_noa import (
         ResearchNoARunConfig,
         ResearchNoARunMode,
@@ -169,13 +185,14 @@ def test_live_smoke_accepts_safety_boundaries() -> None:
             "--spawn-index",
             "3",
             "--duration",
-            "5",
+            str(duration),
             *SAFE_LIVE_CONTROL_ARGUMENTS,
         ]
     )
 
     assert config.mode is ResearchNoARunMode.LIVE_SMOKE
     assert config.spawn_index == 3
+    assert config.duration == duration
 
     with pytest.raises(ResearchNoAConfigError) as caught:
         ResearchNoARunConfig(

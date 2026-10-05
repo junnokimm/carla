@@ -12,6 +12,7 @@ from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
 
 DEFAULT_RESEARCH_VEHICLE_BLUEPRINT: Final = "vehicle.mercedes.coupe_2020"
+RESEARCH_LIVE_SMOKE_MAX_DURATION_SECONDS: Final = 20.0
 
 
 class ResearchNoARunMode(Enum):
@@ -56,7 +57,11 @@ class ResearchNoARunConfig:
         longitudinal = self.control_config.longitudinal
         lateral = self.control_config.lateral
         capped_values = (
-            ("duration", self.duration, 5.0),
+            (
+                "duration",
+                self.duration,
+                RESEARCH_LIVE_SMOKE_MAX_DURATION_SECONDS,
+            ),
             ("target_speed_kmh", longitudinal.target_speed_kmh, 20.0),
             ("max_throttle", longitudinal.max_throttle, 0.25),
             ("max_brake", longitudinal.max_brake, 0.5),
