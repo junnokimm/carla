@@ -13,6 +13,7 @@ from src.experiment.automation_scheduler import (
 )
 from src.experiment.noa_control import NoAControlCommand
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
+from src.scenario.research_noa_transmission import ResearchTransmissionPrimeTelemetry
 from src.scenario.research_noa_types import ResearchNoAMap, ResearchNoAVehicle
 from src.vehicle.carla_noa_control import CarlaVelocity
 from src.vehicle.speed import calculate_speed_kmh
@@ -121,6 +122,10 @@ class ResearchSmokeReport:
     initial_speed_kmh: float
     final_speed_kmh: float
     maximum_observed_speed_kmh: float
+    initial_gear: int
+    transmission_prime_required: bool
+    transmission_prime_applied: bool
+    post_prime_gear: int
     duration: float
     elapsed_seconds: float
     shutdown_brake: float
@@ -163,6 +168,10 @@ class ResearchSmokeReport:
             ("initial_speed_kmh", self.initial_speed_kmh),
             ("final_speed_kmh", self.final_speed_kmh),
             ("maximum_observed_speed_kmh", self.maximum_observed_speed_kmh),
+            ("initial_gear", self.initial_gear),
+            ("transmission_prime_required", self.transmission_prime_required),
+            ("transmission_prime_applied", self.transmission_prime_applied),
+            ("post_prime_gear", self.post_prime_gear),
             ("requested_duration_seconds", self.duration),
             ("elapsed_seconds", round(self.elapsed_seconds, 3)),
             ("scheduler_updates", self.scheduler_updates),
@@ -189,6 +198,7 @@ def build_research_smoke_report(
     final_lane_id: int | None,
     initial_speed_kmh: float,
     final_speed_kmh: float,
+    transmission_prime: ResearchTransmissionPrimeTelemetry,
     elapsed_seconds: float,
     user_exited: bool,
     scheduler: ResearchAutomationScheduler,
@@ -214,6 +224,10 @@ def build_research_smoke_report(
             *scheduler.speed_samples_kmh,
             final_speed_kmh,
         ),
+        initial_gear=transmission_prime.initial_gear,
+        transmission_prime_required=transmission_prime.required,
+        transmission_prime_applied=transmission_prime.applied,
+        post_prime_gear=transmission_prime.post_prime_gear,
         duration=config.duration,
         elapsed_seconds=elapsed_seconds,
         shutdown_brake=config.control_config.longitudinal.max_brake,

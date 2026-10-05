@@ -19,13 +19,72 @@ class FakeResearchVehicle(FakeVehicle):
     id = 42
     type_id = "vehicle.mercedes.coupe_2020"
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        initial_gear: int = 1,
+        reverse: bool = False,
+        prime_engages_after_ticks: int | None = 1,
+        gear_switch_time: float = 0.1,
+    ) -> None:
         super().__init__()
         self.destroy_count = 0
+        self.current_control = carla.VehicleControl(
+            gear=initial_gear,
+            reverse=reverse,
+        )
+        self.prime_engages_after_ticks = prime_engages_after_ticks
+        self.physics_control = FakeVehiclePhysicsControl(gear_switch_time)
+        self.get_control_count = 0
+        self.confirmation_ticks = 0
+        self.pending_prime_control: carla.VehicleControl | None = None
+
+    def get_control(self) -> carla.VehicleControl:
+        self.get_control_count += 1
+        return self.current_control
+
+    def get_physics_control(self) -> FakeVehiclePhysicsControl:
+        return self.physics_control
+
+    def apply_control(self, control: carla.VehicleControl) -> None:
+        super().apply_control(control)
+        if control.manual_gear_shift:
+            self.pending_prime_control = control
+            return
+        self.current_control = control
+
+    def advance_control_frame(self) -> None:
+        if self.pending_prime_control is None:
+            return
+        self.confirmation_ticks += 1
+        if self.prime_engages_after_ticks is None:
+            return
+        if self.confirmation_ticks < self.prime_engages_after_ticks:
+            return
+        self.current_control = self.pending_prime_control
+        self.pending_prime_control = None
 
     def destroy(self) -> bool:
         self.destroy_count += 1
         return True
+
+
+@dataclass(frozen=True, slots=True)
+class FakeVehiclePhysicsControl:
+    gear_switch_time: float
+
+
+class FakeMonotonicClock:
+    __slots__ = ("seconds",)
+
+    def __init__(self) -> None:
+        self.seconds = 0.0
+
+    def __call__(self) -> float:
+        return self.seconds
+
+    def advance(self, seconds: float) -> None:
+        self.seconds += seconds
 
 
 class FakeResearchMap(FakeMap):
@@ -73,12 +132,23 @@ class FakeBlueprintLibrary:
 
 
 class FakeResearchWorld:
-    def __init__(self, vehicle: FakeResearchVehicle) -> None:
+    def __init__(
+        self,
+        vehicle: FakeResearchVehicle,
+        *,
+        monotonic_clock: FakeMonotonicClock | None = None,
+        tick_seconds: float = 0.1,
+    ) -> None:
         self.vehicle = vehicle
+        self.monotonic_clock = monotonic_clock
+        self.tick_seconds = tick_seconds
+        self.wait_error: RuntimeError | None = None
         self.map = FakeResearchMap(vehicle)
         self.blueprint = FakeBlueprint()
         self.blueprints = FakeBlueprintLibrary(self.blueprint)
         self.spawn_calls: list[tuple[FakeBlueprint, carla.Transform]] = []
+        self.wait_for_tick_calls: list[float] = []
+        self.frame = 0
 
     def get_map(self) -> FakeResearchMap:
         return self.map
@@ -93,6 +163,21 @@ class FakeResearchWorld:
     ) -> FakeResearchVehicle:
         self.spawn_calls.append((blueprint, transform))
         return self.vehicle
+
+    def wait_for_tick(self, seconds: float) -> FakeWorldSnapshot:
+        self.wait_for_tick_calls.append(seconds)
+        if self.wait_error is not None:
+            raise self.wait_error
+        if self.monotonic_clock is not None:
+            self.monotonic_clock.advance(min(seconds, self.tick_seconds))
+        self.vehicle.advance_control_frame()
+        self.frame += 1
+        return FakeWorldSnapshot(self.frame)
+
+
+@dataclass(frozen=True, slots=True)
+class FakeWorldSnapshot:
+    frame: int
 
 
 @dataclass(frozen=True, slots=True)

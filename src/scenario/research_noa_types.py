@@ -47,7 +47,20 @@ class ResearchNoAVehicle(CarlaNoARuntimeVehicle, Protocol):
     @property
     def type_id(self) -> str: ...
 
+    def get_control(self) -> carla.VehicleControl: ...
+
+    def get_physics_control(self) -> ResearchNoAVehiclePhysicsControl: ...
+
     def destroy(self) -> bool: ...
+
+
+class ResearchNoAVehiclePhysicsControl(Protocol):
+    gear_switch_time: float
+
+
+class ResearchNoAWorldSnapshot(Protocol):
+    @property
+    def frame(self) -> int: ...
 
 
 class ResearchNoAWorld(Protocol):
@@ -60,6 +73,8 @@ class ResearchNoAWorld(Protocol):
         blueprint: ResearchNoABlueprint,
         transform: carla.Transform,
     ) -> ResearchNoAVehicle: ...
+
+    def wait_for_tick(self, seconds: float) -> ResearchNoAWorldSnapshot: ...
 
 
 class ResearchNoAClient(Protocol):

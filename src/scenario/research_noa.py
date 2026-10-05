@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from src.scenario.research_noa_cleanup import ResearchNoACleanupError
 from src.scenario.research_noa_config import (
     ResearchNoARunConfig,
     ResearchNoARunMode,
     parse_arguments,
 )
 from src.scenario.research_noa_runtime import (
-    ResearchNoACleanupError,
     ResearchNoADryRunActivationError,
     ResearchNoAPreflightError,
     ResearchNoARunner,
@@ -18,6 +18,7 @@ from src.scenario.research_noa_smoke import (
     ResearchNoAActualSpeedSafetyError,
     ResearchSmokeReport,
 )
+from src.scenario.research_noa_transmission import ResearchNoATransmissionPrimeError
 from src.scenario.research_noa_view import (
     ResearchDriverView,
     ResearchLiveDriverView,
@@ -34,6 +35,7 @@ __all__ = [
     "ResearchNoARunMode",
     "ResearchNoARunner",
     "ResearchNoASession",
+    "ResearchNoATransmissionPrimeError",
     "ResearchSmokeReport",
     "main",
     "parse_arguments",

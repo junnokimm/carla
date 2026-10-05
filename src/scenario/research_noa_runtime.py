@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from time import monotonic
 
 import carla
@@ -13,6 +13,7 @@ from src.experiment.noa_runtime import (
     build_noa_runtime,
 )
 from src.scenario.driver_view import DriverViewConfig
+from src.scenario.research_noa_cleanup import destroy_owned_hero
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
 from src.scenario.research_noa_smoke import (
     ResearchAutomationScheduler,
@@ -20,6 +21,11 @@ from src.scenario.research_noa_smoke import (
     ResearchSmokeReport,
     build_research_smoke_report,
     observe_live_smoke_speed_kmh,
+)
+from src.scenario.research_noa_transmission import (
+    MonotonicClock,
+    TransmissionPrimeContext,
+    prime_live_transmission,
 )
 from src.scenario.research_noa_types import (
     ResearchNoAClient,
@@ -41,15 +47,11 @@ class ResearchNoADryRunActivationError(RuntimeError):
     pass
 
 
-class ResearchNoACleanupError(RuntimeError):
-    pass
-
-
 class ResearchNoASession:
     def __init__(
         self,
         *,
-        world_map: ResearchNoAMap,
+        world: ResearchNoAWorld,
         hero: ResearchNoAVehicle,
         viewer: ResearchNoAViewer,
         bundle: NoARuntimeBundle,
@@ -58,8 +60,9 @@ class ResearchNoASession:
         spawn_waypoint: CarlaNoARuntimeWaypoint | None,
         dry_scheduler: ResearchDryRunScheduler,
         live_scheduler: ResearchAutomationScheduler | None,
+        monotonic_clock: MonotonicClock,
     ) -> None:
-        self.world_map = world_map
+        self.world = world
         self.hero = hero
         self.viewer = viewer
         self.bundle = bundle
@@ -68,6 +71,7 @@ class ResearchNoASession:
         self.spawn_waypoint = spawn_waypoint
         self.dry_scheduler = dry_scheduler
         self.live_scheduler = live_scheduler
+        self.monotonic_clock = monotonic_clock
         self._closed = False
 
     def request_control_mode(self, mode: DrivingControlMode) -> None:
@@ -75,9 +79,7 @@ class ResearchNoASession:
             self.config.mode is ResearchNoARunMode.DRY_RUN
             and mode is DrivingControlMode.NOA_ACTIVE
         ):
-            raise ResearchNoADryRunActivationError(
-                "dry run cannot activate custom control"
-            )
+            raise ResearchNoADryRunActivationError
         if (
             self.config.mode is ResearchNoARunMode.LIVE_SMOKE
             and self.bundle.automation_runtime.state.control_mode
@@ -96,11 +98,14 @@ class ResearchNoASession:
         if self.live_scheduler is None or self.spawn_waypoint is None:
             raise ResearchNoAPreflightError("live smoke preflight is incomplete")
 
-        spawn_index = self.config.spawn_index
-        if spawn_index is None:
+        if (spawn_index := self.config.spawn_index) is None:
             raise ResearchNoAPreflightError("live smoke spawn index is missing")
-        initial_lane_id = int(self.spawn_waypoint.lane_id)
         initial_speed_kmh = observe_live_smoke_speed_kmh(self.hero)
+        brake = self.config.control_config.longitudinal.max_brake
+        context = TransmissionPrimeContext(
+            brake, initial_speed_kmh, self.monotonic_clock
+        )
+        prime = prime_live_transmission(self.hero, self.world, context)
         self.request_control_mode(DrivingControlMode.NOA_ACTIVE)
         started_at = monotonic()
         try:
@@ -115,14 +120,15 @@ class ResearchNoASession:
 
         return build_research_smoke_report(
             config=self.config,
-            world_map=self.world_map,
+            world_map=self.world.get_map(),
             hero=self.hero,
             spawn_transform=self.spawn_transform,
             spawn_index=spawn_index,
-            initial_lane_id=initial_lane_id,
+            initial_lane_id=int(self.spawn_waypoint.lane_id),
             final_lane_id=self._current_lane_id(),
             initial_speed_kmh=initial_speed_kmh,
             final_speed_kmh=final_speed_kmh,
+            transmission_prime=prime,
             elapsed_seconds=elapsed_seconds,
             user_exited=user_exited,
             scheduler=self.live_scheduler,
@@ -144,7 +150,7 @@ class ResearchNoASession:
 
     def _current_lane_id(self) -> int | None:
         transform = self.hero.get_transform()
-        waypoint = self.world_map.get_waypoint(
+        waypoint = self.world.get_map().get_waypoint(
             transform.location,
             project_to_road=False,
             lane_type=carla.LaneType.Driving,
@@ -160,7 +166,7 @@ class ResearchNoASession:
             try:
                 self.viewer.close()
             finally:
-                _destroy_owned_hero(self.hero)
+                destroy_owned_hero(self.hero)
                 self._closed = True
 
 
@@ -171,26 +177,24 @@ class ResearchNoARunner:
         *,
         client: ResearchNoAClient | None = None,
         viewer_factory: ResearchNoAViewerFactory | None = None,
+        monotonic_clock: MonotonicClock = monotonic,
     ) -> None:
         self._config = config
         self._client = client
         self._viewer_factory = viewer_factory
+        self._monotonic_clock = monotonic_clock
 
     @contextmanager
     def session(self) -> Iterator[ResearchNoASession]:
-        session = self._create_session()
-        try:
+        with closing(self._create_session()) as session:
             yield session
-        finally:
-            session.close()
 
     def run(self) -> ResearchSmokeReport | None:
         with self.session() as session:
             return session.run()
 
     def _create_session(self) -> ResearchNoASession:
-        client = self._client
-        if client is None:
+        if (client := self._client) is None:
             client = carla.Client(self._config.host, self._config.port)
             client.set_timeout(self._config.timeout)
         world = client.get_world()
@@ -214,7 +218,7 @@ class ResearchNoARunner:
                     hero,
                 )
             session = ResearchNoASession(
-                world_map=world_map,
+                world=world,
                 hero=hero,
                 viewer=viewer,
                 bundle=bundle,
@@ -223,6 +227,7 @@ class ResearchNoARunner:
                 spawn_waypoint=spawn_waypoint,
                 dry_scheduler=ResearchDryRunScheduler(bundle.automation_runtime),
                 live_scheduler=live_scheduler,
+                monotonic_clock=self._monotonic_clock,
             )
             ownership_transferred = True
             return session
@@ -232,16 +237,14 @@ class ResearchNoARunner:
                     if viewer is not None:
                         viewer.close()
                 finally:
-                    _destroy_owned_hero(hero)
+                    destroy_owned_hero(hero)
 
     def _select_spawn(
         self,
         world_map: ResearchNoAMap,
     ) -> tuple[carla.Transform, CarlaNoARuntimeWaypoint]:
         spawn_points = world_map.get_spawn_points()
-        index = self._config.spawn_index
-        if index is None:
-            index = 0
+        index = self._config.spawn_index or 0
         if index >= len(spawn_points):
             raise ResearchNoAPreflightError(
                 f"spawn index {index} is outside 0..{len(spawn_points) - 1}"
@@ -269,8 +272,3 @@ class ResearchNoARunner:
         if self._config.mode is ResearchNoARunMode.LIVE_SMOKE:
             return ResearchLiveDriverView(world, hero, config)
         return ResearchDriverView(world, hero, config)
-
-
-def _destroy_owned_hero(hero: ResearchNoAVehicle) -> None:
-    if hero.destroy() is False:
-        raise ResearchNoACleanupError("owned research vehicle destroy failed")
