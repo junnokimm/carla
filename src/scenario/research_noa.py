@@ -8,16 +8,14 @@ from src.scenario.research_noa_config import (
     ResearchNoARunMode,
     parse_arguments,
 )
-from src.scenario.research_noa_runtime import (
+from src.scenario.research_noa_report import ResearchSmokeReport
+from src.scenario.research_noa_runtime import ResearchNoARunner
+from src.scenario.research_noa_session import (
     ResearchNoADryRunActivationError,
     ResearchNoAPreflightError,
-    ResearchNoARunner,
     ResearchNoASession,
 )
-from src.scenario.research_noa_smoke import (
-    ResearchNoAActualSpeedSafetyError,
-    ResearchSmokeReport,
-)
+from src.scenario.research_noa_smoke import ResearchNoAActualSpeedSafetyError
 from src.scenario.research_noa_transmission import ResearchNoATransmissionPrimeError
 from src.scenario.research_noa_view import (
     ResearchDriverView,

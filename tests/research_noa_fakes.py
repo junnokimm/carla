@@ -12,7 +12,12 @@ from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
 from src.scenario.driver_view import DriverViewConfig
+from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from tests.test_noa_runtime import FakeMap, FakeVehicle, make_map
+
+
+class FakeSnapshotReadError(RuntimeError):
+    pass
 
 
 class FakeResearchVehicle(FakeVehicle):
@@ -38,6 +43,7 @@ class FakeResearchVehicle(FakeVehicle):
         self.get_control_count = 0
         self.confirmation_ticks = 0
         self.pending_prime_control: carla.VehicleControl | None = None
+        self.events: list[str] = []
 
     def get_control(self) -> carla.VehicleControl:
         self.get_control_count += 1
@@ -47,10 +53,12 @@ class FakeResearchVehicle(FakeVehicle):
         return self.physics_control
 
     def apply_control(self, control: carla.VehicleControl) -> None:
+        self.events.append(f"control:{control.brake}")
         super().apply_control(control)
         if control.manual_gear_shift:
             self.pending_prime_control = control
             return
+        control.gear = self.current_control.gear
         self.current_control = control
 
     def advance_control_frame(self) -> None:
@@ -138,17 +146,22 @@ class FakeResearchWorld:
         *,
         monotonic_clock: FakeMonotonicClock | None = None,
         tick_seconds: float = 0.1,
+        snapshots: tuple[FakeWorldSnapshot, ...] = (),
     ) -> None:
         self.vehicle = vehicle
         self.monotonic_clock = monotonic_clock
         self.tick_seconds = tick_seconds
+        self._snapshots = iter(snapshots)
         self.wait_error: RuntimeError | None = None
         self.map = FakeResearchMap(vehicle)
         self.blueprint = FakeBlueprint()
         self.blueprints = FakeBlueprintLibrary(self.blueprint)
         self.spawn_calls: list[tuple[FakeBlueprint, carla.Transform]] = []
         self.wait_for_tick_calls: list[float] = []
+        self.get_snapshot_count = 0
+        self.snapshot_error_at_call: int | None = None
         self.frame = 0
+        self.simulation_seconds = 0.0
 
     def get_map(self) -> FakeResearchMap:
         return self.map
@@ -164,20 +177,39 @@ class FakeResearchWorld:
         self.spawn_calls.append((blueprint, transform))
         return self.vehicle
 
+    def get_snapshot(self) -> FakeWorldSnapshot:
+        self.get_snapshot_count += 1
+        self.vehicle.events.append("snapshot")
+        if self.get_snapshot_count == self.snapshot_error_at_call:
+            raise FakeSnapshotReadError
+        fallback = FakeWorldSnapshot(
+            self.frame,
+            FakeTimestamp(self.simulation_seconds),
+        )
+        return next(self._snapshots, fallback)
+
     def wait_for_tick(self, seconds: float) -> FakeWorldSnapshot:
         self.wait_for_tick_calls.append(seconds)
         if self.wait_error is not None:
             raise self.wait_error
         if self.monotonic_clock is not None:
-            self.monotonic_clock.advance(min(seconds, self.tick_seconds))
+            elapsed = min(seconds, self.tick_seconds)
+            self.monotonic_clock.advance(elapsed)
+            self.simulation_seconds += elapsed
         self.vehicle.advance_control_frame()
         self.frame += 1
         return FakeWorldSnapshot(self.frame)
 
 
 @dataclass(frozen=True, slots=True)
+class FakeTimestamp:
+    elapsed_seconds: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
 class FakeWorldSnapshot:
     frame: int
+    timestamp: FakeTimestamp = FakeTimestamp()
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,6 +245,7 @@ class FakeDriverView:
         self,
         duration: float,
         scheduler: ResearchTestScheduler | None = None,
+        diagnostics: ResearchNoADiagnostics | None = None,
     ) -> bool:
         assert duration == 1.0
         assert scheduler is not None
@@ -220,7 +253,11 @@ class FakeDriverView:
         self.control_modes_at_run.append(scheduler.runtime.state.control_mode)
         for action in self.actions:
             action()
+            if diagnostics is not None:
+                diagnostics.record_driver_loop_duration(0.0)
             scheduler.update()
+            if diagnostics is not None:
+                diagnostics.record_render_duration(0.0)
         return False
 
     def close(self) -> None:

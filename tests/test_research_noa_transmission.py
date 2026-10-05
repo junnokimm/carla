@@ -38,7 +38,7 @@ def test_stopped_gear_zero_primes_once_before_active_frames() -> None:
     assert "transmission_prime_required=True" in report.format()
     assert "transmission_prime_applied=True" in report.format()
     assert "post_prime_gear=1" in report.format()
-    assert fixture.vehicle.get_control_count == 5
+    assert fixture.vehicle.get_control_count == 105
     assert len(fixture.world.wait_for_tick_calls) == 3
     assert prime.throttle == 0.0
     assert prime.brake == 0.5
@@ -96,7 +96,7 @@ def test_engaged_forward_gear_skips_transmission_prime() -> None:
     assert report.transmission_prime_required is False
     assert report.transmission_prime_applied is False
     assert report.post_prime_gear == 1
-    assert fixture.vehicle.get_control_count == 1
+    assert fixture.vehicle.get_control_count == 3
     assert fixture.world.wait_for_tick_calls == []
     assert report.control_frames == 2
     assert len(fixture.vehicle.applied_controls) == report.control_frames + 1

@@ -5,7 +5,7 @@ from collections import defaultdict
 import pygame
 
 from src.experiment.automation import DrivingControlMode
-from src.scenario.driver_view import DriverViewConfig
+from src.scenario.driver_view import DriverView, DriverViewConfig
 from src.scenario.research_noa import (
     ResearchDriverView,
     ResearchLiveDriverView,
@@ -13,9 +13,11 @@ from src.scenario.research_noa import (
     ResearchNoARunMode,
     ResearchNoARunner,
 )
+from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.vehicle.driving_mode import DrivingMode
 from tests.research_noa_fakes import (
     FakeClient,
+    FakeMonotonicClock,
     FakeResearchVehicle,
     FakeResearchWorld,
     make_live_control_config,
@@ -143,6 +145,7 @@ def test_live_runner_real_driver_view_has_one_writer_per_active_frame(
 
     audio = FakeTurnSignalAudio()
     clock = FakeFrameClock()
+    diagnostics_clock = FakeMonotonicClock()
     times = iter((0.0, 0.0, 0.1, 0.2, 1.0))
     monkeypatch.setattr(driver_view, "TurnSignalAudio", lambda: audio)
     monkeypatch.setattr(driver_view.time, "monotonic", lambda: next(times))
@@ -152,7 +155,11 @@ def test_live_runner_real_driver_view_has_one_writer_per_active_frame(
     monkeypatch.setattr(driver_view.pygame.display, "flip", lambda: None)
     monkeypatch.setattr(driver_view.pygame.event, "get", list)
     monkeypatch.setattr(driver_view.pygame.time, "Clock", lambda: clock)
-    monkeypatch.setattr(driver_view.pygame, "quit", lambda: None)
+    monkeypatch.setattr(
+        driver_view.pygame,
+        "quit",
+        lambda: diagnostics_clock.advance(10.0),
+    )
     monkeypatch.setattr(
         driver_view.pygame.key,
         "get_pressed",
@@ -175,13 +182,27 @@ def test_live_runner_real_driver_view_has_one_writer_per_active_frame(
 
     with runner.session() as session:
         viewer = viewer_factory.created[0]
+        assert session.live_scheduler is not None
+        diagnostics = ResearchNoADiagnostics(diagnostics_clock)
+        session.live_scheduler.diagnostics = diagnostics
+        session.live_scheduler._recording_backend._diagnostics = diagnostics
         monkeypatch.setattr(viewer, "_update_turn_signal_audio", lambda: None)
-        monkeypatch.setattr(viewer, "_draw", lambda screen: None)
+        monkeypatch.setattr(
+            DriverView,
+            "_draw",
+            lambda self, screen: diagnostics_clock.advance(0.01),
+        )
 
         report = session.run()
 
         assert report.scheduler_updates == 3
         assert report.control_frames == 3
+        assert report.diagnostics.driver_loop_iterations == 3
+        assert report.diagnostics.driver_loop_mean_ms == 10.0
+        assert report.diagnostics.driver_loop_max_ms == 10.0
+        assert report.diagnostics.render_mean_ms == 10.0
+        assert world.get_snapshot_count == 2
+        assert world.wait_for_tick_calls == []
         assert len(vehicle.applied_controls) == 4
         assert vehicle.applied_controls[-1].brake == 0.5
         assert session.bundle.automation_runtime.state.control_mode is (

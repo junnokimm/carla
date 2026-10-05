@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import carla
 
@@ -10,6 +10,9 @@ from src.experiment.noa_runtime import (
 )
 from src.scenario.driver_view import DriverViewConfig, RuntimeIterationScheduler
 
+if TYPE_CHECKING:
+    from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+
 
 class ResearchNoAViewer(Protocol):
     def attach(self) -> None: ...
@@ -18,6 +21,7 @@ class ResearchNoAViewer(Protocol):
         self,
         duration: float,
         scheduler: RuntimeIterationScheduler | None = None,
+        diagnostics: ResearchNoADiagnostics | None = None,
     ) -> bool: ...
 
     def close(self) -> None: ...
@@ -62,8 +66,18 @@ class ResearchNoAWorldSnapshot(Protocol):
     @property
     def frame(self) -> int: ...
 
+    @property
+    def timestamp(self) -> ResearchNoAWorldTimestamp: ...
+
+
+class ResearchNoAWorldTimestamp(Protocol):
+    @property
+    def elapsed_seconds(self) -> float: ...
+
 
 class ResearchNoAWorld(Protocol):
+    def get_snapshot(self) -> ResearchNoAWorldSnapshot: ...
+
     def get_map(self) -> ResearchNoAMap: ...
 
     def get_blueprint_library(self) -> ResearchNoABlueprintLibrary: ...
