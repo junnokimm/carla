@@ -8,10 +8,11 @@ from src.experiment.noa_runtime import (
     CarlaNoARuntimeMap,
     CarlaNoARuntimeVehicle,
 )
-from src.scenario.driver_view import DriverViewConfig, RuntimeIterationScheduler
+from src.scenario.driver_view import RuntimeIterationScheduler
 
 if TYPE_CHECKING:
     from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+    from src.scenario.research_noa_view import ResearchDriverViewConfig
 
 
 class ResearchNoAViewer(Protocol):
@@ -100,5 +101,5 @@ class ResearchNoAViewerFactory(Protocol):
         self,
         world: ResearchNoAWorld,
         hero: ResearchNoAVehicle,
-        config: DriverViewConfig,
+        config: ResearchDriverViewConfig,
     ) -> ResearchNoAViewer: ...

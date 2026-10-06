@@ -75,6 +75,23 @@ def test_cli_builds_explicit_validated_control_config() -> None:
     assert config.duration == 1.0
     assert config.control_config == make_control_config()
     assert config.vehicle_blueprint == "vehicle.mercedes.coupe_2020"
+    assert config.front_camera_only is False
+
+
+def test_cli_enables_front_camera_only_when_requested() -> None:
+    from src.scenario.research_noa import parse_arguments
+
+    config = parse_arguments(
+        [
+            "--dry-run",
+            "--duration",
+            "1",
+            "--front-camera-only",
+            *EXPLICIT_CONTROL_ARGUMENTS,
+        ]
+    )
+
+    assert config.front_camera_only is True
 
 
 def test_dry_run_preserves_duration_without_live_smoke_cap() -> None:

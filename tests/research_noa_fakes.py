@@ -11,8 +11,8 @@ from src.experiment.automation_scheduler import AutomationRuntimeStateSource
 from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
-from src.scenario.driver_view import DriverViewConfig
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+from src.scenario.research_noa_view import ResearchDriverViewConfig
 from tests.test_noa_runtime import FakeMap, FakeVehicle, make_map
 
 
@@ -230,7 +230,7 @@ FrameAction = Callable[[], None]
 
 
 class FakeDriverView:
-    def __init__(self, config: DriverViewConfig) -> None:
+    def __init__(self, config: ResearchDriverViewConfig) -> None:
         self.config = config
         self.actions: list[FrameAction] = []
         self.received_scheduler: ResearchTestScheduler | None = None
@@ -272,7 +272,7 @@ class FakeDriverViewFactory:
         self,
         world: FakeResearchWorld,
         hero: FakeResearchVehicle,
-        config: DriverViewConfig,
+        config: ResearchDriverViewConfig,
     ) -> FakeDriverView:
         assert world.vehicle is hero
         viewer = FakeDriverView(config)

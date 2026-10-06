@@ -39,6 +39,7 @@ class ResearchNoARunConfig:
     port: int = 2000
     timeout: float = 5.0
     vehicle_blueprint: str = DEFAULT_RESEARCH_VEHICLE_BLUEPRINT
+    front_camera_only: bool = False
 
     def __post_init__(self) -> None:
         if not isfinite(self.duration) or self.duration <= 0.0:
@@ -100,6 +101,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--vehicle-blueprint",
         default=DEFAULT_RESEARCH_VEHICLE_BLUEPRINT,
     )
+    parser.add_argument("--front-camera-only", action="store_true")
     parser.add_argument("--target-speed-kmh", required=True, type=float)
     parser.add_argument("--speed-deadband-kmh", required=True, type=float)
     parser.add_argument("--acceleration-gain", required=True, type=float)
@@ -147,6 +149,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> ResearchNoARunConfig:
             port=args.port,
             timeout=args.timeout,
             vehicle_blueprint=args.vehicle_blueprint,
+            front_camera_only=args.front_camera_only,
         )
     except ValueError as error:
         parser.error(str(error))

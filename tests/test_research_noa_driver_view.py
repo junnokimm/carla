@@ -5,9 +5,10 @@ from collections import defaultdict
 import pygame
 
 from src.experiment.automation import DrivingControlMode
-from src.scenario.driver_view import DriverView, DriverViewConfig
+from src.scenario.driver_view import DriverView
 from src.scenario.research_noa import (
     ResearchDriverView,
+    ResearchDriverViewConfig,
     ResearchLiveDriverView,
     ResearchNoARunConfig,
     ResearchNoARunMode,
@@ -36,7 +37,7 @@ class RealDriverViewFactory:
         self,
         world: FakeResearchWorld,
         hero: FakeResearchVehicle,
-        config: DriverViewConfig,
+        config: ResearchDriverViewConfig,
     ) -> ResearchDriverView:
         assert world.vehicle is hero
         viewer = ResearchDriverView(self.camera_world, hero, config)
@@ -53,7 +54,7 @@ class RealLiveDriverViewFactory:
         self,
         world: FakeResearchWorld,
         hero: FakeResearchVehicle,
-        config: DriverViewConfig,
+        config: ResearchDriverViewConfig,
     ) -> ResearchLiveDriverView:
         assert world.vehicle is hero
         viewer = ResearchLiveDriverView(self.camera_world, hero, config)
@@ -95,6 +96,8 @@ def test_runner_real_driver_view_manual_frames_do_not_inject_control(
 
     with runner.session() as session:
         viewer = viewer_factory.created[0]
+        assert [feed.role for feed in viewer.feeds] == ["front", "left", "right"]
+        assert len(viewer_factory.camera_world.spawn_calls) == 3
         monkeypatch.setattr(viewer, "_update_turn_signal_audio", lambda: None)
         monkeypatch.setattr(viewer, "_draw", lambda screen: None)
 
@@ -123,7 +126,7 @@ def test_live_driver_view_allows_manual_keyboard_control_but_ignores_p_key(
     viewer = ResearchLiveDriverView(
         FakeWorld(),
         hero,
-        DriverViewConfig(initial_driving_mode=DrivingMode.MANUAL),
+        ResearchDriverViewConfig(initial_driving_mode=DrivingMode.MANUAL),
     )
     keys: defaultdict[int, bool] = defaultdict(bool)
     keys[pygame.K_w] = True
@@ -136,6 +139,48 @@ def test_live_driver_view_allows_manual_keyboard_control_but_ignores_p_key(
     assert hero.autopilot_calls == [False]
     assert len(hero.applied_controls) == 1
     assert hero.applied_controls[0].throttle == 1.0
+
+
+def test_runner_front_camera_only_cleans_one_camera_and_hero(monkeypatch) -> None:
+    from src.scenario import driver_view
+
+    audio = FakeTurnSignalAudio()
+    monkeypatch.setattr(driver_view, "TurnSignalAudio", lambda: audio)
+    vehicle = FakeResearchVehicle()
+    world = FakeResearchWorld(vehicle)
+    viewer_factory = RealDriverViewFactory()
+    runner = ResearchNoARunner(
+        ResearchNoARunConfig(
+            duration=1.0,
+            control_config=make_control_config(),
+            front_camera_only=True,
+        ),
+        client=FakeClient(world),
+        viewer_factory=viewer_factory,
+    )
+
+    with runner.session():
+        viewer = viewer_factory.created[0]
+        assert [feed.role for feed in viewer.feeds] == ["front"]
+        assert len(viewer_factory.camera_world.spawn_calls) == 1
+        spawn = viewer_factory.camera_world.spawn_calls[0]
+        assert spawn.blueprint.identifier == "sensor.camera.rgb"
+        assert spawn.attached_to is vehicle
+        assert spawn.attributes == {
+            "image_size_x": "1280",
+            "image_size_y": "720",
+            "fov": "100.0",
+            "exposure_compensation": "0.5",
+        }
+        assert "sensor_tick" not in spawn.attributes
+        viewer._draw(pygame.Surface((1280, 720)))
+        assert [feed.role for feed in viewer.feeds] == ["front"]
+
+    assert [
+        (sensor.stop_count, sensor.destroy_count)
+        for sensor in viewer_factory.camera_world.sensors
+    ] == [(1, 1)]
+    assert vehicle.destroy_count == 1
 
 
 def test_live_runner_real_driver_view_has_one_writer_per_active_frame(

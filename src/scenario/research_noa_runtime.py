@@ -10,7 +10,6 @@ from src.experiment.noa_runtime import (
     CarlaNoARuntimeWaypoint,
     build_noa_runtime,
 )
-from src.scenario.driver_view import DriverViewConfig
 from src.scenario.research_noa_cleanup import destroy_owned_hero
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
 from src.scenario.research_noa_report import ResearchSmokeReport
@@ -31,7 +30,11 @@ from src.scenario.research_noa_types import (
     ResearchNoAViewerFactory,
     ResearchNoAWorld,
 )
-from src.scenario.research_noa_view import ResearchDriverView, ResearchLiveDriverView
+from src.scenario.research_noa_view import (
+    ResearchDriverView,
+    ResearchDriverViewConfig,
+    ResearchLiveDriverView,
+)
 from src.vehicle.driving_mode import DrivingMode
 
 
@@ -131,7 +134,10 @@ class ResearchNoARunner:
         world: ResearchNoAWorld,
         hero: ResearchNoAVehicle,
     ) -> ResearchNoAViewer:
-        config = DriverViewConfig(initial_driving_mode=DrivingMode.MANUAL)
+        config = ResearchDriverViewConfig(
+            initial_driving_mode=DrivingMode.MANUAL,
+            front_camera_only=self._config.front_camera_only,
+        )
         if self._viewer_factory is not None:
             return self._viewer_factory(world, hero, config)
         if self._config.mode is ResearchNoARunMode.LIVE_SMOKE:

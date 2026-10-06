@@ -19,11 +19,13 @@ from src.scenario.research_noa_smoke import ResearchNoAActualSpeedSafetyError
 from src.scenario.research_noa_transmission import ResearchNoATransmissionPrimeError
 from src.scenario.research_noa_view import (
     ResearchDriverView,
+    ResearchDriverViewConfig,
     ResearchLiveDriverView,
 )
 
 __all__ = [
     "ResearchDriverView",
+    "ResearchDriverViewConfig",
     "ResearchLiveDriverView",
     "ResearchNoAActualSpeedSafetyError",
     "ResearchNoACleanupError",

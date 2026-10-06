@@ -4,7 +4,6 @@ import pygame
 import pytest
 
 from src.experiment.automation import AutomationAvailability, DrivingControlMode
-from src.scenario.driver_view import DriverViewConfig
 from src.vehicle.driving_mode import DrivingMode
 from tests.research_noa_fakes import (
     FakeClient,
@@ -40,6 +39,7 @@ def test_runner_composes_owned_hero_map_bundle_and_scheduler() -> None:
         assert session.bundle.control_backend.active is False
         assert vehicle.autopilot_enabled is False
         assert viewer.config.initial_driving_mode is DrivingMode.MANUAL
+        assert viewer.config.front_camera_only is False
         session.run()
         assert viewer.received_scheduler is session.dry_scheduler
 
@@ -83,13 +83,13 @@ def test_dry_run_rejects_activation_and_never_applies_control() -> None:
 
 
 def test_research_driver_view_ignores_legacy_p_key() -> None:
-    from src.scenario.research_noa import ResearchDriverView
+    from src.scenario.research_noa import ResearchDriverView, ResearchDriverViewConfig
 
     hero = FakeHero()
     viewer = ResearchDriverView(
         FakeWorld(),
         hero,
-        DriverViewConfig(initial_driving_mode=DrivingMode.MANUAL),
+        ResearchDriverViewConfig(initial_driving_mode=DrivingMode.MANUAL),
     )
 
     viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_p)])
