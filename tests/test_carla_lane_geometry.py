@@ -35,6 +35,10 @@ class FakeTransform:
 @dataclass(frozen=True, slots=True)
 class FakeWaypoint:
     transform: FakeTransform
+    road_id: int = 36
+    section_id: int = 0
+    lane_id: int = -2
+    lane_width: float = 3.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +120,22 @@ def test_observe_uses_waypoint_transform_and_matches_pure_geometry() -> None:
     observation = adapter.observe(vehicle)
 
     assert observation == expected
+
+
+def test_observe_with_context_preserves_exact_controller_geometry_source() -> None:
+    vehicle = make_vehicle()
+    waypoint = make_waypoint()
+    adapter = CarlaLaneGeometryAdapter(FakeMap(waypoint))
+
+    context = adapter.observe_with_context(vehicle)
+
+    assert context.geometry == adapter.observe(vehicle)
+    assert context.road_id == 36
+    assert context.section_id == 0
+    assert context.lane_id == -2
+    assert context.lane_width_m == pytest.approx(3.5)
+    assert context.vehicle_pose == PlanarPose(8.0, 4.0, radians(20.0))
+    assert context.waypoint_pose == PlanarPose(7.0, 3.0, radians(10.0))
 
 
 def test_adapter_ignores_altitude_in_lane_geometry() -> None:

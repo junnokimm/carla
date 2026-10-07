@@ -8,21 +8,43 @@ from src.experiment.noa_runtime import (
     CarlaNoARuntimeMap,
     CarlaNoARuntimeVehicle,
 )
-from src.scenario.driver_view import RuntimeIterationScheduler
+from src.scenario.driver_view import (
+    ResearchPostControlObserver,
+    RuntimeDriverInputObserver,
+    RuntimeIterationScheduler,
+)
+from src.vehicle.carla_noa_control import CarlaVelocity
+
+__all__ = ["ResearchPostControlObserver"]
 
 if TYPE_CHECKING:
+    from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
+    from src.scenario.research_exit_view import ExitViewBinding
     from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
     from src.scenario.research_noa_view import ResearchDriverViewConfig
 
 
 class ResearchNoAViewer(Protocol):
+    def set_exit_view_binding(self, binding: ExitViewBinding | None) -> None: ...
+
     def attach(self) -> None: ...
+
+    def capture_camera_diagnostics_environment(
+        self,
+        world: ResearchNoAWorld,
+    ) -> None: ...
+
+    def camera_diagnostics_json(
+        self,
+        measurements: ResearchCameraRunMeasurements | None = None,
+    ) -> str | None: ...
 
     def run(
         self,
         duration: float,
         scheduler: RuntimeIterationScheduler | None = None,
         diagnostics: ResearchNoADiagnostics | None = None,
+        input_observer: RuntimeDriverInputObserver | None = None,
     ) -> bool: ...
 
     def close(self) -> None: ...
@@ -52,7 +74,12 @@ class ResearchNoAVehicle(CarlaNoARuntimeVehicle, Protocol):
     @property
     def type_id(self) -> str: ...
 
+    @property
+    def bounding_box(self) -> carla.BoundingBox: ...
+
     def get_control(self) -> carla.VehicleControl: ...
+
+    def get_light_state(self) -> carla.VehicleLightState: ...
 
     def get_physics_control(self) -> ResearchNoAVehiclePhysicsControl: ...
 
@@ -69,6 +96,14 @@ class ResearchNoAWorldSnapshot(Protocol):
 
     @property
     def timestamp(self) -> ResearchNoAWorldTimestamp: ...
+
+    def find(self, actor_id: int) -> ResearchNoAActorSnapshot | None: ...
+
+
+class ResearchNoAActorSnapshot(Protocol):
+    def get_velocity(self) -> CarlaVelocity: ...
+
+    def get_transform(self) -> carla.Transform: ...
 
 
 class ResearchNoAWorldTimestamp(Protocol):

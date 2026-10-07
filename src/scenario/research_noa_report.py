@@ -41,6 +41,7 @@ class ResearchSmokeReport:
     commands: tuple[NoAControlCommand, ...]
     user_exited: bool
     final_control_mode: DrivingControlMode
+    camera_diagnostics_json: str | None
 
     @property
     def control_frames(self) -> int:
@@ -127,12 +128,23 @@ class ResearchSmokeReport:
             ("max_observed_brake", self.diagnostics.max_commanded_brake or 0.0),
             ("mean_commanded_brake", self.diagnostics.mean_commanded_brake),
             ("min_commanded_brake", self.diagnostics.min_commanded_brake),
+            ("mean_applied_throttle", self.diagnostics.mean_applied_throttle),
+            ("max_applied_brake", self.diagnostics.max_applied_brake),
+            ("active_hand_brake_seen", self.diagnostics.active_hand_brake_seen),
+            ("active_reverse_seen", self.diagnostics.active_reverse_seen),
+            (
+                "active_manual_gear_shift_seen",
+                self.diagnostics.active_manual_gear_shift_seen,
+            ),
             ("max_observed_abs_steering", steering),
             ("lane_changed", self.lane_changed),
             ("user_exited", self.user_exited),
             ("final_control_mode", self.final_control_mode.value.lower()),
         )
-        return "\n".join(f"{name}={value}" for name, value in fields)
+        formatted = "\n".join(f"{name}={value}" for name, value in fields)
+        if self.camera_diagnostics_json is None:
+            return formatted
+        return f"{formatted}\ncamera_diagnostics_json={self.camera_diagnostics_json}"
 
 
 def build_research_smoke_report(
@@ -151,6 +163,7 @@ def build_research_smoke_report(
     diagnostics: ResearchNoADiagnosticsSummary,
     user_exited: bool,
     scheduler: ResearchAutomationScheduler,
+    camera_diagnostics_json: str | None,
 ) -> ResearchSmokeReport:
     location = spawn_transform.location
     rotation = spawn_transform.rotation
@@ -186,4 +199,5 @@ def build_research_smoke_report(
         commands=scheduler.commands,
         user_exited=user_exited,
         final_control_mode=scheduler.runtime.state.control_mode,
+        camera_diagnostics_json=camera_diagnostics_json,
     )

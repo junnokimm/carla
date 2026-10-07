@@ -33,6 +33,13 @@ class ResearchWorldTiming:
 
 
 @dataclass(frozen=True, slots=True)
+class OperationTimingSummary:
+    count: int
+    mean_ms: float
+    maximum_ms: float
+
+
+@dataclass(frozen=True, slots=True)
 class ResearchNoADiagnosticsSummary:
     initial_world_frame: int
     final_world_frame: int
@@ -63,6 +70,11 @@ class ResearchNoADiagnosticsSummary:
     min_commanded_brake: float
     max_commanded_brake: float
     mean_commanded_brake: float
+    mean_applied_throttle: float | None
+    max_applied_brake: float | None
+    active_hand_brake_seen: bool
+    active_reverse_seen: bool
+    active_manual_gear_shift_seen: bool
 
 
 class _RunningStats:
@@ -87,6 +99,11 @@ class _RunningStats:
 
 class ResearchNoADiagnostics:
     __slots__ = (
+        "_applied_brake",
+        "_applied_hand_brake_seen",
+        "_applied_manual_gear_shift_seen",
+        "_applied_reverse_seen",
+        "_applied_throttle",
         "_brake",
         "_clock",
         "_gear_change_count",
@@ -98,6 +115,7 @@ class ResearchNoADiagnostics:
         "_loop",
         "_loop_iterations",
         "_loop_started_at",
+        "_operations",
         "_render",
         "_scheduler",
         "_speed",
@@ -110,9 +128,15 @@ class ResearchNoADiagnostics:
         self._loop_iterations = 0
         self._scheduler = _RunningStats()
         self._render = _RunningStats()
+        self._operations: dict[str, _RunningStats] = {}
         self._speed = _RunningStats()
         self._throttle = _RunningStats()
         self._brake = _RunningStats()
+        self._applied_throttle = _RunningStats()
+        self._applied_brake = _RunningStats()
+        self._applied_hand_brake_seen = False
+        self._applied_reverse_seen = False
+        self._applied_manual_gear_shift_seen = False
         self._loop_started_at: float | None = None
         self._gear_count = 0
         self._gear_initial: int | None = None
@@ -144,12 +168,40 @@ class ResearchNoADiagnostics:
     def record_render_duration(self, duration_seconds: float) -> None:
         self._render.record(duration_seconds)
 
+    def record_operation_duration(
+        self, operation: str, duration_seconds: float
+    ) -> None:
+        self._operations.setdefault(operation, _RunningStats()).record(duration_seconds)
+
+    def operation_timing(self, operation: str) -> OperationTimingSummary:
+        stats = self._operations.setdefault(operation, _RunningStats())
+        return OperationTimingSummary(
+            stats.count,
+            _milliseconds(stats.mean),
+            _milliseconds(stats.maximum),
+        )
+
     def record_speed(self, speed_kmh: float) -> None:
         self._speed.record(speed_kmh)
 
     def record_command(self, command: NoAControlCommand) -> None:
         self._throttle.record(command.throttle)
         self._brake.record(command.brake)
+
+    def record_applied_control(
+        self,
+        *,
+        throttle: float,
+        brake: float,
+        hand_brake: bool,
+        reverse: bool,
+        manual_gear_shift: bool,
+    ) -> None:
+        self._applied_throttle.record(throttle)
+        self._applied_brake.record(brake)
+        self._applied_hand_brake_seen |= hand_brake
+        self._applied_reverse_seen |= reverse
+        self._applied_manual_gear_shift_seen |= manual_gear_shift
 
     def record_gear(self, gear: int) -> None:
         if self._gear_final is not None and gear != self._gear_final:
@@ -209,6 +261,11 @@ class ResearchNoADiagnostics:
             min_commanded_brake=self._brake.minimum or 0.0,
             max_commanded_brake=self._brake.maximum or 0.0,
             mean_commanded_brake=self._brake.mean or 0.0,
+            mean_applied_throttle=self._applied_throttle.mean,
+            max_applied_brake=self._applied_brake.maximum,
+            active_hand_brake_seen=self._applied_hand_brake_seen,
+            active_reverse_seen=self._applied_reverse_seen,
+            active_manual_gear_shift_seen=self._applied_manual_gear_shift_seen,
         )
 
 

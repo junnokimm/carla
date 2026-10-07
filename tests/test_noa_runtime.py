@@ -53,6 +53,9 @@ class FakeWaypoint:
         right: FakeWaypoint | None = None,
     ) -> None:
         self.lane_id = lane_id
+        self.road_id = 36
+        self.section_id = 0
+        self.lane_width = 3.5
         self.lane_type = carla.LaneType.Driving
         self.transform = transform
         self.left = left
@@ -117,6 +120,7 @@ def make_control_config() -> NoAControlConfig:
             braking_gain=0.1,
             max_throttle=0.6,
             max_brake=0.7,
+            integral_gain=0.02,
         ),
         lateral=LateralControlConfig(
             lateral_error_gain=0.2,
@@ -187,6 +191,25 @@ def test_composed_scheduler_steps_only_while_noa_is_active() -> None:
     assert len(vehicle.applied_controls) == 1
     assert vehicle.autopilot_calls == [False, False, False]
     assert bundle.control_backend.active is False
+
+
+def test_build_routes_control_clock_to_stateful_longitudinal_control() -> None:
+    vehicle = FakeVehicle()
+    vehicle.velocity = FakeVelocity(35.0 / 3.6, 0.0, 0.0)
+    control_times = iter((0.0, 1.0))
+    bundle = build_noa_runtime(
+        vehicle,
+        make_map(vehicle),
+        make_control_config(),
+        control_clock=control_times.__next__,
+    )
+    bundle.automation_runtime.request_control_mode(DrivingControlMode.NOA_ACTIVE)
+
+    bundle.scheduler.update()
+    bundle.scheduler.update()
+
+    assert vehicle.applied_controls[0].throttle == 0.0
+    assert vehicle.applied_controls[1].throttle > 0.0
 
 
 def test_build_fails_before_exposing_runtime_when_autopilot_disable_fails() -> None:

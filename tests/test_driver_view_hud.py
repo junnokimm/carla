@@ -181,7 +181,7 @@ def test_hud_is_drawn_between_front_view_and_mirrors(monkeypatch) -> None:
         def draw(self, screen, state) -> None:
             screen.blit("hud", (0, 0))
 
-    images = iter(("front", "left", "right"))
+    images = iter(("front", "rear", "left", "right"))
     monkeypatch.setattr(
         driver_view.pygame.image,
         "frombuffer",
@@ -198,6 +198,7 @@ def test_hud_is_drawn_between_front_view_and_mirrors(monkeypatch) -> None:
     viewer = DriverView(FakeWorld(), FakeHero())
     viewer._feeds = [
         CameraFeed("front", FakeSensor(), FakeImage()),
+        CameraFeed("rear", FakeSensor(), FakeImage()),
         CameraFeed("left", FakeSensor(), FakeImage()),
         CameraFeed("right", FakeSensor(), FakeImage()),
     ]
@@ -207,4 +208,4 @@ def test_hud_is_drawn_between_front_view_and_mirrors(monkeypatch) -> None:
 
     viewer._draw(screen)
 
-    assert screen.layers == ["front", "hud", "left", "right"]
+    assert screen.layers == ["front", "hud", "rear", "left", "right"]

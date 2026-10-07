@@ -184,6 +184,68 @@ def test_active_step_maps_and_returns_combined_command() -> None:
     assert applied.manual_gear_shift is False
 
 
+def test_active_backend_accumulates_bounded_propulsion_using_control_time() -> None:
+    vehicle = FakeVehicle(FakeVelocity(35.0 / 3.6, 0.0, 0.0))
+    control_times = iter((0.0, 1.0))
+    config = LongitudinalControlConfig(
+        target_speed_kmh=36.0,
+        speed_deadband_kmh=1.0,
+        acceleration_gain=0.1,
+        braking_gain=0.1,
+        max_throttle=0.6,
+        max_brake=0.7,
+        integral_gain=0.02,
+    )
+    backend = CarlaNoAControlBackend(
+        vehicle,
+        FakeLaneGeometryAdapter(LaneGeometryObservation(0.0, 0.0)),
+        config,
+        make_lateral_config(),
+        control_clock=control_times.__next__,
+    )
+    backend.enter_noa_control()
+
+    initial = backend.step()
+    sustained = backend.step()
+
+    assert initial.throttle == 0.0
+    assert sustained.throttle > 0.0
+    assert sustained.throttle <= config.max_throttle
+    assert sustained.brake == 0.0
+
+
+def test_manual_transition_resets_integral_effort_before_reactivation() -> None:
+    vehicle = FakeVehicle(FakeVelocity(35.0 / 3.6, 0.0, 0.0))
+    control_times = iter((0.0, 1.0, 2.0))
+    config = LongitudinalControlConfig(
+        target_speed_kmh=36.0,
+        speed_deadband_kmh=1.0,
+        acceleration_gain=0.1,
+        braking_gain=0.1,
+        max_throttle=0.6,
+        max_brake=0.7,
+        integral_gain=0.02,
+    )
+    backend = CarlaNoAControlBackend(
+        vehicle,
+        FakeLaneGeometryAdapter(LaneGeometryObservation(0.0, 0.0)),
+        config,
+        make_lateral_config(),
+        control_clock=control_times.__next__,
+    )
+    backend.enter_noa_control()
+    backend.step()
+    learned = backend.step()
+    backend.enter_manual_control()
+
+    backend.enter_noa_control()
+    reactivated = backend.step()
+
+    assert learned.throttle > 0.0
+    assert reactivated.throttle == 0.0
+    assert reactivated.brake == 0.0
+
+
 def test_repeated_mode_entries_are_idempotent_and_side_effect_free() -> None:
     vehicle = FakeVehicle()
     backend = make_backend(vehicle)

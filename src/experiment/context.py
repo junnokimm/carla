@@ -73,10 +73,22 @@ class StudyRunContext:
     participant_id: ParticipantId
     module_1_condition: Module1Condition
     module_2_condition: Module2Condition
+    route_id: str | None = None
+    scenario_version: str | None = None
+    aoi_file_version: str | None = None
+    program_version: str | None = None
 
     def __post_init__(self) -> None:
         _require_nonblank(self.study_run_id, "study_run_id")
         _require_nonblank(self.participant_id, "participant_id")
+        for name, value in (
+            ("route_id", self.route_id),
+            ("scenario_version", self.scenario_version),
+            ("aoi_file_version", self.aoi_file_version),
+            ("program_version", self.program_version),
+        ):
+            if value is not None:
+                _require_nonblank(value, name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,7 +173,9 @@ def validate_segment_sequence(
 
     segment_ids = {segment.segment_id for segment in validated}
     if len(segment_ids) != len(validated):
-        raise ExperimentContextError("segment_id values must be unique within a study run")
+        raise ExperimentContextError(
+            "segment_id values must be unique within a study run"
+        )
 
     for segment in validated:
         if segment.study_run_id != study_run.study_run_id:
@@ -175,10 +189,7 @@ def validate_segment_sequence(
                     raise ExperimentContextError(
                         "MODULE_1 segment must use the assigned condition"
                     )
-            case (
-                ExperimentPhase.MODULE_2
-                | ExperimentPhase.FINAL_HAZARD_ASSESSMENT
-            ):
+            case ExperimentPhase.MODULE_2 | ExperimentPhase.FINAL_HAZARD_ASSESSMENT:
                 if segment.condition is not study_run.module_2_condition:
                     raise ExperimentContextError(
                         "MODULE_2 segments must use the assigned condition"

@@ -13,6 +13,8 @@ EXPLICIT_CONTROL_ARGUMENTS = [
     "0.1",
     "--braking-gain",
     "0.1",
+    "--integral-gain",
+    "0.02",
     "--max-throttle",
     "0.6",
     "--max-brake",
@@ -38,6 +40,8 @@ SAFE_LIVE_CONTROL_ARGUMENTS = [
     "0.1",
     "--braking-gain",
     "0.1",
+    "--integral-gain",
+    "0.02",
     "--max-throttle",
     "0.25",
     "--max-brake",
@@ -53,6 +57,28 @@ SAFE_LIVE_CONTROL_ARGUMENTS = [
     "--max-steering",
     "0.15",
 ]
+
+
+def test_exit_route_uses_safe_v2_manifest_by_default() -> None:
+    from src.scenario.research_noa_cli import _parse_exit_assistance, build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "--dry-run",
+            *EXPLICIT_CONTROL_ARGUMENTS,
+            "--exit-route-id",
+            "town04-exit-39",
+            "--exit-event-id",
+            "development-exit",
+        ]
+    )
+    config = _parse_exit_assistance(parser, args)
+
+    assert config is not None
+    assert config.manifest_path.as_posix().endswith(
+        "config/town04_exit_routes_dev_v3.json"
+    )
 
 
 def test_cli_requires_every_controller_tuning_value(capsys) -> None:
@@ -92,6 +118,148 @@ def test_cli_enables_front_camera_only_when_requested() -> None:
     )
 
     assert config.front_camera_only is True
+
+
+def test_cli_enables_validation_pi_trace_when_requested() -> None:
+    from src.scenario.research_noa import parse_arguments
+
+    config = parse_arguments(["--dry-run", "--pi-trace", *EXPLICIT_CONTROL_ARGUMENTS])
+
+    assert config.pi_trace is True
+
+
+def test_cli_enables_camera_diagnostics_with_run_id_when_requested() -> None:
+    from src.scenario.research_noa import parse_arguments
+
+    config = parse_arguments(
+        [
+            "--dry-run",
+            "--camera-diagnostics",
+            "--run-id",
+            "aba-a1",
+            *EXPLICIT_CONTROL_ARGUMENTS,
+        ]
+    )
+
+    assert config.camera_diagnostics is True
+    assert config.run_id == "aba-a1"
+
+
+def test_cli_builds_opt_in_interaction_with_explicit_development_policy() -> None:
+    from src.experiment.context import ExperimentModule, Module1Condition
+    from src.scenario.research_noa import parse_arguments
+
+    config = parse_arguments(
+        [
+            "--live-smoke",
+            "--spawn-index",
+            "0",
+            "--automation-module",
+            "MODULE_1",
+            "--automation-condition",
+            "NO_SURT",
+            "--activation-center-tolerance-m",
+            "0.2",
+            "--activation-heading-tolerance-rad",
+            "0.1",
+            "--driver-brake-threshold",
+            "0.05",
+            "--button-deactivation",
+            "enabled",
+            "--interaction-stage",
+            "m1_fixture",
+            *SAFE_LIVE_CONTROL_ARGUMENTS,
+        ]
+    )
+
+    interaction = config.automation_interaction
+    assert interaction is not None
+    assert interaction.module is ExperimentModule.MODULE_1
+    assert interaction.condition is Module1Condition.NO_SURT
+    assert interaction.policy.center_tolerance_m == 0.2
+    assert interaction.policy.heading_tolerance_rad == 0.1
+    assert interaction.policy.driver_brake_threshold == 0.05
+    assert interaction.policy.button_deactivation_enabled is True
+    assert interaction.initial_stage == "m1_fixture"
+
+
+def test_cli_requires_every_interaction_policy_value(capsys) -> None:
+    from src.scenario.research_noa import parse_arguments
+
+    with pytest.raises(SystemExit) as caught:
+        parse_arguments(
+            [
+                "--live-smoke",
+                "--spawn-index",
+                "0",
+                "--automation-module",
+                "MODULE_1",
+                *SAFE_LIVE_CONTROL_ARGUMENTS,
+            ]
+        )
+
+    assert caught.value.code == 2
+    assert "--driver-brake-threshold" in capsys.readouterr().err
+
+
+def test_cli_defaults_research_noa_key_to_n() -> None:
+    from src.scenario.research_noa import parse_arguments
+
+    config = parse_arguments(
+        [
+            "--live-smoke",
+            "--spawn-index",
+            "0",
+            "--automation-module",
+            "MODULE_1",
+            "--automation-condition",
+            "NO_SURT",
+            "--activation-center-tolerance-m",
+            "0.2",
+            "--activation-heading-tolerance-rad",
+            "0.1",
+            "--driver-brake-threshold",
+            "0.05",
+            "--button-deactivation",
+            "enabled",
+            *SAFE_LIVE_CONTROL_ARGUMENTS,
+        ]
+    )
+
+    assert config.automation_interaction.noa_key == "n"
+
+
+def test_cli_rejects_research_noa_key_conflicting_with_existing_controls(
+    capsys,
+) -> None:
+    from src.scenario.research_noa import parse_arguments
+
+    with pytest.raises(SystemExit) as caught:
+        parse_arguments(
+            [
+                "--live-smoke",
+                "--spawn-index",
+                "0",
+                "--automation-module",
+                "MODULE_1",
+                "--automation-condition",
+                "NO_SURT",
+                "--activation-center-tolerance-m",
+                "0.2",
+                "--activation-heading-tolerance-rad",
+                "0.1",
+                "--driver-brake-threshold",
+                "0.05",
+                "--button-deactivation",
+                "enabled",
+                "--noa-key",
+                "p",
+                *SAFE_LIVE_CONTROL_ARGUMENTS,
+            ]
+        )
+
+    assert caught.value.code == 2
+    assert "non-conflicting" in capsys.readouterr().err
 
 
 def test_dry_run_preserves_duration_without_live_smoke_cap() -> None:
@@ -152,7 +320,7 @@ def test_live_smoke_requires_explicit_spawn_index(capsys) -> None:
         ("--duration", "21.0", "duration must be <= 20.0"),
         ("--duration", "30", "duration must be <= 20.0"),
         ("--target-speed-kmh", "20.01", "target_speed_kmh must be <= 20.0"),
-        ("--max-throttle", "0.251", "max_throttle must be <= 0.25"),
+        ("--max-throttle", "0.401", "max_throttle must be <= 0.4"),
         ("--max-brake", "0.501", "max_brake must be <= 0.5"),
         ("--max-steering", "0.151", "max_steering must be <= 0.15"),
     ],
@@ -183,6 +351,26 @@ def test_live_smoke_rejects_values_above_safety_caps(
 
     assert caught.value.code == 2
     assert expected_message in capsys.readouterr().err
+
+
+def test_live_smoke_accepts_higher_bounded_throttle_for_target_speed_validation() -> (
+    None
+):
+    from src.scenario.research_noa import parse_arguments
+
+    arguments = [
+        "--live-smoke",
+        "--spawn-index",
+        "0",
+        "--duration",
+        "20",
+        *SAFE_LIVE_CONTROL_ARGUMENTS,
+    ]
+    arguments[arguments.index("--max-throttle") + 1] = "0.4"
+
+    config = parse_arguments(arguments)
+
+    assert config.control_config.longitudinal.max_throttle == pytest.approx(0.4)
 
 
 @pytest.mark.parametrize("duration", [5.0, 10.0, 20.0])

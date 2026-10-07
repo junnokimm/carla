@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 
 import pygame
@@ -96,8 +97,13 @@ def test_runner_real_driver_view_manual_frames_do_not_inject_control(
 
     with runner.session() as session:
         viewer = viewer_factory.created[0]
-        assert [feed.role for feed in viewer.feeds] == ["front", "left", "right"]
-        assert len(viewer_factory.camera_world.spawn_calls) == 3
+        assert [feed.role for feed in viewer.feeds] == [
+            "front",
+            "rear",
+            "left",
+            "right",
+        ]
+        assert len(viewer_factory.camera_world.spawn_calls) == 4
         monkeypatch.setattr(viewer, "_update_turn_signal_audio", lambda: None)
         monkeypatch.setattr(viewer, "_draw", lambda screen: None)
 
@@ -114,7 +120,7 @@ def test_runner_real_driver_view_manual_frames_do_not_inject_control(
     assert [
         (sensor.stop_count, sensor.destroy_count)
         for sensor in (viewer_factory.camera_world.sensors)
-    ] == [(1, 1), (1, 1), (1, 1)]
+    ] == [(1, 1), (1, 1), (1, 1), (1, 1)]
     assert clock.tick_rates == [driver_view.FRAME_RATE] * 3
     assert audio.close_count >= 1
 
@@ -183,6 +189,63 @@ def test_runner_front_camera_only_cleans_one_camera_and_hero(monkeypatch) -> Non
     assert vehicle.destroy_count == 1
 
 
+def test_front_only_camera_diagnostics_tracks_only_owned_front_sensor() -> None:
+    class FakeImage:
+        width = 2
+        height = 2
+        raw_data = bytes(16)
+        frame = 10
+        timestamp = 1.5
+
+    camera_world = FakeWorld()
+    viewer = ResearchDriverView(
+        camera_world,
+        FakeResearchVehicle(),
+        ResearchDriverViewConfig(
+            front_camera_only=True,
+            camera_diagnostics=True,
+            run_id="aba-b",
+        ),
+    )
+    viewer.attach()
+    viewer.feeds[0].receive(FakeImage())
+
+    viewer._draw(pygame.Surface((1280, 720)))
+    payload_json = viewer.camera_diagnostics_json()
+    assert payload_json is not None
+    payload = json.loads(payload_json)
+
+    assert payload["run"]["composition"] == "front_only_1_rgb"
+    assert set(payload["roles"]) == {"front"}
+    assert payload["roles"]["front"]["updated_count"] == 1
+    assert payload["roles"]["front"]["callback_count"] == 1
+    assert payload["roles"]["front"]["sensor"]["image_size_x"] == "1280"
+    assert payload["roles"]["front"]["sensor"]["fov"] == "100.0"
+    assert {"conversion.front", "resize.front", "blit.front"} <= set(payload["timing"])
+    viewer.close()
+
+
+def test_four_camera_diagnostics_does_not_confuse_role_generations() -> None:
+    viewer = ResearchDriverView(
+        FakeWorld(),
+        FakeResearchVehicle(),
+        ResearchDriverViewConfig(camera_diagnostics=True, run_id="aba-a1"),
+    )
+    viewer.attach()
+
+    viewer._draw(pygame.Surface((1280, 720)))
+    payload_json = viewer.camera_diagnostics_json()
+    assert payload_json is not None
+    payload = json.loads(payload_json)
+
+    assert payload["run"]["composition"] == "front_rear_left_right_4_rgb"
+    assert set(payload["roles"]) == {"front", "rear", "left", "right"}
+    assert {
+        role: metrics["no_image_count"] for role, metrics in payload["roles"].items()
+    } == {"front": 1, "rear": 1, "left": 1, "right": 1}
+    viewer.close()
+
+
 def test_live_runner_real_driver_view_has_one_writer_per_active_frame(
     monkeypatch,
 ) -> None:
@@ -246,7 +309,7 @@ def test_live_runner_real_driver_view_has_one_writer_per_active_frame(
         assert report.diagnostics.driver_loop_mean_ms == 10.0
         assert report.diagnostics.driver_loop_max_ms == 10.0
         assert report.diagnostics.render_mean_ms == 10.0
-        assert world.get_snapshot_count == 2
+        assert world.get_snapshot_count == 5
         assert world.wait_for_tick_calls == []
         assert len(vehicle.applied_controls) == 4
         assert vehicle.applied_controls[-1].brake == 0.5

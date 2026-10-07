@@ -124,3 +124,56 @@ def test_run_schedules_backend_from_canonical_state_once_per_frame(
     assert clock.tick_rates == [driver_view.FRAME_RATE] * 3
     assert audio.close_count == 1
     assert quit_count == 1
+
+
+def test_opt_in_observer_records_each_host_loop_segment(monkeypatch) -> None:
+    from src.scenario import driver_view
+
+    class RecordingObserver:
+        def __init__(self) -> None:
+            self.now = 0.0
+            self.segments: list[str] = []
+
+        def timestamp(self) -> float:
+            self.now += 0.001
+            return self.now
+
+        def record_duration(self, segment: str, duration_seconds: float) -> None:
+            assert duration_seconds > 0.0
+            self.segments.append(segment)
+
+        def record_camera_preparation(
+            self, role, snapshot, prepared_at_seconds
+        ) -> None:
+            raise AssertionError("draw is replaced in this loop-segment test")
+
+    observer = RecordingObserver()
+    clock = FakeFrameClock()
+    times = iter((0.0, 0.0, 1.0))
+    monkeypatch.setattr(driver_view.time, "monotonic", lambda: next(times))
+    monkeypatch.setattr(driver_view.pygame.display, "init", lambda: None)
+    monkeypatch.setattr(driver_view.pygame.display, "set_mode", lambda size: None)
+    monkeypatch.setattr(driver_view.pygame.display, "set_caption", lambda title: None)
+    monkeypatch.setattr(driver_view.pygame.display, "flip", lambda: None)
+    monkeypatch.setattr(driver_view.pygame.event, "get", list)
+    monkeypatch.setattr(driver_view.pygame.time, "Clock", lambda: clock)
+    monkeypatch.setattr(driver_view.pygame, "quit", lambda: None)
+    viewer = driver_view.DriverView(
+        FakeWorld(),
+        FakeHero(),
+        performance_observer=observer,
+    )
+    monkeypatch.setattr(viewer, "_apply_manual_control", lambda: None)
+    monkeypatch.setattr(viewer, "_update_turn_signal_audio", lambda: None)
+    monkeypatch.setattr(viewer, "_draw", lambda screen: None)
+
+    viewer.run(1.0)
+
+    assert observer.segments == [
+        "scheduler",
+        "audio",
+        "draw",
+        "display_flip",
+        "fps_limiter",
+        "driver_loop",
+    ]
