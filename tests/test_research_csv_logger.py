@@ -83,9 +83,15 @@ def _read_rows(path: Path) -> list[list[str]]:
 def test_research_csv_logger_creates_distinct_files_with_ordered_headers(tmp_path):
     common_header = (
         "study_run_id",
+        "run_id",
         "participant_id",
+        "session_elapsed_s",
         "module_1_condition",
         "module_2_condition",
+        "assignment_route_id",
+        "scenario_version",
+        "aoi_file_version",
+        "program_version",
         "segment_id",
         "phase",
         "module",

@@ -36,6 +36,18 @@ class CarlaTransform(Protocol):
 
 class CarlaWaypoint(Protocol):
     @property
+    def road_id(self) -> int: ...
+
+    @property
+    def section_id(self) -> int: ...
+
+    @property
+    def lane_id(self) -> int: ...
+
+    @property
+    def lane_width(self) -> float: ...
+
+    @property
     def transform(self) -> CarlaTransform: ...
 
 
@@ -60,6 +72,17 @@ class CarlaLaneGeometryUnavailableError(RuntimeError):
         return f"CARLA lane geometry requires an available {self.resource}"
 
 
+@dataclass(frozen=True, slots=True)
+class CarlaLaneGeometryContext:
+    geometry: LaneGeometryObservation
+    road_id: int
+    section_id: int
+    lane_id: int
+    lane_width_m: float
+    vehicle_pose: PlanarPose
+    waypoint_pose: PlanarPose
+
+
 class CarlaLaneGeometryAdapter:
     def __init__(self, carla_map: CarlaMap | None) -> None:
         if carla_map is None:
@@ -67,6 +90,12 @@ class CarlaLaneGeometryAdapter:
         self._map = carla_map
 
     def observe(self, vehicle: CarlaVehicle | None) -> LaneGeometryObservation:
+        return self.observe_with_context(vehicle).geometry
+
+    def observe_with_context(
+        self,
+        vehicle: CarlaVehicle | None,
+    ) -> CarlaLaneGeometryContext:
         if vehicle is None:
             raise CarlaLaneGeometryUnavailableError("vehicle")
         vehicle_transform = vehicle.get_transform()
@@ -79,15 +108,22 @@ class CarlaLaneGeometryAdapter:
             raise CarlaLaneGeometryUnavailableError("driving lane waypoint")
 
         lane_transform = waypoint.transform
-        return compute_lane_relative_geometry(
-            PlanarPose(
-                x=vehicle_transform.location.x,
-                y=vehicle_transform.location.y,
-                yaw_rad=radians(vehicle_transform.rotation.yaw),
-            ),
-            PlanarPose(
-                x=lane_transform.location.x,
-                y=lane_transform.location.y,
-                yaw_rad=radians(lane_transform.rotation.yaw),
-            ),
+        vehicle_pose = PlanarPose(
+            x=vehicle_transform.location.x,
+            y=vehicle_transform.location.y,
+            yaw_rad=radians(vehicle_transform.rotation.yaw),
+        )
+        waypoint_pose = PlanarPose(
+            x=lane_transform.location.x,
+            y=lane_transform.location.y,
+            yaw_rad=radians(lane_transform.rotation.yaw),
+        )
+        return CarlaLaneGeometryContext(
+            geometry=compute_lane_relative_geometry(vehicle_pose, waypoint_pose),
+            road_id=int(waypoint.road_id),
+            section_id=int(waypoint.section_id),
+            lane_id=int(waypoint.lane_id),
+            lane_width_m=float(waypoint.lane_width),
+            vehicle_pose=vehicle_pose,
+            waypoint_pose=waypoint_pose,
         )

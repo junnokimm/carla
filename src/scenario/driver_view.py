@@ -3,11 +3,17 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Final, Protocol
+from typing import Final, Protocol, runtime_checkable
 
 import carla
 import pygame
 
+from src.experiment.automation import AutomationState
+from src.experiment.automation_interaction import DriverInput
+from src.scenario.camera_feed import (
+    CameraFeed,
+    DriverViewPerformanceObserver,
+)
 from src.scenario.driver_hud import (
     DriverHudRenderer,
     HudRenderer,
@@ -15,6 +21,8 @@ from src.scenario.driver_hud import (
     calculate_speed_kmh,
     gear_from_control,
 )
+from src.scenario.mirror_layout import MirrorLayout as DriverViewLayout
+from src.scenario.mirror_layout import MirrorLayoutSpec, calculate_mirror_layout
 from src.scenario.turn_signal_audio import TurnSignalAudio
 from src.vehicle.driving_mode import DrivingMode, DrivingModeController
 
@@ -28,6 +36,15 @@ class RuntimeIterationScheduler(Protocol):
     """Run optional work once during an existing driver-view iteration."""
 
     def update(self) -> bool: ...
+
+
+class RuntimeDriverInputObserver(Protocol):
+    def update(self, driver_input: DriverInput) -> AutomationState: ...
+
+
+@runtime_checkable
+class ResearchPostControlObserver(Protocol):
+    def after_control_applied(self) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +65,23 @@ class CameraTransform:
             carla.Rotation(pitch=self.pitch, yaw=self.yaw, roll=self.roll),
         )
 
+
+@dataclass(frozen=True, slots=True)
+class RearMirrorConfig:
+    """Rear camera capture and screen-layout settings."""
+
+    resolution: tuple[int, int] = (640, 180)
+    size: tuple[int, int] = (320, 90)
+    fov: float = 90.0
+    top_ratio: float = 5.0 / 36.0
+    transform: CameraTransform = CameraTransform(
+        x=-2.5,
+        y=0.0,
+        z=1.3,
+        yaw=180.0,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class DriverViewConfig:
     """Small set of easily adjustable driver-view prototype settings."""
@@ -55,11 +89,12 @@ class DriverViewConfig:
     window_size: tuple[int, int] = (1280, 720)
     front_resolution: tuple[int, int] = (1280, 720)
     mirror_resolution: tuple[int, int] = (480, 270)
-    mirror_size: tuple[int, int] = (320, 180)
+    mirror_size: tuple[int, int] = (240, 135)
     mirror_margin: int = 24
     fov: float = CAMERA_FOV
     cockpit_fov: float = 105.0
     mirror_fov: float = 100.0
+    rear_mirror: RearMirrorConfig = RearMirrorConfig()
     hud_anchor_ratio: tuple[float, float] = (0.62, 0.62)
     hud_toast_y_ratio: float = 0.58
     hud_mode_toast_duration: float = 1.75
@@ -77,15 +112,6 @@ class DriverViewConfig:
     )
 
 
-@dataclass(frozen=True, slots=True)
-class DriverViewLayout:
-    """Screen positions for the composed driver-view feeds."""
-
-    front_position: tuple[int, int]
-    left_mirror_position: tuple[int, int]
-    right_mirror_position: tuple[int, int]
-
-
 class DriverViewCleanupError(RuntimeError):
     """Raised after every camera cleanup operation was attempted but one failed."""
 
@@ -95,40 +121,28 @@ class DriverViewCleanupError(RuntimeError):
 
 
 def calculate_layout(config: DriverViewConfig) -> DriverViewLayout:
-    """Place mirror overlays at the upper corners of the front view."""
-    window_width, _ = config.window_size
-    mirror_width, _ = config.mirror_size
-    return DriverViewLayout(
-        front_position=(0, 0),
-        left_mirror_position=(config.mirror_margin, config.mirror_margin),
-        right_mirror_position=(
-            window_width - mirror_width - config.mirror_margin,
-            config.mirror_margin,
-        ),
+    """Derive all mirror rectangles from the current window configuration."""
+    return calculate_mirror_layout(
+        MirrorLayoutSpec(
+            window_size=config.window_size,
+            side_size=config.mirror_size,
+            rear_size=config.rear_mirror.size,
+            edge_margin=config.mirror_margin,
+            rear_top_ratio=config.rear_mirror.top_ratio,
+        )
     )
 
 
-@dataclass(slots=True)
-class CameraFeed:
-    """Own a mutable latest image because CARLA sensor callbacks arrive asynchronously."""
-
-    role: str
-    sensor: carla.Actor
-    latest_image: carla.Image | None = None
-
-    def receive(self, image: carla.Image) -> None:
-        """Keep only the most recently delivered camera frame."""
-        self.latest_image = image
-
-
 class DriverView:
-    """Attach and compose a forward feed with two rear-facing mirror feeds."""
+    """Attach and compose a forward feed with three rear-facing mirror feeds."""
 
     def __init__(
         self,
         world: carla.World,
         hero: carla.Actor,
         config: DriverViewConfig | None = None,
+        *,
+        performance_observer: DriverViewPerformanceObserver | None = None,
     ) -> None:
         self._world = world
         self._hero = hero
@@ -137,6 +151,7 @@ class DriverView:
             hero, self._config.initial_driving_mode
         )
         self._steer = 0.0
+        self._pending_driver_input: DriverInput | None = None
         self._cockpit_view = False
         self._hud_enabled = True
         self._mode_toast_started_at: float | None = None
@@ -147,6 +162,7 @@ class DriverView:
         )
         self._turn_signal_audio = TurnSignalAudio()
         self._feeds: list[CameraFeed] = []
+        self._performance_observer = performance_observer
 
     @property
     def feeds(self) -> tuple[CameraFeed, ...]:
@@ -169,9 +185,15 @@ class DriverView:
         return self._hud_enabled
 
     def attach(self) -> None:
-        """Create and attach the front, left-mirror, and right-mirror RGB cameras."""
+        """Create and attach the front and three mirror RGB cameras."""
         mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
             ("front", self._config.front_transform, self._config.front_resolution, self._config.fov),
+            (
+                "rear",
+                self._config.rear_mirror.transform,
+                self._config.rear_mirror.resolution,
+                self._config.rear_mirror.fov,
+            ),
             ("left", self._config.left_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
             ("right", self._config.right_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
         )
@@ -193,6 +215,8 @@ class DriverView:
                 attach_to=self._hero,
             )
             feed = CameraFeed(role=role, sensor=sensor)
+            if self._performance_observer is not None:
+                feed.receipt_clock = self._performance_observer.timestamp
             self._feeds.append(feed)
             sensor.listen(feed.receive)
 
@@ -200,6 +224,7 @@ class DriverView:
         self,
         duration: float,
         scheduler: RuntimeIterationScheduler | None = None,
+        input_observer: RuntimeDriverInputObserver | None = None,
     ) -> bool:
         """Show the composed view until duration elapses or the user exits it."""
         pygame.display.init()
@@ -210,24 +235,92 @@ class DriverView:
             started_at = time.monotonic()
             exited_by_user = False
             while time.monotonic() - started_at < duration:
+                observer = self._performance_observer
+                loop_started_at = observer.timestamp() if observer is not None else 0.0
+                self._begin_iteration()
                 events = pygame.event.get()
-                self._handle_mode_events(events)
+                if input_observer is None:
+                    self._handle_mode_events(events)
                 if self._exit_requested(events):
                     exited_by_user = True
                     break
+                if input_observer is not None:
+                    input_started_at = self._interaction_timestamp()
+                    self._pending_driver_input = self._collect_driver_input(events)
+                    input_observer.update(self._pending_driver_input)
+                    self._record_interaction_duration("input_observer", input_started_at)
+                scheduler_started_at = (
+                    observer.timestamp() if observer is not None else 0.0
+                )
                 control_applied = scheduler.update() if scheduler is not None else False
+                if observer is not None:
+                    observer.record_duration(
+                        "scheduler", observer.timestamp() - scheduler_started_at
+                    )
                 if not control_applied:
                     self._apply_manual_control()
+                if input_observer is not None:
+                    self._handle_mode_events(events)
+                if isinstance(input_observer, ResearchPostControlObserver):
+                    post_started_at = self._interaction_timestamp()
+                    input_observer.after_control_applied()
+                    self._record_interaction_duration("post_control", post_started_at)
+                audio_started_at = observer.timestamp() if observer is not None else 0.0
                 self._update_turn_signal_audio()
+                if observer is not None:
+                    observer.record_duration(
+                        "audio", observer.timestamp() - audio_started_at
+                    )
+                self._prepare_frame()
+                draw_started_at = observer.timestamp() if observer is not None else 0.0
                 self._draw(screen)
+                if observer is not None:
+                    observer.record_duration(
+                        "draw", observer.timestamp() - draw_started_at
+                    )
+                flip_started_at = observer.timestamp() if observer is not None else 0.0
                 pygame.display.flip()
+                self._after_display_flip()
+                if observer is not None:
+                    observer.record_duration(
+                        "display_flip", observer.timestamp() - flip_started_at
+                    )
+                limiter_started_at = (
+                    observer.timestamp() if observer is not None else 0.0
+                )
                 clock.tick(FRAME_RATE)
+                if observer is not None:
+                    observer.record_duration(
+                        "fps_limiter", observer.timestamp() - limiter_started_at
+                    )
+                    observer.record_duration(
+                        "driver_loop", observer.timestamp() - loop_started_at
+                    )
         finally:
             try:
                 self._turn_signal_audio.close()
             finally:
                 pygame.quit()
         return exited_by_user
+
+    def _begin_iteration(self) -> None:
+        return
+
+    def _prepare_frame(self) -> None:
+        return
+
+    def _after_display_flip(self) -> None:
+        return
+
+    def _interaction_timestamp(self) -> float:
+        observer = self._performance_observer
+        return observer.timestamp() if observer is not None else time.perf_counter()
+
+    def _record_interaction_duration(self, operation: str, started_at: float) -> None:
+        if self._performance_observer is not None:
+            self._performance_observer.record_duration(
+                operation, self._interaction_timestamp() - started_at
+            )
 
     def close(self) -> None:
         """Stop and destroy every sensor, including sensors from partial setup."""
@@ -248,19 +341,20 @@ class DriverView:
             raise DriverViewCleanupError(tuple(errors))
 
     def _draw(self, screen: pygame.Surface) -> None:
-        front, left, right = self._feeds
+        front = self._feeds[0]
         layout = calculate_layout(self._config)
         self._blit_image(
             screen,
-            front.latest_image,
+            front,
             self._config.window_size,
             layout.front_position,
         )
-        if self._hud_enabled and self._cockpit_view:
+        hud_driving_mode, hud_mode_label = self._hud_mode()
+        if self._hud_enabled and (self._cockpit_view or hud_mode_label is not None):
             velocity = self._hero.get_velocity()
             control = self._hero.get_control()
-            toast_alpha: int | None = None
-            if self._mode_toast_started_at is not None:
+            toast_alpha = 255 if hud_mode_label is not None else None
+            if hud_mode_label is None and self._mode_toast_started_at is not None:
                 elapsed = time.monotonic() - self._mode_toast_started_at
                 if elapsed < self._config.hud_mode_toast_duration:
                     fade_duration = self._config.hud_mode_toast_duration * 0.35
@@ -280,24 +374,24 @@ class DriverView:
                     gear=gear_from_control(
                         reverse=control.reverse, gear=control.gear
                     ),
-                    driving_mode=self.driving_mode,
+                    driving_mode=hud_driving_mode,
                     mode_toast_alpha=toast_alpha,
+                    mode_label=hud_mode_label,
                 ),
             )
-        self._blit_image(
-            screen,
-            left.latest_image,
-            self._config.mirror_size,
-            layout.left_mirror_position,
-            flip_horizontal=True,
-        )
-        self._blit_image(
-            screen,
-            right.latest_image,
-            self._config.mirror_size,
-            layout.right_mirror_position,
-            flip_horizontal=True,
-        )
+        for feed in self._feeds[1:]:
+            mirror_rect = layout.rect_for(feed.role)
+            if mirror_rect is not None:
+                self._blit_image(
+                    screen,
+                    feed,
+                    mirror_rect.size,
+                    mirror_rect.position,
+                    flip_horizontal=True,
+                )
+
+    def _hud_mode(self) -> tuple[DrivingMode, str | None]:
+        return self.driving_mode, None
 
     def _handle_mode_events(self, events: Sequence[pygame.event.Event]) -> None:
         for event in events:
@@ -359,49 +453,118 @@ class DriverView:
         self._hero.set_light_state(carla.VehicleLightState(updated))
 
     def _update_turn_signal_audio(self) -> None:
+        observer = self._performance_observer
+        light_state_started_at = observer.timestamp() if observer is not None else 0.0
         lights = self._hero.get_light_state()
+        if observer is not None:
+            observer.record_turn_signal_audio_duration(
+                "light_state_rpc",
+                observer.timestamp() - light_state_started_at,
+            )
         blinkers = (
             carla.VehicleLightState.LeftBlinker
             | carla.VehicleLightState.RightBlinker
         )
+        audio_now = time.monotonic()
+        audio_update_started_at = observer.timestamp() if observer is not None else 0.0
         self._turn_signal_audio.update(
             active=bool(lights & blinkers),
-            now=time.monotonic(),
+            now=audio_now,
         )
+        if observer is not None:
+            observer.record_turn_signal_audio_duration(
+                "audio_update",
+                observer.timestamp() - audio_update_started_at,
+            )
 
     def _apply_manual_control(self) -> None:
         if self.driving_mode is not DrivingMode.MANUAL:
             return
+        driver_input = self._pending_driver_input or self._collect_driver_input(())
+        self._pending_driver_input = None
+        control = carla.VehicleControl(
+            throttle=driver_input.throttle,
+            brake=driver_input.brake,
+            steer=driver_input.steering,
+            hand_brake=driver_input.hand_brake,
+        )
+        self._hero.apply_control(control)
+
+    def _collect_driver_input(
+        self, events: Sequence[pygame.event.Event]
+    ) -> DriverInput:
         keys = pygame.key.get_pressed()
         target_steer = float(keys[pygame.K_d]) - float(keys[pygame.K_a])
         self._steer = max(self._steer - STEER_INCREMENT, min(self._steer + STEER_INCREMENT, target_steer))
-        control = carla.VehicleControl(
-            throttle=1.0 if keys[pygame.K_w] else 0.0, brake=1.0 if keys[pygame.K_s] else 0.0,
-            steer=self._steer, hand_brake=keys[pygame.K_SPACE],
+        noa_button_pressed = any(
+            event.type == pygame.KEYDOWN and event.key == pygame.K_n
+            for event in events
         )
-        self._hero.apply_control(control)
+        return DriverInput(
+            throttle=1.0 if keys[pygame.K_w] else 0.0,
+            brake=1.0 if keys[pygame.K_s] else 0.0,
+            steering=self._steer,
+            steering_engaged=bool(keys[pygame.K_a] or keys[pygame.K_d]),
+            activation_requested=noa_button_pressed,
+            deactivation_requested=noa_button_pressed,
+            hand_brake=bool(keys[pygame.K_SPACE]),
+        )
 
     def _reset_manual_control(self) -> None:
         self._steer = 0.0
         self._hero.apply_control(carla.VehicleControl())
 
-    @staticmethod
     def _blit_image(
+        self,
         screen: pygame.Surface,
-        image: carla.Image | None,
+        feed: CameraFeed,
         size: tuple[int, int],
         position: tuple[int, int],
         flip_horizontal: bool = False,
     ) -> None:
+        snapshot = feed.snapshot()
+        observer = self._performance_observer
+        if observer is not None:
+            observer.record_camera_preparation(
+                feed.role,
+                snapshot,
+                observer.timestamp(),
+            )
+        image = snapshot.image
         if image is None:
             return
+        if observer is None:
+            surface = pygame.image.frombuffer(
+                image.raw_data, (image.width, image.height), "BGRA"
+            )
+            scaled_surface = pygame.transform.smoothscale(surface, size)
+            if flip_horizontal:
+                scaled_surface = pygame.transform.flip(scaled_surface, True, False)
+            screen.blit(scaled_surface, position)
+            return
+        started_at = observer.timestamp()
         surface = pygame.image.frombuffer(
             image.raw_data, (image.width, image.height), "BGRA"
         )
+        observer.record_duration(
+            f"conversion.{feed.role}", observer.timestamp() - started_at
+        )
+        started_at = observer.timestamp()
         scaled_surface = pygame.transform.smoothscale(surface, size)
+        observer.record_duration(
+            f"resize.{feed.role}", observer.timestamp() - started_at
+        )
         if flip_horizontal:
+            started_at = observer.timestamp()
             scaled_surface = pygame.transform.flip(scaled_surface, True, False)
+            observer.record_duration(
+                f"mirror_flip.{feed.role}", observer.timestamp() - started_at
+            )
+        started_at = observer.timestamp()
         screen.blit(scaled_surface, position)
+        observer.record_duration(
+            f"blit.{feed.role}", observer.timestamp() - started_at
+        )
 
     @staticmethod
     def _exit_requested(events: Sequence[pygame.event.Event]) -> bool:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from time import monotonic
 from typing import Protocol
 
 import carla
@@ -28,9 +30,10 @@ from src.vehicle.carla_lane_geometry import (
     CarlaTransform,
     CarlaWaypoint,
 )
-from src.vehicle.carla_noa_control import (
-    CarlaNoAControlBackend,
-    CarlaVelocity,
+from src.vehicle.carla_noa_control import CarlaVelocity
+from src.vehicle.carla_noa_simulation_control import (
+    DetailedLaneGeometrySource,
+    SimulationTimeCarlaNoAControlBackend,
 )
 from src.vehicle.driving_mode import AutopilotVehicle
 
@@ -120,24 +123,30 @@ class SingleControlOwnershipBackend:
 class NoARuntimeBundle:
     automation_runtime: AutomationRuntimeController
     scheduler: AutomationControlScheduler
-    control_backend: CarlaNoAControlBackend
+    control_backend: SimulationTimeCarlaNoAControlBackend
     ownership_backend: SingleControlOwnershipBackend
     lane_geometry: CarlaLaneGeometryAdapter
     adjacent_lanes: CarlaAdjacentLaneAdapter
+    control_lane_geometry: DetailedLaneGeometrySource
 
 
 def build_noa_runtime(
     vehicle: CarlaNoARuntimeVehicle,
     carla_map: CarlaNoARuntimeMap,
     control_config: NoAControlConfig,
+    *,
+    control_clock: Callable[[], float] = monotonic,
+    control_lane_geometry: DetailedLaneGeometrySource | None = None,
 ) -> NoARuntimeBundle:
     lane_geometry = CarlaLaneGeometryAdapter(carla_map)
     adjacent_lanes = CarlaAdjacentLaneAdapter(carla_map)
-    control_backend = CarlaNoAControlBackend(
+    backend_geometry = control_lane_geometry or lane_geometry
+    control_backend = SimulationTimeCarlaNoAControlBackend(
         vehicle,
-        lane_geometry,
+        backend_geometry,
         control_config.longitudinal,
         control_config.lateral,
+        control_clock=control_clock,
     )
     ownership_backend = SingleControlOwnershipBackend(vehicle, control_backend)
     ownership_backend.enter_manual_control()
@@ -156,4 +165,5 @@ def build_noa_runtime(
         ownership_backend=ownership_backend,
         lane_geometry=lane_geometry,
         adjacent_lanes=adjacent_lanes,
+        control_lane_geometry=backend_geometry,
     )

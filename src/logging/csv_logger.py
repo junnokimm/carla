@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
+import re
 from pathlib import Path
 from typing import Final, TextIO, assert_never
 
 from src.experiment.context import ExperimentPhase, SegmentContext, StudyRunContext
+from src.experiment.session_clock import SessionClock
 from src.experiment.timestamp import TimestampEnvelope
+from src.logging.research_csv_error import ResearchCsvError
+from src.logging.research_event import ResearchEvent
 from src.vehicle import VehicleState
 
 CSV_HEADER: Final = (
@@ -22,9 +25,15 @@ CSV_HEADER: Final = (
 
 RESEARCH_COMMON_HEADER: Final = (
     "study_run_id",
+    "run_id",
     "participant_id",
+    "session_elapsed_s",
     "module_1_condition",
     "module_2_condition",
+    "assignment_route_id",
+    "scenario_version",
+    "aoi_file_version",
+    "program_version",
     "segment_id",
     "phase",
     "module",
@@ -58,22 +67,7 @@ RESEARCH_EVENT_HEADER: Final = RESEARCH_COMMON_HEADER + (
 )
 
 type CsvValue = str | int | float
-
-
-class ResearchCsvError(ValueError):
-    def __init__(self, message: str) -> None:
-        self.message = message
-        super().__init__(message)
-
-
-@dataclass(frozen=True, slots=True)
-class ResearchEvent:
-    event_type: str
-    event_value: str | None = None
-
-    def __post_init__(self) -> None:
-        if not self.event_type.strip():
-            raise ResearchCsvError("event_type must not be blank")
+SAFE_RUN_ID: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 class VehicleStateCsvLogger:
@@ -109,10 +103,15 @@ class ResearchCsvLogger:
         self,
         study_run: StudyRunContext,
         data_dir: str | Path = "data",
+        *,
+        session_clock: SessionClock | None = None,
     ) -> None:
+        if SAFE_RUN_ID.fullmatch(study_run.study_run_id) is None:
+            raise ResearchCsvError("study_run_id must be path-safe")
         directory = Path(data_dir)
         directory.mkdir(parents=True, exist_ok=True)
         self._study_run = study_run
+        self._session_clock = session_clock
         self.telemetry_path = (
             directory / f"research_telemetry_{study_run.study_run_id}.csv"
         )
@@ -135,6 +134,8 @@ class ResearchCsvLogger:
         self._event_writer = csv.writer(self._event_file)
         self._telemetry_writer.writerow(RESEARCH_TELEMETRY_HEADER)
         self._event_writer.writerow(RESEARCH_EVENT_HEADER)
+        self._telemetry_file.flush()
+        self._event_file.flush()
 
     def write_telemetry(
         self,
@@ -154,6 +155,7 @@ class ResearchCsvLogger:
                 state.indicator,
             )
         )
+        self._telemetry_file.flush()
 
     def write_event(
         self,
@@ -168,6 +170,7 @@ class ResearchCsvLogger:
                 "" if event.event_value is None else event.event_value,
             )
         )
+        self._event_file.flush()
 
     def close(self) -> None:
         self._telemetry_file.close()
@@ -189,10 +192,7 @@ class ResearchCsvLogger:
                     raise ResearchCsvError(
                         "segment condition must match the assigned condition"
                     )
-            case (
-                ExperimentPhase.MODULE_2
-                | ExperimentPhase.FINAL_HAZARD_ASSESSMENT
-            ):
+            case ExperimentPhase.MODULE_2 | ExperimentPhase.FINAL_HAZARD_ASSESSMENT:
                 if segment.condition is not self._study_run.module_2_condition:
                     raise ResearchCsvError(
                         "segment condition must match the assigned condition"
@@ -227,9 +227,19 @@ class ResearchCsvLogger:
         )
         return (
             self._study_run.study_run_id,
+            self._study_run.study_run_id,
             self._study_run.participant_id,
+            (
+                ""
+                if self._session_clock is None
+                else self._session_clock.elapsed_seconds(timestamp.host)
+            ),
             self._study_run.module_1_condition.value,
             self._study_run.module_2_condition.value,
+            self._study_run.route_id or "",
+            self._study_run.scenario_version or "",
+            self._study_run.aoi_file_version or "",
+            self._study_run.program_version or "",
             segment.segment_id,
             segment.phase.value,
             "" if segment.module is None else segment.module.value,

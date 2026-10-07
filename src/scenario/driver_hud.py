@@ -10,6 +10,9 @@ from src.vehicle import speed as vehicle_speed
 from src.vehicle.driving_mode import DrivingMode
 
 calculate_speed_kmh: Final = vehicle_speed.calculate_speed_kmh
+HUD_FOREGROUND: Final = (224, 245, 241)
+HUD_SECONDARY: Final = (166, 214, 208)
+HUD_SHADOW: Final = (5, 15, 18)
 
 
 class Gear(StrEnum):
@@ -28,6 +31,7 @@ class HudState:
     gear: Gear
     driving_mode: DrivingMode
     mode_toast_alpha: int | None = None
+    mode_label: str | None = None
 
 
 class HudRenderer(Protocol):
@@ -87,9 +91,9 @@ class DriverHudRenderer:
     def draw(self, screen: pygame.Surface, state: HudState) -> None:
         """Draw persistent speed/gear and an optional driving-mode toast."""
         speed_text = f"{state.speed_kmh:.0f}"
-        foreground = (224, 245, 241)
-        secondary = (166, 214, 208)
-        shadow = (5, 15, 18)
+        foreground = HUD_FOREGROUND
+        secondary = HUD_SECONDARY
+        shadow = HUD_SHADOW
 
         speed = self._speed_font.render(speed_text, True, foreground)
         speed.set_alpha(232)
@@ -121,7 +125,7 @@ class DriverHudRenderer:
 
         if state.mode_toast_alpha is None:
             return
-        toast_text = driving_mode_label(state.driving_mode)
+        toast_text = state.mode_label or driving_mode_label(state.driving_mode)
         toast = self._toast_font.render(toast_text, True, foreground)
         toast.set_alpha(state.mode_toast_alpha)
         toast_shadow = self._toast_font.render(toast_text, True, shadow)

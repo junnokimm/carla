@@ -35,15 +35,13 @@ def test_v_respawns_only_front_sensor_with_cockpit_relative_transform() -> None:
     viewer = DriverView(world, hero)
     viewer.attach()
     front_feed = viewer.feeds[0]
-    old_front, left_mirror, right_mirror = viewer.sensors
+    old_front, rear_mirror, left_mirror, right_mirror = viewer.sensors
     viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_p)])
     autopilot_calls = tuple(hero.autopilot_calls)
 
-    viewer._handle_mode_events(
-        [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_v)]
-    )
+    viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_v)])
 
-    new_front, current_left, current_right = viewer.sensors
+    new_front, current_rear, current_left, current_right = viewer.sensors
     spawn = world.spawn_calls[-1]
     assert old_front.stop_count == 1
     assert old_front.destroy_count == 1
@@ -58,11 +56,14 @@ def test_v_respawns_only_front_sensor_with_cockpit_relative_transform() -> None:
     assert spawn.attached_to is hero
     assert current_left is left_mirror
     assert current_right is right_mirror
+    assert current_rear is rear_mirror
+    assert rear_mirror.destroy_count == 0
     assert left_mirror.destroy_count == 0
     assert right_mirror.destroy_count == 0
-    assert world.spawn_calls[1].attributes["fov"] == "100.0"
+    assert world.spawn_calls[1].attributes["fov"] == "90.0"
     assert world.spawn_calls[2].attributes["fov"] == "100.0"
-    assert len(viewer.sensors) == 3
+    assert world.spawn_calls[3].attributes["fov"] == "100.0"
+    assert len(viewer.sensors) == 4
     assert viewer.driving_mode is DrivingMode.MANUAL
     assert tuple(hero.autopilot_calls) == autopilot_calls
 
@@ -73,14 +74,14 @@ def test_second_v_restores_driver_sensor_and_cleanup_owns_active_front() -> None
     world = FakeWorld()
     viewer = DriverView(world, FakeHero())
     viewer.attach()
-    _, left_mirror, right_mirror = viewer.sensors
+    _, rear_mirror, left_mirror, right_mirror = viewer.sensors
     toggle = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_v)
     viewer._handle_mode_events([toggle])
     cockpit_front = viewer.sensors[0]
 
     viewer._handle_mode_events([toggle])
 
-    driver_front, current_left, current_right = viewer.sensors
+    driver_front, current_rear, current_left, current_right = viewer.sensors
     spawn = world.spawn_calls[-1]
     assert cockpit_front.stop_count == 1
     assert cockpit_front.destroy_count == 1
@@ -92,12 +93,15 @@ def test_second_v_restores_driver_sensor_and_cleanup_owns_active_front() -> None
     assert spawn.transform.rotation.pitch == pytest.approx(-2.0)
     assert current_left is left_mirror
     assert current_right is right_mirror
-    assert len(viewer.sensors) == 3
+    assert current_rear is rear_mirror
+    assert len(viewer.sensors) == 4
 
     viewer.close()
 
     assert driver_front.stop_count == 1
     assert driver_front.destroy_count == 1
+    assert rear_mirror.stop_count == 1
+    assert rear_mirror.destroy_count == 1
     assert left_mirror.stop_count == 1
     assert left_mirror.destroy_count == 1
     assert right_mirror.stop_count == 1
