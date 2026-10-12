@@ -17,6 +17,7 @@ from src.experiment.exit_assistance import ExitContext
 from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
+from src.p6.config import load_p6_config
 from src.scenario.research_exit_config import ResearchExitAssistanceConfig
 from src.scenario.research_noa_config import (
     DEFAULT_RESEARCH_VEHICLE_BLUEPRINT,
@@ -28,9 +29,7 @@ from src.scenario.research_noa_persistence_config import ResearchPersistenceConf
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run the isolated research NoA validation surface."
-    )
+    parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
         "--dry-run",
@@ -64,12 +63,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--vehicle-blueprint", default=DEFAULT_RESEARCH_VEHICLE_BLUEPRINT
     )
     parser.add_argument("--front-camera-only", action="store_true")
+    parser.add_argument(
+        "--rear-mirror",
+        choices=("enabled", "disabled"),
+        default="disabled",
+    )
     parser.add_argument("--pi-trace", action="store_true")
     parser.add_argument("--camera-diagnostics", action="store_true")
     parser.add_argument("--run-id")
     parser.add_argument("--assignment-file")
     parser.add_argument("--participant-id")
     parser.add_argument("--output-dir")
+    parser.add_argument("--p6-config")
     parser.add_argument(
         "--automation-module", choices=[item.value for item in ExperimentModule]
     )
@@ -150,6 +155,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> ResearchNoARunConfig:
             timeout=args.timeout,
             vehicle_blueprint=args.vehicle_blueprint,
             front_camera_only=args.front_camera_only,
+            rear_mirror_enabled=args.rear_mirror == "enabled",
             pi_trace=args.pi_trace,
             camera_diagnostics=args.camera_diagnostics,
             run_id=args.run_id,
@@ -157,6 +163,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> ResearchNoARunConfig:
             persistence=persistence,
             exit_assistance=exit_assistance,
             development_validation=args.development_validation,
+            p6=None if args.p6_config is None else load_p6_config(args.p6_config),
         )
     except ValueError as error:
         parser.error(str(error))

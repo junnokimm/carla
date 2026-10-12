@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 
 import carla
 
-from src.experiment.automation import DrivingControlMode
+from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction import (
     AutomationInteractionController,
     AutomationInteractionEvent,
@@ -16,11 +17,13 @@ from src.experiment.exit_assistance import (
 )
 from src.experiment.noa_runtime import CarlaNoARuntimeWaypoint, NoARuntimeBundle
 from src.experiment.timestamp import TimestampEnvelope
+from src.p6.runtime import P6Runtime
 from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
 from src.scenario.research_exit_runtime import (
     ResearchExitInteractionObserver,
     ResearchExitViewBinding,
 )
+from src.scenario.research_lane_change import ResearchLaneChangeInteractionObserver
 from src.scenario.research_noa_cleanup import destroy_owned_hero
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
 from src.scenario.research_noa_diagnostics import ResearchWorldTiming
@@ -37,11 +40,19 @@ from src.scenario.research_noa_report import (
     ResearchSmokeReport,
     build_research_smoke_report,
 )
+from src.scenario.research_noa_shutdown import (
+    ShutdownBrakeCommandOutcome,
+    ShutdownBrakeOutcome,
+    ShutdownExceptionDetails,
+    host_timestamp,
+)
 from src.scenario.research_noa_smoke import (
-    ResearchAutomationScheduler,
     ResearchDryRunScheduler,
+    ResearchLiveScheduler,
+    ResearchNoAActualSpeedSafetyError,
     observe_live_smoke_speed_kmh,
 )
+from src.scenario.research_noa_speed_policy import EffectiveResearchSpeedPolicy
 from src.scenario.research_noa_transmission import (
     MonotonicClock,
     TransmissionPrimeContext,
@@ -74,16 +85,19 @@ class ResearchNoASession:
         spawn_transform: carla.Transform,
         spawn_waypoint: CarlaNoARuntimeWaypoint | None,
         dry_scheduler: ResearchDryRunScheduler,
-        live_scheduler: ResearchAutomationScheduler | None,
+        live_scheduler: ResearchLiveScheduler | None,
         monotonic_clock: MonotonicClock,
         interaction: AutomationInteractionController
         | PersistedInteractionObserver
+        | ResearchLaneChangeInteractionObserver
         | ResearchExitInteractionObserver
         | None = None,
         interaction_events: list[AutomationInteractionEvent] | None = None,
         persistence: ResearchNoAPersistence | None = None,
         exit_assistance: ExitAssistanceCoordinator | None = None,
         exit_view_binding: ResearchExitViewBinding | None = None,
+        p6: P6Runtime | None = None,
+        speed_policy: EffectiveResearchSpeedPolicy | None,
     ) -> None:
         self.world = world
         self.hero = hero
@@ -102,7 +116,10 @@ class ResearchNoASession:
         self.persistence = persistence
         self.exit_assistance = exit_assistance
         self.exit_view_binding = exit_view_binding
+        self.p6 = p6
+        self.speed_policy = speed_policy
         self._closed = False
+        self.shutdown_brake_outcome = ShutdownBrakeOutcome.not_attempted()
 
     def request_control_mode(self, mode: DrivingControlMode) -> None:
         if (
@@ -112,9 +129,12 @@ class ResearchNoASession:
             raise ResearchNoADryRunActivationError
         if (
             self.config.mode is ResearchNoARunMode.LIVE_SMOKE
-            and self.bundle.automation_runtime.state.control_mode
-            is DrivingControlMode.NOA_ACTIVE
             and mode is DrivingControlMode.MANUAL
+            and (
+                self.bundle.automation_runtime.state.control_mode
+                is DrivingControlMode.NOA_ACTIVE
+                or self.bundle.traffic_manager_backend is not None
+            )
         ):
             self._deactivate_live()
             return
@@ -157,18 +177,43 @@ class ResearchNoASession:
 
         if self.live_scheduler is None or self.spawn_waypoint is None:
             raise ResearchNoAPreflightError("live smoke preflight is incomplete")
+        speed_policy = self.speed_policy
+        if speed_policy is None and self.config.traffic_manager_port is None:
+            raise ResearchNoAPreflightError("live smoke speed policy is missing")
 
         if (spawn_index := self.config.spawn_index) is None:
             raise ResearchNoAPreflightError("live smoke spawn index is missing")
-        initial_speed_kmh = observe_live_smoke_speed_kmh(self.hero)
+        if self.persistence is not None and speed_policy is not None:
+            self.persistence.record_speed_policy(
+                speed_policy,
+                self.config.control_config,
+            )
+        if (
+            self.persistence is not None
+            and self.config.traffic_manager_port is not None
+        ):
+            self.persistence.record_control_authority(
+                self.config.traffic_manager_port,
+                self.bundle.automation_runtime.state,
+            )
+        try:
+            initial_speed_kmh = self._observe_live_speed("INITIAL")
+        except ResearchNoAActualSpeedSafetyError as error:
+            self._record_speed_violation(error, "NO_CONTROL_PRECONDITION")
+            raise
         brake = self.config.control_config.longitudinal.max_brake
         context = TransmissionPrimeContext(
-            brake, initial_speed_kmh, self.monotonic_clock
+            brake,
+            initial_speed_kmh,
+            self.monotonic_clock,
+            preparation_timeout_seconds=self.config.timeout,
         )
         prime = prime_live_transmission(self.hero, self.world, context)
         initial_snapshot = self.world.get_snapshot()
         started_at = self.monotonic_clock()
         user_exited = False
+        training_completed_early = False
+        active_drive_seconds = 0.0
         try:
             if self.interaction is None:
                 self.request_control_mode(DrivingControlMode.NOA_ACTIVE)
@@ -191,48 +236,114 @@ class ResearchNoASession:
                         interaction_config.condition,
                         failure,
                     )
+                if (
+                    self.bundle.automation_runtime.state.control_mode
+                    is DrivingControlMode.NOA_ACTIVE
+                ):
+                    self._observe_live_speed("POST_INITIALIZATION")
+            if self.p6 is not None:
+                self.p6.start()
             if self.persistence is not None:
                 self.persistence.start_stage()
-            user_exited = self.viewer.run(
-                self.config.duration,
-                scheduler=self.live_scheduler,
-                diagnostics=self.live_scheduler.diagnostics,
-                input_observer=self.interaction,
-            )
-            final_speed_kmh = observe_live_smoke_speed_kmh(self.hero)
+            if self.exit_assistance is not None:
+                if self.persistence is None:
+                    raise ResearchNoAPreflightError("exit timing requires persistence")
+                self.exit_assistance.start_active_drive(
+                    self.persistence.source.get_host_timestamp()
+                )
+            active_drive_started_at = self.monotonic_clock()
+            try:
+                user_exited = self.viewer.run(
+                    self.config.duration,
+                    scheduler=self.live_scheduler,
+                    diagnostics=self.live_scheduler.diagnostics,
+                    input_observer=self.interaction,
+                )
+            finally:
+                active_drive_seconds = self.monotonic_clock() - active_drive_started_at
+            training_completed_early = self.viewer.training_completed_early
+            final_speed_kmh = self._observe_live_speed("FINAL")
         finally:
             elapsed_seconds = self.monotonic_clock() - started_at
-            was_active = (
-                self.bundle.automation_runtime.state.control_mode
-                is DrivingControlMode.NOA_ACTIVE
-            )
+            trigger_state = self.bundle.automation_runtime.state
+            was_active = trigger_state.control_mode is DrivingControlMode.NOA_ACTIVE
             primary_error = sys.exception()
+            shutdown_timestamps: list[TimestampEnvelope | None] = []
+            try:
+                shutdown_timestamps.append(self._shutdown_live())
+            except (OSError, RuntimeError, TypeError, ValueError) as cleanup_error:
+                if primary_error is None:
+                    raise
+                primary_error.add_note(
+                    "Traffic Manager shutdown cleanup failure: "
+                    f"{type(cleanup_error).__name__}:{cleanup_error}"
+                )
+            shutdown_timestamp = (
+                None if not shutdown_timestamps else shutdown_timestamps[0]
+            )
+            if (
+                isinstance(
+                    self.interaction,
+                    (
+                        ResearchLaneChangeInteractionObserver,
+                        ResearchExitInteractionObserver,
+                    ),
+                )
+                and self.persistence is not None
+            ):
+                preserve_primary_error(
+                    lambda: self.interaction.finish_lane_change_observation(
+                        "ERROR"
+                        if primary_error is not None
+                        else "USER_EXIT"
+                        if user_exited
+                        else "NORMAL_STOP",
+                        shutdown_timestamp
+                        if shutdown_timestamp is not None
+                        else self.persistence.source.get_host_timestamp(),
+                    ),
+                    primary_error,
+                )
+            if self.persistence is not None:
+                preserve_primary_error(self.persistence.flush_events, primary_error)
+                if was_active:
+                    preserve_primary_error(
+                        lambda: self.persistence.record_shutdown(
+                            "USER_EXIT" if user_exited else "SAFETY_SHUTDOWN",
+                            self.bundle.automation_runtime.state,
+                            timestamp=shutdown_timestamp,
+                        ),
+                        primary_error,
+                    )
             if self.exit_assistance is not None and self.persistence is not None:
                 exit_reason = (
                     ExitTerminationReason.ERROR
                     if primary_error is not None
                     else ExitTerminationReason.USER_EXIT
                     if user_exited
+                    else ExitTerminationReason.NORMAL
+                    if training_completed_early
                     else ExitTerminationReason.TIME_CAP
                 )
-                self.exit_assistance.finish(
-                    exit_reason,
-                    self.persistence.source.get_host_timestamp(),
+                preserve_primary_error(
+                    lambda: self.exit_assistance.finish(
+                        exit_reason,
+                        self.persistence.source.get_host_timestamp(),
+                    ),
+                    primary_error,
                 )
-            shutdown_timestamp = self._shutdown_live()
+            if self.p6 is not None:
+                preserve_primary_error(self.p6.stop, primary_error)
             if self.persistence is not None:
                 preserve_primary_error(
                     self.persistence.flush_events,
                     primary_error,
                 )
-            if was_active and self.persistence is not None:
-                preserve_primary_error(
-                    lambda: self.persistence.record_shutdown(
-                        "USER_EXIT" if user_exited else "SAFETY_SHUTDOWN",
-                        self.bundle.automation_runtime.state,
-                        timestamp=shutdown_timestamp,
-                    ),
+            if isinstance(primary_error, ResearchNoAActualSpeedSafetyError):
+                self._record_speed_violation(
                     primary_error,
+                    "BOUNDED_SHUTDOWN_REQUESTED",
+                    state=trigger_state,
                 )
         final_snapshot = self.world.get_snapshot()
         diagnostics = self.live_scheduler.diagnostics.summarize(
@@ -271,29 +382,139 @@ class ResearchNoASession:
             final_speed_kmh=final_speed_kmh,
             transmission_prime=prime,
             elapsed_seconds=elapsed_seconds,
+            active_drive_seconds=active_drive_seconds,
             diagnostics=diagnostics,
             user_exited=user_exited,
             scheduler=self.live_scheduler,
             camera_diagnostics_json=camera_diagnostics_json,
+            training_completed_early=training_completed_early,
+            applied_target_speed_kmh=(
+                None
+                if self.bundle.custom_control_backend is None
+                else self.bundle.custom_control_backend.target_speed_kmh
+            ),
         )
 
     def _deactivate_live(self) -> TimestampEnvelope | None:
+        shutdown_timestamp: TimestampEnvelope | None = None
+        phase_exception: ShutdownExceptionDetails | None = None
+        was_active = (
+            self.bundle.automation_runtime.state.control_mode
+            is DrivingControlMode.NOA_ACTIVE
+        )
         try:
             self.bundle.automation_runtime.request_control_mode(
                 DrivingControlMode.MANUAL
             )
-            return (
+            if not was_active and self.bundle.traffic_manager_backend is not None:
+                self.bundle.traffic_manager_backend.ensure_manual_control()
+            shutdown_timestamp = (
                 self.persistence.source.get_host_timestamp()
-                if self.persistence is not None else None
+                if self.persistence is not None
+                else None
             )
+            return shutdown_timestamp
+        except (OSError, RuntimeError, TypeError, ValueError) as error:
+            phase_exception = ShutdownExceptionDetails.from_exception(error)
+            raise
         finally:
-            self.hero.apply_control(
-                carla.VehicleControl(
-                    throttle=0.0,
-                    brake=self.config.control_config.longitudinal.max_brake,
-                    steer=0.0,
-                )
+            brake_control = carla.VehicleControl(
+                throttle=0.0,
+                brake=self.config.control_config.longitudinal.max_brake,
+                steer=0.0,
             )
+            try:
+                self.hero.apply_control(brake_control)
+            except (OSError, RuntimeError, TypeError, ValueError) as error:
+                self.shutdown_brake_outcome = ShutdownBrakeOutcome(
+                    ShutdownBrakeCommandOutcome.RAISED,
+                    requested_throttle=0.0,
+                    requested_brake=float(brake_control.brake),
+                    requested_steer=0.0,
+                    command_started_host=host_timestamp(shutdown_timestamp),
+                    command_exception=ShutdownExceptionDetails.from_exception(error),
+                    shutdown_phase_exception=phase_exception,
+                )
+                if phase_exception is None:
+                    raise
+            else:
+                self.shutdown_brake_outcome = ShutdownBrakeOutcome(
+                    ShutdownBrakeCommandOutcome.RETURNED,
+                    requested_throttle=0.0,
+                    requested_brake=float(brake_control.brake),
+                    requested_steer=0.0,
+                    command_started_host=host_timestamp(shutdown_timestamp),
+                    shutdown_phase_exception=phase_exception,
+                )
+            finally:
+                if self.persistence is not None:
+                    try:
+                        completed = self.persistence.source.get_host_timestamp()
+                    except (OSError, RuntimeError, TypeError, ValueError) as error:
+                        self.shutdown_brake_outcome = replace(
+                            self.shutdown_brake_outcome,
+                            completion_timestamp_exception=(
+                                ShutdownExceptionDetails.from_exception(error)
+                            ),
+                        )
+                    else:
+                        self.shutdown_brake_outcome = replace(
+                            self.shutdown_brake_outcome,
+                            command_completed_host=completed.host,
+                        )
+
+    def _observe_live_speed(self, source: str) -> float:
+        if self.config.traffic_manager_port is not None:
+            return observe_live_smoke_speed_kmh(
+                self.hero,
+                None,
+                source=source,
+            )
+        if self.speed_policy is None:
+            raise ResearchNoAPreflightError("live smoke speed policy is missing")
+        return observe_live_smoke_speed_kmh(
+            self.hero,
+            self.speed_policy.guard_for_mode(
+                self.bundle.automation_runtime.state.control_mode
+            ),
+            source=source,
+        )
+
+    def _record_speed_violation(
+        self,
+        error: ResearchNoAActualSpeedSafetyError,
+        commanded_response: str,
+        *,
+        state: AutomationState | None = None,
+    ) -> None:
+        if self.persistence is None:
+            return
+        speed_policy = self.speed_policy
+        if speed_policy is None:
+            self.persistence.record_nonfinite_speed_violation(
+                self.bundle.automation_runtime.state if state is None else state,
+                source=error.source,
+                commanded_response=commanded_response,
+            )
+            return
+        trigger_state = self.bundle.automation_runtime.state if state is None else state
+
+        def publish_shutdown_brake(outcome: ShutdownBrakeOutcome) -> None:
+            self.shutdown_brake_outcome = outcome
+
+        def record_violation() -> None:
+            self.persistence.record_speed_limit_violation(
+                speed_policy,
+                self.config.control_config,
+                trigger_state,
+                triggering_speed_kmh=error.actual_speed_kmh,
+                source=error.source,
+                commanded_response=commanded_response,
+                shutdown_brake=self.shutdown_brake_outcome,
+                publish_shutdown_brake=publish_shutdown_brake,
+            )
+
+        preserve_primary_error(record_violation, error)
 
     def _shutdown_live(self) -> TimestampEnvelope | None:
         return self._deactivate_live()
@@ -301,11 +522,48 @@ class ResearchNoASession:
     def close(self) -> None:
         if self._closed:
             return
+        inherited_primary = sys.exception()
+        repeated_shutdown_phase_failure = False
         try:
-            self.request_control_mode(DrivingControlMode.MANUAL)
-        finally:
             try:
-                self.viewer.close()
+                if (
+                    inherited_primary is not None
+                    and self.bundle.traffic_manager_backend is not None
+                ):
+                    try:
+                        self.request_control_mode(DrivingControlMode.MANUAL)
+                    except (
+                        OSError,
+                        RuntimeError,
+                        TypeError,
+                        ValueError,
+                    ) as cleanup_error:
+                        inherited_primary.add_note(
+                            "Traffic Manager final deregistration failure: "
+                            f"{type(cleanup_error).__name__}:{cleanup_error}"
+                        )
+                else:
+                    self.request_control_mode(DrivingControlMode.MANUAL)
+            except (OSError, RuntimeError, TypeError, ValueError) as error:
+                phase_exception = self.shutdown_brake_outcome.shutdown_phase_exception
+                repeated_shutdown_phase_failure = isinstance(
+                    inherited_primary,
+                    ResearchNoAActualSpeedSafetyError,
+                ) and phase_exception == ShutdownExceptionDetails.from_exception(error)
+                if not repeated_shutdown_phase_failure:
+                    raise
+        finally:
+            primary_error = (
+                inherited_primary
+                if repeated_shutdown_phase_failure
+                else sys.exception()
+            )
+            try:
+                if self.p6 is not None:
+                    preserve_primary_error(self.p6.close, primary_error)
             finally:
-                destroy_owned_hero(self.hero)
-                self._closed = True
+                try:
+                    self.viewer.close()
+                finally:
+                    destroy_owned_hero(self.hero)
+                    self._closed = True

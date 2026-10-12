@@ -99,11 +99,10 @@ def test_runner_real_driver_view_manual_frames_do_not_inject_control(
         viewer = viewer_factory.created[0]
         assert [feed.role for feed in viewer.feeds] == [
             "front",
-            "rear",
             "left",
             "right",
         ]
-        assert len(viewer_factory.camera_world.spawn_calls) == 4
+        assert len(viewer_factory.camera_world.spawn_calls) == 3
         monkeypatch.setattr(viewer, "_update_turn_signal_audio", lambda: None)
         monkeypatch.setattr(viewer, "_draw", lambda screen: None)
 
@@ -120,7 +119,7 @@ def test_runner_real_driver_view_manual_frames_do_not_inject_control(
     assert [
         (sensor.stop_count, sensor.destroy_count)
         for sensor in (viewer_factory.camera_world.sensors)
-    ] == [(1, 1), (1, 1), (1, 1), (1, 1)]
+    ] == [(1, 1), (1, 1), (1, 1)]
     assert clock.tick_rates == [driver_view.FRAME_RATE] * 3
     assert audio.close_count >= 1
 
@@ -203,6 +202,7 @@ def test_front_only_camera_diagnostics_tracks_only_owned_front_sensor() -> None:
         FakeResearchVehicle(),
         ResearchDriverViewConfig(
             front_camera_only=True,
+            rear_mirror_enabled=True,
             camera_diagnostics=True,
             run_id="aba-b",
         ),
@@ -229,7 +229,11 @@ def test_four_camera_diagnostics_does_not_confuse_role_generations() -> None:
     viewer = ResearchDriverView(
         FakeWorld(),
         FakeResearchVehicle(),
-        ResearchDriverViewConfig(camera_diagnostics=True, run_id="aba-a1"),
+        ResearchDriverViewConfig(
+            rear_mirror_enabled=True,
+            camera_diagnostics=True,
+            run_id="aba-a1",
+        ),
     )
     viewer.attach()
 
@@ -243,6 +247,26 @@ def test_four_camera_diagnostics_does_not_confuse_role_generations() -> None:
     assert {
         role: metrics["no_image_count"] for role, metrics in payload["roles"].items()
     } == {"front": 1, "rear": 1, "left": 1, "right": 1}
+    viewer.close()
+
+
+def test_default_camera_diagnostics_report_only_active_three_roles() -> None:
+    viewer = ResearchDriverView(
+        FakeWorld(),
+        FakeResearchVehicle(),
+        ResearchDriverViewConfig(camera_diagnostics=True, run_id="rear-off"),
+    )
+    viewer.attach()
+
+    viewer._draw(pygame.Surface((1280, 720)))
+    payload_json = viewer.camera_diagnostics_json()
+    assert payload_json is not None
+    payload = json.loads(payload_json)
+
+    assert payload["sensor_count"] == 3
+    assert payload["run"]["composition"] == "front_left_right_3_rgb"
+    assert set(payload["roles"]) == {"front", "left", "right"}
+    assert "rear" not in payload["roles"]
     viewer.close()
 
 

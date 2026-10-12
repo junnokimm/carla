@@ -166,6 +166,7 @@ def snapshot_sample(
         right_transform,
         carla.VehicleControl(),
         "off",
+        0.0,
     )
 
 

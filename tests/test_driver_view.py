@@ -101,12 +101,12 @@ class FakeWorld:
         return sensor
 
 
-def test_attach_creates_four_distinguishable_rgb_cameras_on_hero() -> None:
-    from src.scenario.driver_view import DriverView
+def test_attach_creates_four_distinguishable_rgb_cameras_when_rear_enabled() -> None:
+    from src.scenario.driver_view import DriverView, DriverViewConfig
 
     hero = FakeHero()
     world = FakeWorld()
-    viewer = DriverView(world, hero)
+    viewer = DriverView(world, hero, DriverViewConfig(rear_mirror_enabled=True))
 
     viewer.attach()
 
@@ -131,6 +131,21 @@ def test_attach_creates_four_distinguishable_rgb_cameras_on_hero() -> None:
     }
 
 
+def test_attach_omits_rear_camera_by_default() -> None:
+    from src.scenario.driver_view import DriverView
+
+    world = FakeWorld()
+    viewer = DriverView(world, FakeHero())
+
+    viewer.attach()
+
+    assert [feed.role for feed in viewer.feeds] == ["front", "left", "right"]
+    assert len(world.spawn_calls) == 3
+    assert [call.transform.rotation.yaw for call in world.spawn_calls] == pytest.approx(
+        [0.0, -150.0, 150.0]
+    )
+
+
 def test_close_stops_and_destroys_every_tracked_camera() -> None:
     from src.scenario.driver_view import DriverView
 
@@ -141,7 +156,6 @@ def test_close_stops_and_destroys_every_tracked_camera() -> None:
     viewer.close()
 
     assert [(sensor.stop_count, sensor.destroy_count) for sensor in world.sensors] == [
-        (1, 1),
         (1, 1),
         (1, 1),
         (1, 1),
@@ -166,10 +180,14 @@ def test_close_is_safe_when_camera_initialization_is_incomplete() -> None:
 
 
 def test_close_cleans_all_existing_feeds_when_fourth_camera_spawn_fails() -> None:
-    from src.scenario.driver_view import DriverView
+    from src.scenario.driver_view import DriverView, DriverViewConfig
 
     world = FakeWorld(fail_at_camera=4)
-    viewer = DriverView(world, FakeHero())
+    viewer = DriverView(
+        world,
+        FakeHero(),
+        DriverViewConfig(rear_mirror_enabled=True),
+    )
 
     with pytest.raises(RuntimeError, match="camera spawn failed"):
         viewer.attach()
@@ -233,7 +251,7 @@ def test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps() -> No
     layout = calculate_layout(config)
 
     assert layout.front_position == (0, 0)
-    assert layout.rear_mirror.bounds == (480, 100, 320, 90)
+    assert layout.rear_mirror.bounds == (960, 100, 320, 90)
     assert layout.left_mirror.bounds == (24, 561, 240, 135)
     assert layout.right_mirror.bounds == (1016, 561, 240, 135)
     assert config.mirror_size == (240, 135)
@@ -251,7 +269,7 @@ def test_layout_recomputes_from_custom_window_and_legacy_side_size() -> None:
 
     layout = calculate_layout(config)
 
-    assert layout.rear_mirror.bounds == (640, 125, 320, 90)
+    assert layout.rear_mirror.bounds == (1120, 125, 320, 90)
     assert layout.left_mirror.bounds == (32, 700, 300, 168)
     assert layout.right_mirror.bounds == (1268, 700, 300, 168)
 
@@ -387,7 +405,7 @@ def test_manual_to_autopilot_neutralizes_control_before_enabling_autopilot(
 
 def test_draw_keeps_front_raw_and_flips_all_three_mirrors(monkeypatch) -> None:
     from src.scenario import driver_view
-    from src.scenario.driver_view import CameraFeed, DriverView
+    from src.scenario.driver_view import CameraFeed, DriverView, DriverViewConfig
 
     class FakeImage:
         raw_data = bytes(4)
@@ -427,7 +445,11 @@ def test_draw_keeps_front_raw_and_flips_all_three_mirrors(monkeypatch) -> None:
             or ("flipped", surface[1], surface[2])
         ),
     )
-    viewer = DriverView(FakeWorld(), FakeHero())
+    viewer = DriverView(
+        FakeWorld(),
+        FakeHero(),
+        DriverViewConfig(rear_mirror_enabled=True),
+    )
     viewer._feeds = [
         CameraFeed("front", FakeSensor(), FakeImage()),
         CameraFeed("rear", FakeSensor(), FakeImage()),
@@ -445,7 +467,49 @@ def test_draw_keeps_front_raw_and_flips_all_three_mirrors(monkeypatch) -> None:
     ]
     assert screen.blits == [
         (("scaled", "front", (1280, 720)), (0, 0)),
-        (("flipped", "rear", (320, 90)), (480, 100)),
+        (("flipped", "rear", (320, 90)), (960, 100)),
         (("flipped", "left", (240, 135)), (24, 561)),
         (("flipped", "right", (240, 135)), (1016, 561)),
     ]
+
+
+def test_draw_default_composition_omits_rear_overlay(monkeypatch) -> None:
+    from src.scenario import driver_view
+    from src.scenario.driver_view import CameraFeed, DriverView
+
+    class FakeImage:
+        raw_data = bytes(4)
+        width = 1
+        height = 1
+
+    screen = pygame.Surface((1280, 720))
+    surfaces = iter(
+        (
+            pygame.Surface((1, 1)),
+            pygame.Surface((1, 1)),
+            pygame.Surface((1, 1)),
+        )
+    )
+    flip_count = 0
+
+    def record_flip(surface, flip_x, flip_y):
+        nonlocal flip_count
+        flip_count += 1
+        return surface
+
+    monkeypatch.setattr(
+        driver_view.pygame.image,
+        "frombuffer",
+        lambda raw_data, size, format_name: next(surfaces),
+    )
+    monkeypatch.setattr(driver_view.pygame.transform, "flip", record_flip)
+    viewer = DriverView(FakeWorld(), FakeHero())
+    viewer._feeds = [
+        CameraFeed("front", FakeSensor(), FakeImage()),
+        CameraFeed("left", FakeSensor(), FakeImage()),
+        CameraFeed("right", FakeSensor(), FakeImage()),
+    ]
+
+    viewer._draw(screen)
+
+    assert flip_count == 2

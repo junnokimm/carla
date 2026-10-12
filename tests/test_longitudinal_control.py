@@ -8,6 +8,7 @@ from src.experiment import longitudinal_control
 from src.experiment.longitudinal_control import (
     LongitudinalControlCommand,
     LongitudinalControlConfig,
+    LongitudinalController,
     LongitudinalControlValidationError,
     compute_longitudinal_control,
 )
@@ -169,6 +170,31 @@ def test_large_negative_error_clamps_maximum_brake() -> None:
     assert command == LongitudinalControlCommand(throttle=0.0, brake=0.7)
 
 
+def test_high_dev_cap_allows_saturated_one_without_integral_windup() -> None:
+    config = LongitudinalControlConfig(25.0, 0.2, 0.1, 0.1, 1.0, 0.5, 0.02)
+    controller = longitudinal_control.LongitudinalController(config)
+
+    initial = controller.compute(0.0, control_time_seconds=0.0)
+    repeated = controller.compute(0.0, control_time_seconds=10.0)
+
+    assert initial == LongitudinalControlCommand(1.0, 0.0)
+    assert repeated == initial
+    assert controller.integral_effort == 0.0
+
+
+def test_high_dev_cap_near_target_is_fractional_and_overspeed_brakes() -> None:
+    config = LongitudinalControlConfig(25.0, 0.2, 0.1, 0.1, 1.0, 0.5, 0.02)
+    controller = longitudinal_control.LongitudinalController(config)
+    controller.compute(24.0, control_time_seconds=0.0)
+
+    near_target = controller.compute(24.0, control_time_seconds=1.0)
+    overspeed = controller.compute(40.0, control_time_seconds=1.0)
+
+    assert 0.0 < near_target.throttle < 1.0
+    assert near_target.brake == 0.0
+    assert overspeed == LongitudinalControlCommand(0.0, 0.5)
+
+
 @pytest.mark.parametrize(
     "current_speed_kmh", [0.0, 95.0, 98.0, 100.0, 102.0, 105.0, 200.0]
 )
@@ -281,3 +307,29 @@ def test_invalid_command_range_is_rejected(throttle: float, brake: float) -> Non
 def test_command_rejects_simultaneous_throttle_and_brake() -> None:
     with pytest.raises(LongitudinalControlValidationError):
         LongitudinalControlCommand(throttle=0.1, brake=0.1)
+
+
+def test_pending_target_rejects_computation_until_activation_capture() -> None:
+    config = LongitudinalControlConfig(None, 2.0, 0.1, 0.1, 0.6, 0.7, 0.02)
+    controller = LongitudinalController(config)
+
+    with pytest.raises(LongitudinalControlValidationError) as caught:
+        controller.compute(0.0, control_time_seconds=0.0)
+
+    assert caught.value.field == "target_speed_kmh"
+    assert caught.value.value is None
+
+
+def test_setting_captured_target_resets_existing_pi_state() -> None:
+    controller = LongitudinalController(
+        LongitudinalControlConfig(10.0, 2.0, 0.1, 0.1, 0.6, 0.7, 0.02)
+    )
+    controller.compute(9.0, control_time_seconds=0.0)
+    controller.compute(9.0, control_time_seconds=10.0)
+
+    controller.set_target_speed_kmh(9.0)
+    command = controller.compute(9.0, control_time_seconds=20.0)
+
+    assert command == LongitudinalControlCommand(0.0, 0.0)
+    assert controller.integral_effort == 0.0
+    assert controller.delta_seconds == 0.0

@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+from src.p7.types import Json
+from src.p8.model import Stage
+
+
+class SessionComponents(Protocol):
+    kind: str
+
+    def enter(self, stage: Stage) -> None: ...
+
+    def leave(self, stage: Stage) -> None: ...
+
+    def tick(self) -> None: ...
+
+    def completion_blocker(self, stage: Stage) -> str | None: ...
+
+    def record_receipt(self, name: str, status: str, value: Json) -> None: ...
+
+    def flush(self) -> None: ...
+
+    def cleanup(self) -> None: ...
+
+    def snapshot(self) -> dict[str, Json]: ...

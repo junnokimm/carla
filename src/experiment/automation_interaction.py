@@ -37,7 +37,7 @@ class AutomationInteractionController:
         runtime: AutomationRuntimeController,
         geometry: ActivationGeometry,
         vehicle: ActivationVehicle,
-        steering_target: SteeringOverrideTarget,
+        steering_target: SteeringOverrideTarget | None,
         config: AutomationInteractionConfig,
         event_sink: Callable[[AutomationInteractionEvent], None],
     ) -> None:
@@ -108,19 +108,34 @@ class AutomationInteractionController:
         if self.state.control_mode is DrivingControlMode.MANUAL:
             if driver_input.activation_requested:
                 self._request_activation_before_gate(driver_input)
+            if (
+                self.state.control_mode is DrivingControlMode.NOA_ACTIVE
+                and driver_input.steering_engaged
+                and self._config.steering_deactivation_enabled
+            ):
+                self._disengage(DeactivationReason.DRIVER_STEERING, driver_input.stage)
+                return self.state
             override = (
                 driver_input.steering
                 if self.state.control_mode is DrivingControlMode.NOA_ACTIVE
                 and driver_input.steering_engaged
                 else None
             )
-            self._steering_target.set_driver_steering(override)
+            if self._steering_target is not None:
+                self._steering_target.set_driver_steering(override)
             return self.state
         if (
             self.state.control_mode is DrivingControlMode.NOA_ACTIVE
             and driver_input.brake >= self._config.driver_brake_threshold
         ):
             self._disengage(DeactivationReason.DRIVER_BRAKE, driver_input.stage)
+            return self.state
+        if (
+            self.state.control_mode is DrivingControlMode.NOA_ACTIVE
+            and driver_input.steering_engaged
+            and self._config.steering_deactivation_enabled
+        ):
+            self._disengage(DeactivationReason.DRIVER_STEERING, driver_input.stage)
             return self.state
         if (
             driver_input.deactivation_requested
@@ -140,7 +155,8 @@ class AutomationInteractionController:
             and driver_input.steering_engaged
             else None
         )
-        self._steering_target.set_driver_steering(override)
+        if self._steering_target is not None:
+            self._steering_target.set_driver_steering(override)
         return self.state
 
     def after_control_applied(self) -> None:
@@ -228,7 +244,8 @@ class AutomationInteractionController:
 
     def _disengage(self, reason: DeactivationReason, stage: str | None) -> None:
         self._runtime.request_control_mode(DrivingControlMode.MANUAL)
-        self._steering_target.set_driver_steering(None)
+        if self._steering_target is not None:
+            self._steering_target.set_driver_steering(None)
         self._emit_disengagement(reason, stage)
 
     def _emit_disengagement(

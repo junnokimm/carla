@@ -57,6 +57,7 @@ class FakeWaypoint:
         self.section_id = 0
         self.lane_width = 3.5
         self.lane_type = carla.LaneType.Driving
+        self.lane_change = carla.LaneChange.Both
         self.transform = transform
         self.left = left
         self.right = right

@@ -25,6 +25,7 @@ from tests.test_driver_view_runtime import FakeFrameClock, FakeTurnSignalAudio
 class ExitKeys:
     confirm_key: str = "c"
     reject_key: str = "r"
+    indicator_confirmation: bool = False
 
 
 class RecordingExitBinding:

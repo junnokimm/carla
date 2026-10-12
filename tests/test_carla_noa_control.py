@@ -316,3 +316,20 @@ def test_backend_satisfies_automation_runtime_transition_protocol() -> None:
 
     controller.request_control_mode(DrivingControlMode.MANUAL)
     assert backend.active is False
+
+
+def test_backend_applies_captured_target_to_existing_controller() -> None:
+    vehicle = FakeVehicle(FakeVelocity(55.0 / 3.6, 0.0, 0.0))
+    backend = CarlaNoAControlBackend(
+        vehicle,
+        FakeLaneGeometryAdapter(LaneGeometryObservation(0.0, 0.0)),
+        LongitudinalControlConfig(None, 1.0, 0.1, 0.1, 0.6, 0.7, 0.02),
+        make_lateral_config(),
+    )
+    backend.enter_noa_control()
+
+    backend.set_target_speed_kmh(55.0)
+    command = backend.step()
+
+    assert backend.target_speed_kmh == 55.0
+    assert command == NoAControlCommand(0.0, 0.0, 0.0)

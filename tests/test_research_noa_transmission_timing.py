@@ -7,7 +7,11 @@ from src.scenario.research_noa import ResearchNoATransmissionPrimeError
 from src.scenario.research_noa_transmission import (
     ResearchTransmissionPrimeFailure,
 )
-from tests.research_noa_fakes import FakeResearchVehicle
+from src.scenario.research_noa_transmission_preparation import (
+    TransmissionPreparationError,
+    TransmissionPreparationFailure,
+)
+from tests.research_noa_fakes import FakeResearchVehicle, FakeWorldSnapshot
 from tests.research_noa_transmission_support import (
     make_transmission_fixture,
     run_live_frames,
@@ -22,8 +26,8 @@ def test_deadline_tick_engagement_succeeds_before_timeout_check() -> None:
     report = run_live_frames(fixture, 1)
 
     assert report.post_prime_gear == 1
-    assert fixture.clock() == pytest.approx(0.5)
-    assert len(fixture.world.wait_for_tick_calls) == 5
+    assert fixture.clock() == pytest.approx(0.6)
+    assert len(fixture.world.wait_for_tick_calls) == 6
 
 
 def test_failed_prime_confirmation_blocks_noa_activation() -> None:
@@ -72,6 +76,65 @@ def test_wait_for_tick_failure_blocks_activation_and_preserves_cause() -> None:
     assert len(fixture.vehicle.applied_controls) == 1
     assert len(fixture.world.wait_for_tick_calls) == 1
     assert fixture.vehicle.destroy_count == 1
+
+
+def test_manual_confirmation_rejects_first_tick_at_baseline_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = make_transmission_fixture(
+        FakeResearchVehicle(initial_gear=0, prime_engages_after_ticks=1)
+    )
+    original_wait_for_tick = fixture.world.wait_for_tick
+
+    def stale_wait_for_tick(seconds: float) -> FakeWorldSnapshot:
+        original_wait_for_tick(seconds)
+        return FakeWorldSnapshot(0)
+
+    monkeypatch.setattr(fixture.world, "wait_for_tick", stale_wait_for_tick)
+
+    with (
+        pytest.raises(ResearchNoATransmissionPrimeError) as caught,
+        fixture.runner.session() as session,
+    ):
+        session.run()
+
+    assert caught.value.failure is ResearchTransmissionPrimeFailure.CONFIRMATION_TIMEOUT
+    assert isinstance(caught.value.__cause__, TransmissionPreparationError)
+    assert caught.value.__cause__.failure is TransmissionPreparationFailure.FRAME
+    assert len(fixture.vehicle.applied_controls) == 1
+    assert session.live_scheduler is not None
+    assert session.live_scheduler.commands == ()
+
+
+def test_automatic_confirmation_rejects_manual_phase_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = make_transmission_fixture(
+        FakeResearchVehicle(initial_gear=0, prime_engages_after_ticks=1)
+    )
+    original_wait_for_tick = fixture.world.wait_for_tick
+    tick_count = 0
+
+    def repeated_phase_frame(seconds: float) -> FakeWorldSnapshot:
+        nonlocal tick_count
+        snapshot = original_wait_for_tick(seconds)
+        tick_count += 1
+        return FakeWorldSnapshot(1) if tick_count == 2 else snapshot
+
+    monkeypatch.setattr(fixture.world, "wait_for_tick", repeated_phase_frame)
+
+    with (
+        pytest.raises(ResearchNoATransmissionPrimeError) as caught,
+        fixture.runner.session() as session,
+    ):
+        session.run()
+
+    assert caught.value.failure is ResearchTransmissionPrimeFailure.AUTOMATIC_ENGAGEMENT
+    assert isinstance(caught.value.__cause__, TransmissionPreparationError)
+    assert caught.value.__cause__.failure is TransmissionPreparationFailure.FRAME
+    assert len(fixture.vehicle.applied_controls) == 2
+    assert session.live_scheduler is not None
+    assert session.live_scheduler.commands == ()
 
 
 @pytest.mark.parametrize("gear_switch_time", [-0.1, float("nan"), float("inf")])

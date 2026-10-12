@@ -22,6 +22,9 @@ class ExitViewKeyConfig(Protocol):
     @property
     def reject_key(self) -> str: ...
 
+    @property
+    def indicator_confirmation(self) -> bool: ...
+
 
 class ExitViewBinding(Protocol):
     @property
@@ -58,6 +61,10 @@ class ResearchExitViewController:
         if self._prepared is None or not self._prepared.recommendation:
             self._active_recommendation = None
 
+    @property
+    def indicator_confirmation(self) -> bool:
+        return self._binding is not None and self._binding.config.indicator_confirmation
+
     def draw(self, screen: pygame.Surface, *, hud_enabled: bool) -> None:
         if not hud_enabled or self._prepared is None or self._binding is None:
             self._active_recommendation = None
@@ -79,7 +86,11 @@ class ResearchExitViewController:
             self._presented_event_ids.add(prepared.lc_event_id)
         self._active_recommendation = prepared if prepared.recommendation else None
 
-    def requests(self, events: list[KeyEvent]) -> tuple[bool, bool]:
+    def requests(
+        self,
+        events: list[KeyEvent],
+        active_indicator_keys: frozenset[int] = frozenset(),
+    ) -> tuple[bool, bool]:
         if self._binding is None:
             return False, False
         confirm_key = ord(self._binding.config.confirm_key)
@@ -101,6 +112,11 @@ class ResearchExitViewController:
                 continue
             self._keys_down.add(event.key)
             if self._active_recommendation is None:
+                continue
+            if (
+                self._binding.config.indicator_confirmation
+                and event.key in active_indicator_keys
+            ):
                 continue
             if event.key == confirm_key:
                 confirm_requested = True

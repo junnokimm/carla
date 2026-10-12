@@ -29,6 +29,7 @@ class ExitAssistanceStatus(StrEnum):
     NORESPONSE = "NORESPONSE"
     COMPLETED = "COMPLETED"
     INTERRUPTED = "INTERRUPTED"
+    NOT_PRESENTED = "NOT_PRESENTED"
 
 
 class ExitTerminationReason(StrEnum):
@@ -55,6 +56,9 @@ class ExitAssistanceConfig:
     response_timeout_s: float
     lateral_onset_threshold_m: float
     steering_onset_threshold: float = 0.05
+    assisted_execution_enabled: bool = True
+    eligibility_open_s: float | None = None
+    eligibility_close_s: float | None = None
 
     def __post_init__(self) -> None:
         match self.module, self.condition:
@@ -87,6 +91,20 @@ class ExitAssistanceConfig:
         if not all(isfinite(value) and value > 0.0 for value in values):
             raise ExitAssistanceConfigError(
                 "exit assistance values must be finite and positive"
+            )
+        window = (self.eligibility_open_s, self.eligibility_close_s)
+        if (window[0] is None) != (window[1] is None):
+            raise ExitAssistanceConfigError(
+                "eligibility window open and close must be supplied together"
+            )
+        if window[0] is not None and window[1] is not None and (
+            not isfinite(window[0])
+            or not isfinite(window[1])
+            or window[0] < 0.0
+            or window[1] < window[0]
+        ):
+            raise ExitAssistanceConfigError(
+                "eligibility window must be finite, non-negative, and ordered"
             )
 
 

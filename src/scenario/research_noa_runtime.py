@@ -7,23 +7,32 @@ from time import monotonic, perf_counter
 
 import carla
 
-from src.experiment.automation import AutomationState
+from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction import (
     AutomationInteractionController,
     AutomationInteractionEvent,
     DriverInput,
 )
+from src.experiment.automation_interaction_types import AutomationInteractionEventType
 from src.experiment.exit_assistance import (
     ExitAssistanceConfig,
     ExitAssistanceCoordinator,
 )
-from src.experiment.exit_route import ExitRoute
+from src.experiment.exit_route import ExitRoute, ExitRouteError
 from src.experiment.noa_runtime import CarlaNoARuntimeWaypoint, build_noa_runtime
+from src.experiment.session_clock import SessionClock
 from src.logging.csv_logger import ResearchCsvLogger
+from src.p6.clock import SessionOrigin
+from src.p6.runtime import P6Runtime
 from src.scenario.research_exit_runtime import (
     ResearchExitInteractionObserver,
     ResearchExitObservationSource,
     ResearchExitViewBinding,
+)
+from src.scenario.research_exit_spawn import validate_exit_spawn
+from src.scenario.research_lane_change import (
+    LaneChangeCorrelation,
+    ResearchLaneChangeInteractionObserver,
 )
 from src.scenario.research_noa_cleanup import destroy_owned_hero
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
@@ -31,12 +40,13 @@ from src.scenario.research_noa_diagnostics import (
     PerformanceClock,
     ResearchNoADiagnostics,
 )
-from src.scenario.research_noa_log_setup import open_research_log
+from src.scenario.research_noa_log_setup import OpenResearchLog, open_research_log
 from src.scenario.research_noa_persistence import (
     PersistedInteractionObserver,
     ResearchLogPaths,
     ResearchNoAObservationSource,
     ResearchNoAPersistence,
+    build_study_run,
 )
 from src.scenario.research_noa_report import ResearchSmokeReport
 from src.scenario.research_noa_session import (
@@ -46,7 +56,14 @@ from src.scenario.research_noa_session import (
 from src.scenario.research_noa_smoke import (
     ResearchAutomationScheduler,
     ResearchDryRunScheduler,
+    ResearchNoAActualSpeedSafetyError,
     ResearchNoAPiTracePrinter,
+    validate_live_smoke_speed_kmh,
+)
+from src.scenario.research_noa_speed_policy import RESEARCH_MANUAL_MAX_THROTTLE
+from src.scenario.research_noa_traffic_manager import (
+    TrafficManagerScheduler,
+    build_traffic_manager_noa_runtime,
 )
 from src.scenario.research_noa_transmission import MonotonicClock
 from src.scenario.research_noa_types import (
@@ -62,6 +79,10 @@ from src.scenario.research_noa_view import (
     ResearchDriverViewConfig,
     ResearchLiveDriverView,
     ResearchManualControlLimits,
+)
+from src.scenario.research_traffic_light import (
+    ResearchTrafficLightObserver,
+    TrafficLightRuntimeMetadata,
 )
 from src.vehicle.carla_exit_route import (
     SwitchableRouteLaneGeometrySource,
@@ -91,6 +112,7 @@ class ResearchNoARunner:
         exit_route_validator: Callable[
             [ExitRoute, ResearchNoAMap, ResearchNoAVehicle], None
         ] = validate_exit_route_map,
+        borrowed_log: OpenResearchLog | None = None,
     ) -> None:
         self._config = config
         self._client = client
@@ -103,38 +125,135 @@ class ResearchNoARunner:
         self._utc_ns = utc_ns
         self._performance_clock = performance_clock
         self._exit_route_validator = exit_route_validator
+        self._borrowed_log = borrowed_log
         self.log_paths: ResearchLogPaths | None = None
+
+    @property
+    def client_source(self) -> str:
+        return "REAL_CARLA_RPC" if self._client is None else "INJECTED_TEST_CLIENT"
+
+    @property
+    def driver_input_source(self) -> str:
+        if self._driver_input_source is not None:
+            return "INJECTED_TEST_DRIVER_INPUT"
+        if self._viewer_factory is not None:
+            return "INJECTED_TEST_VIEWER"
+        return "REAL_KEYBOARD_PATH"
+
+    @property
+    def config(self) -> ResearchNoARunConfig:
+        return self._config
+
+    @property
+    def borrowed_log(self) -> OpenResearchLog | None:
+        return self._borrowed_log
 
     @contextmanager
     def session(self) -> Iterator[ResearchNoASession]:
         persistence = self._config.persistence
-        opened = (
-            None
-            if persistence is None
-            else open_research_log(persistence, self._monotonic_ns, self._utc_ns)
-        )
+        opened = self._borrowed_log
+        owns_logger = False
+        if opened is None and persistence is not None:
+            opened = open_research_log(persistence, self._monotonic_ns, self._utc_ns)
+            owns_logger = True
+        if opened is not None and persistence is None:
+            raise ResearchNoAPreflightError(
+                "borrowed research log requires persistence config"
+            )
+        if (
+            opened is not None
+            and persistence is not None
+            and opened.study_run != build_study_run(persistence)
+        ):
+            raise ResearchNoAPreflightError(
+                "borrowed research log context does not match persistence config"
+            )
         logger = None if opened is None else opened.logger
         self.log_paths = None if opened is None else opened.paths
+        p6 = None
         try:
-            with closing(self._create_session(logger)) as session:
+            if self._config.p6 is not None:
+                if opened is None or persistence is None:
+                    raise ResearchNoAPreflightError("P6 requires an open research log")
+                origin = opened.session_clock.origin
+                p6 = P6Runtime(
+                    config=self._config.p6,
+                    run_id=persistence.run_id,
+                    output_dir=persistence.output_dir,
+                    origin=SessionOrigin(origin.monotonic_ns, origin.utc_ns),
+                    monotonic_ns=self._monotonic_ns,
+                    utc_ns=self._utc_ns,
+                )
+            with closing(
+                self._create_session(
+                    logger,
+                    p6,
+                    None if opened is None else opened.session_clock,
+                )
+            ) as session:
                 yield session
         finally:
-            if logger is not None:
-                logger.close()
+            try:
+                if p6 is not None:
+                    p6.close()
+            finally:
+                if owns_logger and logger is not None:
+                    logger.close()
 
     def run(self) -> ResearchSmokeReport | None:
         with self.session() as session:
             return session.run()
 
     def _create_session(
-        self, logger: ResearchCsvLogger | None = None
+        self,
+        logger: ResearchCsvLogger | None = None,
+        p6: P6Runtime | None = None,
+        session_clock: SessionClock | None = None,
     ) -> ResearchNoASession:
+        effective_speed_policy = None
         if (client := self._client) is None:
             client = carla.Client(self._config.host, self._config.port)
             client.set_timeout(self._config.timeout)
         world = client.get_world()
+        if (
+            self._config.mode is ResearchNoARunMode.LIVE_SMOKE
+            and (
+                self._borrowed_log is not None
+                or self._config.traffic_manager_port is not None
+            )
+            and world.get_settings().synchronous_mode
+        ):
+            raise ResearchNoAPreflightError(
+                "operator live runtime requires synchronous_mode=false"
+            )
+        traffic_manager_port = self._config.traffic_manager_port
+        traffic_manager = (
+            None
+            if traffic_manager_port is None
+            else client.get_trafficmanager(traffic_manager_port)
+        )
         world_map = world.get_map()
         spawn_transform, spawn_waypoint = self._select_spawn(world_map)
+        exit_config = self._config.exit_assistance
+        exit_route = None
+        if exit_config is not None:
+            manifest = load_exit_route_manifest(exit_config.manifest_path)
+            if world_map.name != manifest.map_name:
+                raise ResearchNoAPreflightError(
+                    f"exit manifest map {manifest.map_name} does not match {world_map.name}"
+                )
+            exit_route = manifest.route(exit_config.route_id)
+        if (
+            self._borrowed_log is not None
+            and self._config.mode is ResearchNoARunMode.LIVE_SMOKE
+            and exit_route is not None
+        ):
+            try:
+                validate_exit_spawn(exit_route, spawn_transform, spawn_waypoint)
+            except ExitRouteError as error:
+                raise ResearchNoAPreflightError(
+                    f"exit route spawn is unsuitable: {error}"
+                ) from error
         blueprint = world.get_blueprint_library().find(self._config.vehicle_blueprint)
         if blueprint.has_attribute("role_name"):
             blueprint.set_attribute("role_name", "research_noa")
@@ -142,25 +261,29 @@ class ResearchNoARunner:
         viewer = None
         ownership_transferred = False
         try:
-            exit_config = self._config.exit_assistance
-            exit_route = None
             route_reference = None
             if exit_config is not None:
-                manifest = load_exit_route_manifest(exit_config.manifest_path)
-                if world_map.name != manifest.map_name:
+                if exit_route is None:
                     raise ResearchNoAPreflightError(
-                        f"exit manifest map {manifest.map_name} does not match {world_map.name}"
+                        "exit route preflight is incomplete"
                     )
-                exit_route = manifest.route(exit_config.route_id)
                 self._exit_route_validator(exit_route, world_map, hero)
                 route_reference = SwitchableRouteLaneGeometrySource(
                     CarlaLaneGeometryAdapter(world_map)
                 )
-            bundle = build_noa_runtime(
-                hero,
-                world_map,
-                self._config.control_config,
-                control_lane_geometry=route_reference,
+            bundle = (
+                build_noa_runtime(
+                    hero,
+                    world_map,
+                    self._config.control_config,
+                    control_lane_geometry=route_reference,
+                )
+                if traffic_manager is None
+                else build_traffic_manager_noa_runtime(
+                    hero,
+                    world_map,
+                    traffic_manager,
+                )
             )
             viewer = self._create_viewer(
                 world, hero, lambda: bundle.automation_runtime.state
@@ -170,26 +293,17 @@ class ResearchNoARunner:
                 viewer.capture_camera_diagnostics_environment(world)
             live_scheduler = None
             diagnostics = ResearchNoADiagnostics(self._performance_clock)
-            if self._config.mode is ResearchNoARunMode.LIVE_SMOKE:
-                live_scheduler = ResearchAutomationScheduler(
-                    bundle.automation_runtime,
-                    bundle.control_backend,
-                    hero,
-                    world,
-                    self._control_trace
-                    or (ResearchNoAPiTracePrinter() if self._config.pi_trace else None),
-                    diagnostics,
-                )
+            persistence: ResearchNoAPersistence | None = None
             interaction_events: list[AutomationInteractionEvent] = []
             interaction: (
                 AutomationInteractionController
                 | PersistedInteractionObserver
+                | ResearchLaneChangeInteractionObserver
                 | ResearchExitInteractionObserver
                 | None
             ) = None
             exit_assistance = None
             exit_view_binding = None
-            persistence = None
             persistence_config = self._config.persistence
             if persistence_config is not None:
                 if logger is None:
@@ -205,14 +319,104 @@ class ResearchNoARunner:
                     persistence_config,
                     logger,
                     source,
+                    study_run=(
+                        None
+                        if self._borrowed_log is None
+                        else self._borrowed_log.study_run
+                    ),
                     diagnostics=diagnostics,
                     exit_context=None if exit_config is None else exit_config.context,
                 )
+            if self._config.mode is ResearchNoARunMode.LIVE_SMOKE:
+                custom_control_backend = bundle.custom_control_backend
+                if traffic_manager is None:
+                    if custom_control_backend is None:
+                        raise ResearchNoAPreflightError(
+                            "custom control backend is missing"
+                        )
+                    effective_speed_policy = self._config.effective_speed_policy
+                    trace_callbacks: list[Callable[[CarlaNoAControlStep], None]] = []
+                    if self._control_trace is not None:
+                        trace_callbacks.append(self._control_trace)
+                    if self._config.pi_trace:
+                        trace_callbacks.append(ResearchNoAPiTracePrinter())
+                        if persistence is not None:
+                            trace_callbacks.append(
+                                persistence.record_control_saturation
+                            )
+
+                    def emit_control_trace(step: CarlaNoAControlStep) -> None:
+                        for callback in trace_callbacks:
+                            callback(step)
+
+                    live_scheduler = ResearchAutomationScheduler(
+                        bundle.automation_runtime,
+                        custom_control_backend,
+                        hero,
+                        world,
+                        effective_speed_policy,
+                        emit_control_trace if trace_callbacks else None,
+                        diagnostics,
+                    )
+                else:
+                    live_scheduler = TrafficManagerScheduler(
+                        bundle.automation_runtime,
+                        hero,
+                        diagnostics,
+                        None
+                        if persistence is None
+                        else persistence.record_traffic_manager_speed_limit,
+                    )
             if self._config.automation_interaction is not None:
 
                 def record_event(event: AutomationInteractionEvent) -> None:
                     interaction_events.append(event)
-                    if persistence is not None:
+                    if (
+                        self._config.activation_speed_hold
+                        and event.event_type
+                        is AutomationInteractionEventType.TRANSITION
+                        and event.state.control_mode is DrivingControlMode.NOA_ACTIVE
+                    ):
+                        if (
+                            persistence is None
+                            or effective_speed_policy is None
+                            or custom_control_backend is None
+                        ):
+                            raise ResearchNoAPreflightError(
+                                "activation speed hold persistence is missing"
+                            )
+                        if self._config.exit_assistance is None:
+                            persistence.flush_automation_events()
+                            observation = persistence.capture()
+                        else:
+                            # P5 may enqueue an earlier input-receipt event after this callback.
+                            observation = persistence.source.get_observation()
+                        persistence.record_automation(event, observation.timestamp)
+                        captured_speed_kmh = observation.state.speed_kmh
+                        try:
+                            validate_live_smoke_speed_kmh(
+                                captured_speed_kmh,
+                                effective_speed_policy.guard_for_mode(
+                                    DrivingControlMode.NOA_ACTIVE
+                                ),
+                                source="ACTIVATION_SPEED_HOLD",
+                            )
+                        except ResearchNoAActualSpeedSafetyError:
+                            persistence.record_activation_speed_hold(
+                                effective_speed_policy,
+                                observation,
+                                applied_target_speed_kmh=None,
+                                status="BLOCKED",
+                            )
+                            raise
+                        custom_control_backend.set_target_speed_kmh(captured_speed_kmh)
+                        persistence.record_activation_speed_hold(
+                            effective_speed_policy,
+                            observation,
+                            applied_target_speed_kmh=captured_speed_kmh,
+                            status="APPLIED",
+                        )
+                    elif persistence is not None:
                         persistence.record_automation(event)
                     if self._automation_event_sink is not None:
                         self._automation_event_sink(event)
@@ -221,16 +425,48 @@ class ResearchNoARunner:
                     runtime=bundle.automation_runtime,
                     geometry=bundle.lane_geometry,
                     vehicle=hero,
-                    steering_target=bundle.control_backend,
+                    steering_target=bundle.steering_target,
                     config=self._config.automation_interaction.policy,
                     event_sink=record_event,
                 )
                 if persistence is not None:
                     interaction = PersistedInteractionObserver(interaction, persistence)
+                    if traffic_manager is not None:
+                        traffic_manager_backend = bundle.traffic_manager_backend
+                        if traffic_manager_backend is None:
+                            raise ResearchNoAPreflightError(
+                                "Traffic Manager authority backend is missing"
+                            )
+                        interaction = ResearchLaneChangeInteractionObserver(
+                            interaction,
+                            bundle.adjacent_lanes,
+                            hero,
+                            persistence,
+                            LaneChangeCorrelation(
+                                "GENERAL",
+                                None
+                                if exit_config is None
+                                else exit_config.lc_event_id,
+                                None
+                                if exit_config is None
+                                else exit_config.lateral_onset_threshold_m,
+                            ),
+                            ResearchTrafficLightObserver(
+                                hero,
+                                persistence,
+                                traffic_manager_backend,
+                                TrafficLightRuntimeMetadata(
+                                    traffic_manager_port,
+                                    client.get_client_version(),
+                                    client.get_server_version(),
+                                    world.get_settings().synchronous_mode,
+                                ),
+                            ),
+                        )
             if exit_config is not None:
                 if (
                     persistence is None
-                    or not isinstance(interaction, PersistedInteractionObserver)
+                    or interaction is None
                     or exit_route is None
                     or route_reference is None
                 ):
@@ -252,9 +488,15 @@ class ResearchNoARunner:
                         navigation_trigger_distance_m=exit_config.navigation_trigger_distance_m,
                         response_timeout_s=exit_config.response_timeout_s,
                         lateral_onset_threshold_m=exit_config.lateral_onset_threshold_m,
+                        assisted_execution_enabled=(
+                            exit_config.assisted_execution_enabled
+                        ),
+                        eligibility_open_s=exit_config.eligibility_open_s,
+                        eligibility_close_s=exit_config.eligibility_close_s,
                     ),
                     route_reference,
                     persistence.record_exit,
+                    session_clock=session_clock,
                 )
                 persistence.record_exit_config(exit_config, exit_route)
                 interaction = ResearchExitInteractionObserver(
@@ -283,6 +525,8 @@ class ResearchNoARunner:
                 persistence=persistence,
                 exit_assistance=exit_assistance,
                 exit_view_binding=exit_view_binding,
+                p6=p6,
+                speed_policy=effective_speed_policy,
             )
             ownership_transferred = True
             return session
@@ -325,7 +569,7 @@ class ResearchNoARunner:
         interaction = self._config.automation_interaction
         manual_control_limits = (
             ResearchManualControlLimits(
-                self._config.control_config.longitudinal.max_throttle,
+                RESEARCH_MANUAL_MAX_THROTTLE,
                 self._config.control_config.longitudinal.max_brake,
                 self._config.control_config.lateral.max_steering,
             )
@@ -335,11 +579,14 @@ class ResearchNoARunner:
         config = ResearchDriverViewConfig(
             initial_driving_mode=DrivingMode.MANUAL,
             front_camera_only=self._config.front_camera_only,
+            rear_mirror_enabled=self._config.rear_mirror_enabled,
             camera_diagnostics=self._config.camera_diagnostics,
             run_id=self._config.run_id,
             driver_input_source=self._driver_input_source,
             manual_control_limits=manual_control_limits,
             automation_state_source=automation_state_source,
+            training_early_finish=self._config.operator_training,
+            traffic_manager_port=self._config.traffic_manager_port,
             noa_toggle_key=(
                 ord(interaction.noa_key) if interaction is not None else ord("n")
             ),

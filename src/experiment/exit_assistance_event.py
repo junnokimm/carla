@@ -36,6 +36,9 @@ class ExitEventData:
     persisted_input_timestamp: TimestampEnvelope | None
     observed_proxy_timestamp: TimestampEnvelope | None
     observation_gap_previous_frame: int | None
+    active_drive_start: TimestampEnvelope | None
+    eligibility_elapsed_s: float | None
+    presentation_window_status: str | None
 
 
 def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
@@ -47,6 +50,13 @@ def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
         "context": data.config.context.value,
         "route_version": data.config.route.route_version,
         "route_id": data.config.route.route_id,
+        "eligibility_open_s": data.config.eligibility_open_s,
+        "eligibility_close_s": data.config.eligibility_close_s,
+        "active_drive_start_host_monotonic_ns": None
+        if data.active_drive_start is None
+        else data.active_drive_start.host.monotonic_ns,
+        "eligibility_elapsed_s": data.eligibility_elapsed_s,
+        "presentation_window_status": data.presentation_window_status,
         "t0_host_monotonic_ns": None if data.t0 is None else data.t0.host.monotonic_ns,
         "noa_state_t0": None if data.frozen_mode is None else data.frozen_mode.value,
         "actual_noa_state": None
@@ -89,12 +99,24 @@ def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
         "observation_gap_current_frame": None
         if data.observation is None
         else data.observation.carla_frame,
-        "observed_road_id": None if data.observation is None else data.observation.road_id,
-        "observed_section_id": None if data.observation is None else data.observation.section_id,
-        "observed_lane_id": None if data.observation is None else data.observation.lane_id,
-        "route_progress_m": None if data.observation is None else data.observation.route_distance_m,
-        "route_reference_distance_m": None if data.observation is None else data.observation.route_reference_distance_m,
-        "route_reference_half_width_m": None if data.observation is None else data.observation.route_reference_half_width_m,
+        "observed_road_id": None
+        if data.observation is None
+        else data.observation.road_id,
+        "observed_section_id": None
+        if data.observation is None
+        else data.observation.section_id,
+        "observed_lane_id": None
+        if data.observation is None
+        else data.observation.lane_id,
+        "route_progress_m": None
+        if data.observation is None
+        else data.observation.route_distance_m,
+        "route_reference_distance_m": None
+        if data.observation is None
+        else data.observation.route_reference_distance_m,
+        "route_reference_half_width_m": None
+        if data.observation is None
+        else data.observation.route_reference_half_width_m,
     }
     return ExitAssistanceEvent(
         data.event_type,

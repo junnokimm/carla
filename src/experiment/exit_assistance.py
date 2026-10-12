@@ -23,6 +23,7 @@ from src.experiment.exit_assistance_types import (
     ExitRouteReference,
     ExitTerminationReason,
 )
+from src.experiment.session_clock import SessionClock
 from src.experiment.timestamp import TimestampEnvelope
 
 __all__ = [
@@ -47,6 +48,8 @@ class ExitAssistanceCoordinator:
         config: ExitAssistanceConfig,
         reference: ExitRouteReference,
         event_sink: Callable[[ExitAssistanceEvent], None] | None = None,
+        *,
+        session_clock: SessionClock | None = None,
     ) -> None:
         self.config = config
         self._reference = reference
@@ -76,6 +79,62 @@ class ExitAssistanceCoordinator:
         self._maneuver_in_progress = False
         self._path_outcome: str | None = None
         self._route_was_armed = False
+        self._session_clock = session_clock
+        self._active_drive_start: TimestampEnvelope | None = None
+        self._active_drive_start_elapsed_s: float | None = None
+
+    def start_active_drive(self, timestamp: TimestampEnvelope) -> None:
+        if self._active_drive_start is not None:
+            raise ExitPresentationError("active drive timing is already started")
+        self._active_drive_start = timestamp
+        self._active_drive_start_elapsed_s = (
+            None
+            if self._session_clock is None
+            else self._session_clock.project_elapsed_seconds(timestamp.host)
+        )
+        self._emit("lc_active_drive_started", timestamp)
+
+    def eligibility_elapsed_seconds(self, timestamp: TimestampEnvelope) -> float | None:
+        if self._active_drive_start is None:
+            return None
+        if self._session_clock is None:
+            return (
+                timestamp.host.monotonic_ns - self._active_drive_start.host.monotonic_ns
+            ) / 1_000_000_000.0
+        start = self._active_drive_start_elapsed_s
+        if start is None:
+            raise ExitPresentationError("active drive SessionClock origin is missing")
+        return self._session_clock.project_elapsed_seconds(timestamp.host) - start
+
+    def is_time_eligible(self, timestamp: TimestampEnvelope) -> bool:
+        if self.config.eligibility_open_s is None:
+            return True
+        elapsed = self.eligibility_elapsed_seconds(timestamp)
+        if elapsed is None:
+            raise ExitPresentationError("timed exit requires active drive start")
+        close = self.config.eligibility_close_s
+        if close is None:
+            raise ExitPresentationError("timed exit close is missing")
+        return self.config.eligibility_open_s <= elapsed <= close
+
+    def is_time_closed(self, timestamp: TimestampEnvelope) -> bool:
+        close = self.config.eligibility_close_s
+        if close is None:
+            return False
+        elapsed = self.eligibility_elapsed_seconds(timestamp)
+        if elapsed is None:
+            raise ExitPresentationError("timed exit requires active drive start")
+        return elapsed > close
+
+    def mark_not_presented(self, timestamp: TimestampEnvelope) -> None:
+        self.status = ExitAssistanceStatus.NOT_PRESENTED
+        self.presentation = None
+        self._emit(
+            "lc_finished",
+            timestamp,
+            outcome="NOT_PRESENTED",
+            termination_reason="ELIGIBILITY_WINDOW_CLOSED",
+        )
 
     def observe(self, observation: ExitObservation) -> None:
         observe_exit(self, observation)
@@ -106,6 +165,11 @@ class ExitAssistanceCoordinator:
         state: AutomationState,
         timestamp: TimestampEnvelope,
     ) -> None:
+        presentation_window_status = (
+            "WITHIN_WINDOW"
+            if self.is_time_eligible(timestamp)
+            else "OUTSIDE_WINDOW_AFTER_VISIBLE_FRAME"
+        )
         observation = self._latest_observation
         if (
             self.status is not ExitAssistanceStatus.DRAFT
@@ -127,7 +191,17 @@ class ExitAssistanceCoordinator:
         self._previous_indicator = observation.indicator
         self._previous_lateral_m = observation.lateral_offset_m
         self.presentation = rendered
-        self._emit("lc_presented", timestamp)
+        self._emit(
+            "lc_presented",
+            timestamp,
+            presentation_window_status=presentation_window_status,
+        )
+        if presentation_window_status == "OUTSIDE_WINDOW_AFTER_VISIBLE_FRAME":
+            self._emit(
+                "lc_presentation_timing_deviation",
+                timestamp,
+                presentation_window_status=presentation_window_status,
+            )
 
     def update(
         self,
@@ -168,6 +242,13 @@ class ExitAssistanceCoordinator:
         if driver_input.steering_engaged and self._steering_timestamp is None:
             self._steering_timestamp = receipt_timestamp
             self._emit("lc_driver_steering_onset", receipt_timestamp)
+        if (
+            self.status is ExitAssistanceStatus.PRESENTED
+            and driver_input.activation_requested
+            and driver_input.steering_engaged
+        ):
+            self._interrupt(commit, "DRIVER_PRIORITY_OR_MOVEMENT")
+            return
         if (
             self.status is ExitAssistanceStatus.PRESENTED
             and fresh_request
@@ -239,14 +320,23 @@ class ExitAssistanceCoordinator:
             self._decision = "CONFIRM"
             self._input_timestamp = receipt_timestamp
             self._decision_commit_timestamp = commit
-            self._reference.arm(self.config.route, observation.route_point_index)
-            self._route_was_armed = True
             self._emit(
                 "lc_decision",
                 commit,
                 input_received=True,
                 input_timestamp=receipt_timestamp,
             )
+            if not self.config.assisted_execution_enabled:
+                self.status = ExitAssistanceStatus.INTERRUPTED
+                self._emit(
+                    "lc_finished",
+                    commit,
+                    outcome="UNVERIFIED",
+                    termination_reason="ASSISTED_EXECUTION_BLOCKED",
+                )
+                return
+            self._reference.arm(self.config.route, observation.route_point_index)
+            self._route_was_armed = True
 
     def finish(
         self, reason: ExitTerminationReason, timestamp: TimestampEnvelope
@@ -254,6 +344,7 @@ class ExitAssistanceCoordinator:
         if self.status in (
             ExitAssistanceStatus.COMPLETED,
             ExitAssistanceStatus.INTERRUPTED,
+            ExitAssistanceStatus.NOT_PRESENTED,
         ):
             return
         reached = self.status is not ExitAssistanceStatus.WAITING
@@ -290,6 +381,7 @@ class ExitAssistanceCoordinator:
         observation: ExitObservation | None = None,
         input_timestamp: TimestampEnvelope | None = None,
         observation_gap_previous_frame: int | None = None,
+        presentation_window_status: str | None = None,
     ) -> None:
         event = build_exit_event(
             ExitEventData(
@@ -314,6 +406,9 @@ class ExitAssistanceCoordinator:
                 persisted_input_timestamp=self._input_timestamp,
                 observed_proxy_timestamp=self._observed_proxy_timestamp,
                 observation_gap_previous_frame=observation_gap_previous_frame,
+                active_drive_start=self._active_drive_start,
+                eligibility_elapsed_s=self.eligibility_elapsed_seconds(timestamp),
+                presentation_window_status=presentation_window_status,
             )
         )
         self.events.append(event)

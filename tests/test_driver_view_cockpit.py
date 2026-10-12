@@ -27,12 +27,12 @@ def test_initial_front_sensor_uses_original_driver_relative_transform() -> None:
 
 
 def test_v_respawns_only_front_sensor_with_cockpit_relative_transform() -> None:
-    from src.scenario.driver_view import DriverView
+    from src.scenario.driver_view import DriverView, DriverViewConfig
     from src.vehicle.driving_mode import DrivingMode
 
     hero = FakeHero()
     world = FakeWorld()
-    viewer = DriverView(world, hero)
+    viewer = DriverView(world, hero, DriverViewConfig(rear_mirror_enabled=True))
     viewer.attach()
     front_feed = viewer.feeds[0]
     old_front, rear_mirror, left_mirror, right_mirror = viewer.sensors
@@ -69,10 +69,14 @@ def test_v_respawns_only_front_sensor_with_cockpit_relative_transform() -> None:
 
 
 def test_second_v_restores_driver_sensor_and_cleanup_owns_active_front() -> None:
-    from src.scenario.driver_view import DriverView
+    from src.scenario.driver_view import DriverView, DriverViewConfig
 
     world = FakeWorld()
-    viewer = DriverView(world, FakeHero())
+    viewer = DriverView(
+        world,
+        FakeHero(),
+        DriverViewConfig(rear_mirror_enabled=True),
+    )
     viewer.attach()
     _, rear_mirror, left_mirror, right_mirror = viewer.sensors
     toggle = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_v)

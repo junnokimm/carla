@@ -7,8 +7,16 @@ from math import isfinite
 from time import monotonic
 from typing import Final, assert_never
 
-import carla
-
+from src.scenario.research_noa_transmission_confirmation import (
+    StationaryPrimeContext,
+    prime_stationary_gear_zero,
+)
+from src.scenario.research_noa_transmission_preparation import (
+    TransmissionPreparationContext,
+    TransmissionPreparationError,
+    TransmissionPreparationFailure,
+    prepare_moving_gear_zero,
+)
 from src.scenario.research_noa_types import ResearchNoAVehicle, ResearchNoAWorld
 
 TRANSMISSION_PRIME_STATIONARY_THRESHOLD_KMH: Final = 0.1
@@ -26,6 +34,12 @@ class ResearchTransmissionPrimeFailure(StrEnum):
     INVALID_GEAR_SWITCH_TIME = "invalid-gear-switch-time"
     CONFIRMATION_TIMEOUT = "confirmation-timeout"
     ENGAGEMENT = "engagement"
+    PREPARATION_TIMEOUT = "preparation-timeout"
+    PREPARATION_FRAME = "preparation-frame"
+    PREPARATION_ACTOR = "preparation-actor"
+    PREPARATION_SPEED = "preparation-speed"
+    PREPARATION_CONTROL = "preparation-control"
+    AUTOMATIC_ENGAGEMENT = "automatic-engagement"
 
 
 class ResearchNoATransmissionPrimeError(RuntimeError):
@@ -71,6 +85,23 @@ class ResearchNoATransmissionPrimeError(RuntimeError):
                     "research live-smoke transmission prime did not engage gear 1; "
                     f"observed gear {self.post_prime_gear}"
                 )
+            case ResearchTransmissionPrimeFailure.PREPARATION_TIMEOUT:
+                return "research live-smoke transmission preparation timed out"
+            case ResearchTransmissionPrimeFailure.PREPARATION_FRAME:
+                return (
+                    "research live-smoke transmission preparation frame did not advance"
+                )
+            case ResearchTransmissionPrimeFailure.PREPARATION_ACTOR:
+                return "research live-smoke transmission preparation lost the owned vehicle"
+            case ResearchTransmissionPrimeFailure.PREPARATION_SPEED:
+                return "research live-smoke preparation observed non-finite speed"
+            case ResearchTransmissionPrimeFailure.PREPARATION_CONTROL:
+                return "research live-smoke transmission preparation control failed"
+            case ResearchTransmissionPrimeFailure.AUTOMATIC_ENGAGEMENT:
+                return (
+                    "research live-smoke transmission did not confirm automatic forward "
+                    f"control; observed gear {self.post_prime_gear}"
+                )
             case unreachable:
                 assert_never(unreachable)
 
@@ -88,6 +119,35 @@ class TransmissionPrimeContext:
     bounded_brake: float
     actual_speed_kmh: float
     monotonic_clock: MonotonicClock = monotonic
+    preparation_timeout_seconds: float | None = None
+
+
+def _preparation_failure(
+    error: TransmissionPreparationError,
+) -> ResearchTransmissionPrimeFailure:
+    match error.failure:
+        case TransmissionPreparationFailure.REVERSE:
+            return ResearchTransmissionPrimeFailure.REVERSE
+        case TransmissionPreparationFailure.INVALID_GEAR:
+            return ResearchTransmissionPrimeFailure.INVALID_GEAR
+        case TransmissionPreparationFailure.TIMEOUT:
+            return ResearchTransmissionPrimeFailure.PREPARATION_TIMEOUT
+        case TransmissionPreparationFailure.FRAME:
+            return ResearchTransmissionPrimeFailure.PREPARATION_FRAME
+        case TransmissionPreparationFailure.ACTOR:
+            return ResearchTransmissionPrimeFailure.PREPARATION_ACTOR
+        case TransmissionPreparationFailure.SPEED:
+            return ResearchTransmissionPrimeFailure.PREPARATION_SPEED
+        case TransmissionPreparationFailure.CONTROL:
+            return ResearchTransmissionPrimeFailure.PREPARATION_CONTROL
+        case TransmissionPreparationFailure.CONFIRMATION_TIMEOUT:
+            return ResearchTransmissionPrimeFailure.CONFIRMATION_TIMEOUT
+        case TransmissionPreparationFailure.ENGAGEMENT:
+            return ResearchTransmissionPrimeFailure.ENGAGEMENT
+        case TransmissionPreparationFailure.AUTOMATIC_ENGAGEMENT:
+            return ResearchTransmissionPrimeFailure.AUTOMATIC_ENGAGEMENT
+        case unreachable:
+            assert_never(unreachable)
 
 
 def prime_live_transmission(
@@ -104,11 +164,15 @@ def prime_live_transmission(
             actual_speed_kmh=context.actual_speed_kmh,
         )
     if initial_gear > 0:
+        if initial_control.manual_gear_shift:
+            raise ResearchNoATransmissionPrimeError(
+                ResearchTransmissionPrimeFailure.AUTOMATIC_ENGAGEMENT,
+                initial_gear=initial_gear,
+                actual_speed_kmh=context.actual_speed_kmh,
+                post_prime_gear=initial_gear,
+            )
         return ResearchTransmissionPrimeTelemetry(
-            initial_gear=initial_gear,
-            required=False,
-            applied=False,
-            post_prime_gear=initial_gear,
+            initial_gear, False, False, initial_gear
         )
     if initial_gear < 0:
         raise ResearchNoATransmissionPrimeError(
@@ -116,18 +180,45 @@ def prime_live_transmission(
             initial_gear=initial_gear,
             actual_speed_kmh=context.actual_speed_kmh,
         )
-    if context.actual_speed_kmh > TRANSMISSION_PRIME_STATIONARY_THRESHOLD_KMH:
-        raise ResearchNoATransmissionPrimeError(
-            ResearchTransmissionPrimeFailure.MOVING,
-            initial_gear=initial_gear,
-            actual_speed_kmh=context.actual_speed_kmh,
-        )
+    actual_speed_kmh = context.actual_speed_kmh
+    if actual_speed_kmh > TRANSMISSION_PRIME_STATIONARY_THRESHOLD_KMH:
+        timeout = context.preparation_timeout_seconds
+        if timeout is None:
+            raise ResearchNoATransmissionPrimeError(
+                ResearchTransmissionPrimeFailure.MOVING,
+                initial_gear=initial_gear,
+                actual_speed_kmh=actual_speed_kmh,
+            )
+        try:
+            preparation = prepare_moving_gear_zero(
+                vehicle,
+                world,
+                TransmissionPreparationContext(
+                    bounded_brake=context.bounded_brake,
+                    timeout_seconds=timeout,
+                    stationary_threshold_kmh=TRANSMISSION_PRIME_STATIONARY_THRESHOLD_KMH,
+                    monotonic_clock=context.monotonic_clock,
+                ),
+            )
+        except TransmissionPreparationError as error:
+            raise ResearchNoATransmissionPrimeError(
+                _preparation_failure(error),
+                initial_gear=initial_gear,
+                actual_speed_kmh=actual_speed_kmh
+                if error.speed_kmh is None
+                else error.speed_kmh,
+            ) from error.__cause__
+        actual_speed_kmh = preparation.speed_kmh
+        if preparation.automatic_forward_gear is not None:
+            return ResearchTransmissionPrimeTelemetry(
+                initial_gear, False, False, preparation.automatic_forward_gear
+            )
     gear_switch_time = float(vehicle.get_physics_control().gear_switch_time)
     if not isfinite(gear_switch_time) or gear_switch_time < 0.0:
         raise ResearchNoATransmissionPrimeError(
             ResearchTransmissionPrimeFailure.INVALID_GEAR_SWITCH_TIME,
             initial_gear=initial_gear,
-            actual_speed_kmh=context.actual_speed_kmh,
+            actual_speed_kmh=actual_speed_kmh,
             gear_switch_time_seconds=gear_switch_time,
         )
     confirmation_window = min(
@@ -137,48 +228,22 @@ def prime_live_transmission(
         ),
         TRANSMISSION_PRIME_CONFIRMATION_MAX_SECONDS,
     )
-    deadline = context.monotonic_clock() + confirmation_window
-    vehicle.apply_control(
-        carla.VehicleControl(
-            throttle=0.0,
-            brake=context.bounded_brake,
-            steer=0.0,
-            hand_brake=False,
-            reverse=False,
-            manual_gear_shift=True,
-            gear=1,
+    try:
+        post_prime_gear = prime_stationary_gear_zero(
+            vehicle,
+            world,
+            StationaryPrimeContext(
+                bounded_brake=context.bounded_brake,
+                actual_speed_kmh=actual_speed_kmh,
+                confirmation_window_seconds=confirmation_window,
+                monotonic_clock=context.monotonic_clock,
+            ),
         )
-    )
-    while True:
-        post_prime_gear = int(vehicle.get_control().gear)
-        if post_prime_gear == 1:
-            return ResearchTransmissionPrimeTelemetry(
-                initial_gear=initial_gear,
-                required=True,
-                applied=True,
-                post_prime_gear=post_prime_gear,
-            )
-        if post_prime_gear != 0:
-            raise ResearchNoATransmissionPrimeError(
-                ResearchTransmissionPrimeFailure.ENGAGEMENT,
-                initial_gear=initial_gear,
-                actual_speed_kmh=context.actual_speed_kmh,
-                post_prime_gear=post_prime_gear,
-            )
-        remaining = deadline - context.monotonic_clock()
-        if remaining <= 0.0:
-            raise ResearchNoATransmissionPrimeError(
-                ResearchTransmissionPrimeFailure.CONFIRMATION_TIMEOUT,
-                initial_gear=initial_gear,
-                actual_speed_kmh=context.actual_speed_kmh,
-                post_prime_gear=post_prime_gear,
-            )
-        try:
-            world.wait_for_tick(remaining)
-        except RuntimeError as error:
-            raise ResearchNoATransmissionPrimeError(
-                ResearchTransmissionPrimeFailure.CONFIRMATION_TIMEOUT,
-                initial_gear=initial_gear,
-                actual_speed_kmh=context.actual_speed_kmh,
-                post_prime_gear=post_prime_gear,
-            ) from error
+    except TransmissionPreparationError as error:
+        raise ResearchNoATransmissionPrimeError(
+            _preparation_failure(error),
+            initial_gear=initial_gear,
+            actual_speed_kmh=actual_speed_kmh,
+            post_prime_gear=error.post_gear,
+        ) from error.__cause__
+    return ResearchTransmissionPrimeTelemetry(initial_gear, True, True, post_prime_gear)

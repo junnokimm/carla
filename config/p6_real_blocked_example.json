@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "source_mode": "real",
+  "sample_hz": 60.0,
+  "queue_capacity": 2048,
+  "aoi_file": "config/p6_aoi_candidate.json",
+  "tablet": {
+    "enabled": false,
+    "bind": "127.0.0.1",
+    "port": 0,
+    "token": null,
+    "static_dir": null,
+    "media_file": null
+  }
+}

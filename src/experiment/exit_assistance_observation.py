@@ -51,7 +51,14 @@ class ObservationLifecycle(Protocol):
         observation: ExitObservation | None = None,
         input_timestamp: TimestampEnvelope | None = None,
         observation_gap_previous_frame: int | None = None,
+        presentation_window_status: str | None = None,
     ) -> None: ...
+
+    def is_time_eligible(self, timestamp: TimestampEnvelope) -> bool: ...
+
+    def is_time_closed(self, timestamp: TimestampEnvelope) -> bool: ...
+
+    def mark_not_presented(self, timestamp: TimestampEnvelope) -> None: ...
 
 
 def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) -> None:
@@ -74,9 +81,22 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
         )
     subject._last_observation_frame = frame
     subject._latest_observation = observation
+    if subject.status is ExitAssistanceStatus.NOT_PRESENTED:
+        return
+    if subject.status in (
+        ExitAssistanceStatus.WAITING,
+        ExitAssistanceStatus.DRAFT,
+    ) and subject.is_time_closed(observation.timestamp):
+        subject.mark_not_presented(observation.timestamp)
+        return
+    if subject.status is ExitAssistanceStatus.WAITING and not subject.is_time_eligible(
+        observation.timestamp
+    ):
+        return
     remaining = subject.config.route.fork_distance_m - observation.route_distance_m
     if (
         subject.status is ExitAssistanceStatus.WAITING
+        and subject.is_time_eligible(observation.timestamp)
         and is_navigation_observation(subject.config, observation)
         and is_confirmation_observation(subject.config, observation)
         and remaining >= 0.0
@@ -179,7 +199,8 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
         identity in route.through_segments
         and observation.route_reference_distance_m is not None
         and observation.route_reference_half_width_m is not None
-        and observation.route_reference_distance_m > observation.route_reference_half_width_m
+        and observation.route_reference_distance_m
+        > observation.route_reference_half_width_m
     )
     if identity in route.exit_segments:
         subject._path_outcome = "EXIT"

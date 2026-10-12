@@ -315,11 +315,14 @@ def test_live_smoke_requires_explicit_spawn_index(capsys) -> None:
 @pytest.mark.parametrize(
     ("option", "unsafe_value", "expected_message"),
     [
-        ("--duration", "20.0001", "duration must be <= 20.0"),
-        ("--duration", "20.1", "duration must be <= 20.0"),
-        ("--duration", "21.0", "duration must be <= 20.0"),
-        ("--duration", "30", "duration must be <= 20.0"),
-        ("--target-speed-kmh", "20.01", "target_speed_kmh must be <= 20.0"),
+        ("--duration", "60.0001", "duration must be <= 60.0"),
+        ("--duration", "60.1", "duration must be <= 60.0"),
+        ("--duration", "61.0", "duration must be <= 60.0"),
+        (
+            "--target-speed-kmh",
+            "20.01",
+            "target_speed_kmh above 20 requires an explicit high-speed DEV policy",
+        ),
         ("--max-throttle", "0.401", "max_throttle must be <= 0.4"),
         ("--max-brake", "0.501", "max_brake must be <= 0.5"),
         ("--max-steering", "0.151", "max_steering must be <= 0.15"),
@@ -373,7 +376,7 @@ def test_live_smoke_accepts_higher_bounded_throttle_for_target_speed_validation(
     assert config.control_config.longitudinal.max_throttle == pytest.approx(0.4)
 
 
-@pytest.mark.parametrize("duration", [5.0, 10.0, 20.0])
+@pytest.mark.parametrize("duration", [5.0, 10.0, 20.0, 60.0])
 def test_live_smoke_accepts_duration_windows_and_safety_boundaries(
     duration: float,
 ) -> None:

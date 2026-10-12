@@ -225,7 +225,12 @@ def test_summary_reports_requested_rear_camera_configuration() -> None:
     )
     rear = CameraFeed("rear", FakeSensor())
 
-    payload = json.loads(diagnostics.to_json((rear,), DriverViewConfig()))
+    payload = json.loads(
+        diagnostics.to_json(
+            (rear,),
+            DriverViewConfig(rear_mirror_enabled=True),
+        )
+    )
     requested = payload["roles"]["rear"]["sensor"]["requested_configuration"]
 
     assert requested == {

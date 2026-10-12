@@ -67,13 +67,37 @@ class FakeResearchVehicle(FakeVehicle):
         self.confirmation_ticks = 0
         self.pending_prime_control: carla.VehicleControl | None = None
         self.events: list[str] = []
+        self.autopilot_port_calls: list[tuple[bool, int | None]] = []
+        self.current_light_state = carla.VehicleLightState.NONE
+        self.speed_limit_kmh = 80.0
+        self.at_traffic_light = False
+        self.traffic_light = None
+
+    def set_autopilot(self, enabled: bool, tm_port: int | None = None) -> None:
+        self.events.append(f"autopilot:{enabled}")
+        self.autopilot_port_calls.append((enabled, tm_port))
+        super().set_autopilot(enabled)
 
     def get_control(self) -> carla.VehicleControl:
         self.get_control_count += 1
         return self.current_control
 
     def get_light_state(self) -> carla.VehicleLightState:
-        return carla.VehicleLightState.NONE
+        return self.current_light_state
+
+    def get_speed_limit(self) -> float:
+        return self.speed_limit_kmh
+
+    def is_at_traffic_light(self) -> bool:
+        return self.at_traffic_light
+
+    def get_traffic_light(self):
+        return self.traffic_light
+
+    def get_traffic_light_state(self) -> carla.TrafficLightState:
+        if self.traffic_light is None:
+            return carla.TrafficLightState.Green
+        return self.traffic_light.state
 
     def get_physics_control(self) -> FakeVehiclePhysicsControl:
         return self.physics_control
@@ -173,6 +197,7 @@ class FakeResearchWorld:
         monotonic_clock: FakeMonotonicClock | None = None,
         tick_seconds: float = 0.1,
         snapshots: tuple[FakeWorldSnapshot, ...] = (),
+        synchronous_mode: bool = False,
     ) -> None:
         self.vehicle = vehicle
         self.monotonic_clock = monotonic_clock
@@ -188,6 +213,10 @@ class FakeResearchWorld:
         self.snapshot_error_at_call: int | None = None
         self.frame = 0
         self.simulation_seconds = 0.0
+        self.synchronous_mode = synchronous_mode
+
+    def get_settings(self) -> FakeWorldSettings:
+        return FakeWorldSettings(self.synchronous_mode)
 
     def get_map(self) -> FakeResearchMap:
         return self.map
@@ -231,6 +260,11 @@ class FakeTimestamp:
 
 
 @dataclass(frozen=True, slots=True)
+class FakeWorldSettings:
+    synchronous_mode: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class FakeWorldSnapshot:
     frame: int
     timestamp: FakeTimestamp = FakeTimestamp()
@@ -242,12 +276,57 @@ class FakeWorldSnapshot:
         )
 
 
+class FakeTrafficManager:
+    def __init__(self, port: int = 8000) -> None:
+        self.port = port
+        self.calls: list[tuple[str, int | bool | float]] = []
+
+    def get_port(self) -> int:
+        self.calls.append(("get_port", self.port))
+        return self.port
+
+    def auto_lane_change(self, actor: FakeResearchVehicle, enabled: bool) -> None:
+        self.calls.append(("auto_lane_change", enabled))
+
+    def random_left_lanechange_percentage(
+        self, actor: FakeResearchVehicle, percentage: float
+    ) -> None:
+        self.calls.append(("random_left_lanechange_percentage", percentage))
+
+    def random_right_lanechange_percentage(
+        self, actor: FakeResearchVehicle, percentage: float
+    ) -> None:
+        self.calls.append(("random_right_lanechange_percentage", percentage))
+
+    def update_vehicle_lights(self, actor: FakeResearchVehicle, enabled: bool) -> None:
+        self.calls.append(("update_vehicle_lights", enabled))
+
+    def ignore_lights_percentage(
+        self, actor: FakeResearchVehicle, percentage: float
+    ) -> None:
+        self.calls.append(("ignore_lights_percentage", percentage))
+        actor.events.append(f"tm:ignore_lights_percentage:{percentage}")
+
+
 @dataclass(frozen=True, slots=True)
 class FakeClient:
     world: FakeResearchWorld
+    traffic_manager: FakeTrafficManager | None = None
 
     def get_world(self) -> FakeResearchWorld:
         return self.world
+
+    def get_trafficmanager(self, port: int) -> FakeTrafficManager:
+        traffic_manager = self.traffic_manager or FakeTrafficManager(port)
+        if traffic_manager.port != port:
+            raise AssertionError("unexpected Traffic Manager port")
+        return traffic_manager
+
+    def get_client_version(self) -> str:
+        return "0.9.16-test-client"
+
+    def get_server_version(self) -> str:
+        return "0.9.16-test-server"
 
 
 class ResearchTestScheduler(Protocol):
@@ -282,6 +361,7 @@ class FakeDriverView:
             Callable[[CameraRunMeasurements], None] | None
         ) = None
         self.exit_view_binding: ResearchExitViewBinding | None = None
+        self.training_completed_early = False
 
     def set_exit_view_binding(self, binding: ResearchExitViewBinding | None) -> None:
         self.exit_view_binding = binding
@@ -311,7 +391,8 @@ class FakeDriverView:
         diagnostics: ResearchNoADiagnostics | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
     ) -> bool:
-        assert duration == 1.0
+        duration_cap = 780.0
+        assert 0.0 < duration <= duration_cap
         assert scheduler is not None
         self.received_scheduler = scheduler
         self.control_modes_at_run.append(scheduler.runtime.state.control_mode)

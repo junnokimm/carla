@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isfinite
 
-type InvalidControlValue = float | tuple[float, float]
+type InvalidControlValue = float | tuple[float, float] | None
 
 
 class LongitudinalControlValidationError(ValueError):
@@ -56,7 +56,7 @@ def _require_normalized_output(field: str, value: float) -> None:
 class LongitudinalControlConfig:
     """Explicit tuning for bounded target-speed PI control."""
 
-    target_speed_kmh: float
+    target_speed_kmh: float | None
     speed_deadband_kmh: float
     acceleration_gain: float
     braking_gain: float
@@ -65,7 +65,8 @@ class LongitudinalControlConfig:
     integral_gain: float = 0.0
 
     def __post_init__(self) -> None:
-        _require_nonnegative("target_speed_kmh", self.target_speed_kmh)
+        if self.target_speed_kmh is not None:
+            _require_nonnegative("target_speed_kmh", self.target_speed_kmh)
         _require_nonnegative("speed_deadband_kmh", self.speed_deadband_kmh)
         _require_positive("acceleration_gain", self.acceleration_gain)
         _require_positive("braking_gain", self.braking_gain)
@@ -121,6 +122,10 @@ class LongitudinalController:
         self._control_time_seconds = None
         self._delta_seconds = 0.0
 
+    def set_target_speed_kmh(self, target_speed_kmh: float) -> None:
+        self._config = replace(self._config, target_speed_kmh=target_speed_kmh)
+        self.reset()
+
     def compute(
         self,
         current_speed_kmh: float,
@@ -146,7 +151,8 @@ class LongitudinalController:
             else control_time_seconds - self._control_time_seconds
         )
         self._delta_seconds = delta_seconds
-        speed_error = self._config.target_speed_kmh - current_speed_kmh
+        target_speed_kmh = _require_target(self._config)
+        speed_error = target_speed_kmh - current_speed_kmh
         if self._config.integral_gain > 0.0:
             proportional_effort = self._config.acceleration_gain * max(
                 speed_error - self._config.speed_deadband_kmh,
@@ -187,8 +193,17 @@ def compute_longitudinal_control(
 ) -> LongitudinalControlCommand:
     """Compute a target-speed command without runtime side effects."""
     _require_nonnegative("current_speed_kmh", current_speed_kmh)
-    speed_error = config.target_speed_kmh - current_speed_kmh
+    speed_error = _require_target(config) - current_speed_kmh
     return _command_from_effort(_proportional_effort(speed_error, config), config)
+
+
+def _require_target(config: LongitudinalControlConfig) -> float:
+    target_speed_kmh = config.target_speed_kmh
+    if target_speed_kmh is None:
+        raise LongitudinalControlValidationError(
+            "target_speed_kmh", None, "set before control computation"
+        )
+    return target_speed_kmh
 
 
 def _proportional_effort(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import monotonic
 from typing import Protocol
 
@@ -80,6 +80,17 @@ class CarlaNoAControlBackend:
     @property
     def active(self) -> bool:
         return self._active
+
+    @property
+    def target_speed_kmh(self) -> float | None:
+        return self._longitudinal_config.target_speed_kmh
+
+    def set_target_speed_kmh(self, target_speed_kmh: float) -> None:
+        self._longitudinal_config = replace(
+            self._longitudinal_config,
+            target_speed_kmh=target_speed_kmh,
+        )
+        self._longitudinal_controller.set_target_speed_kmh(target_speed_kmh)
 
     def enter_noa_control(self) -> None:
         if not self._active:

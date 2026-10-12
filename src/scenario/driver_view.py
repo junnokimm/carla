@@ -95,6 +95,7 @@ class DriverViewConfig:
     cockpit_fov: float = 105.0
     mirror_fov: float = 100.0
     rear_mirror: RearMirrorConfig = RearMirrorConfig()
+    rear_mirror_enabled: bool = False
     hud_anchor_ratio: tuple[float, float] = (0.62, 0.62)
     hud_toast_y_ratio: float = 0.58
     hud_mode_toast_duration: float = 1.75
@@ -134,7 +135,7 @@ def calculate_layout(config: DriverViewConfig) -> DriverViewLayout:
 
 
 class DriverView:
-    """Attach and compose a forward feed with three rear-facing mirror feeds."""
+    """Attach and compose a forward feed with the configured mirror feeds."""
 
     def __init__(
         self,
@@ -143,12 +144,19 @@ class DriverView:
         config: DriverViewConfig | None = None,
         *,
         performance_observer: DriverViewPerformanceObserver | None = None,
+        read_only: bool = False,
+        training_early_finish: bool = False,
+        traffic_manager_port: int | None = None,
     ) -> None:
         self._world = world
         self._hero = hero
         self._config = config or DriverViewConfig()
-        self._driving_mode_controller = DrivingModeController(
-            hero, self._config.initial_driving_mode
+        self._driving_mode_controller = (
+            None if read_only else DrivingModeController(
+                hero,
+                self._config.initial_driving_mode,
+                traffic_manager_port=traffic_manager_port,
+            )
         )
         self._steer = 0.0
         self._pending_driver_input: DriverInput | None = None
@@ -163,6 +171,8 @@ class DriverView:
         self._turn_signal_audio = TurnSignalAudio()
         self._feeds: list[CameraFeed] = []
         self._performance_observer = performance_observer
+        self._training_early_finish = training_early_finish
+        self._training_completed_early = False
 
     @property
     def feeds(self) -> tuple[CameraFeed, ...]:
@@ -177,6 +187,8 @@ class DriverView:
     @property
     def driving_mode(self) -> DrivingMode:
         """Return the current hero driving mode."""
+        if self._driving_mode_controller is None:
+            raise RuntimeError("read-only view does not own a driving mode")
         return self._driving_mode_controller.mode
 
     @property
@@ -184,16 +196,23 @@ class DriverView:
         """Return whether the cockpit HUD is enabled."""
         return self._hud_enabled
 
+    @property
+    def training_completed_early(self) -> bool:
+        return self._training_completed_early
+
     def attach(self) -> None:
-        """Create and attach the front and three mirror RGB cameras."""
-        mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
-            ("front", self._config.front_transform, self._config.front_resolution, self._config.fov),
+        """Create and attach the active RGB cameras."""
+        rear_mounts = (
             (
                 "rear",
                 self._config.rear_mirror.transform,
                 self._config.rear_mirror.resolution,
                 self._config.rear_mirror.fov,
             ),
+        ) if self._config.rear_mirror_enabled else ()
+        mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
+            ("front", self._config.front_transform, self._config.front_resolution, self._config.fov),
+            *rear_mounts,
             ("left", self._config.left_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
             ("right", self._config.right_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
         )
@@ -227,7 +246,10 @@ class DriverView:
         input_observer: RuntimeDriverInputObserver | None = None,
     ) -> bool:
         """Show the composed view until duration elapses or the user exits it."""
+        if self._driving_mode_controller is None:
+            raise RuntimeError("read-only view cannot run the vehicle-control loop")
         pygame.display.init()
+        self._training_completed_early = False
         try:
             screen = pygame.display.set_mode(self._config.window_size)
             pygame.display.set_caption("CARLA driver view")
@@ -243,6 +265,9 @@ class DriverView:
                     self._handle_mode_events(events)
                 if self._exit_requested(events):
                     exited_by_user = True
+                    break
+                if self._training_finish_requested(events):
+                    self._training_completed_early = True
                     break
                 if input_observer is not None:
                     input_started_at = self._interaction_timestamp()
@@ -390,10 +415,20 @@ class DriverView:
                     flip_horizontal=True,
                 )
 
+    def draw_preview(self, screen: pygame.Surface) -> None:
+        if self._driving_mode_controller is not None:
+            raise RuntimeError("draw_preview requires a read-only view")
+        self._cockpit_view = True
+        self._draw(screen)
+
     def _hud_mode(self) -> tuple[DrivingMode, str | None]:
+        if self._driving_mode_controller is None:
+            return DrivingMode.MANUAL, None
         return self.driving_mode, None
 
     def _handle_mode_events(self, events: Sequence[pygame.event.Event]) -> None:
+        if self._driving_mode_controller is None:
+            return
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
                 was_manual = self.driving_mode is DrivingMode.MANUAL
@@ -439,6 +474,8 @@ class DriverView:
                 print(f"[driver-view] view={'COCKPIT' if self._cockpit_view else 'DRIVER'}")
 
     def _toggle_turn_signal(self, selected: carla.VehicleLightState) -> None:
+        if self._driving_mode_controller is None:
+            return
         current = self._hero.get_light_state()
         blinkers = (
             carla.VehicleLightState.LeftBlinker
@@ -478,6 +515,8 @@ class DriverView:
             )
 
     def _apply_manual_control(self) -> None:
+        if self._driving_mode_controller is None:
+            return
         if self.driving_mode is not DrivingMode.MANUAL:
             return
         driver_input = self._pending_driver_input or self._collect_driver_input(())
@@ -511,6 +550,8 @@ class DriverView:
         )
 
     def _reset_manual_control(self) -> None:
+        if self._driving_mode_controller is None:
+            return
         self._steer = 0.0
         self._hero.apply_control(carla.VehicleControl())
 
@@ -571,5 +612,13 @@ class DriverView:
         return any(
             event.type == pygame.QUIT
             or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE)
+            for event in events
+        )
+
+    def _training_finish_requested(
+        self, events: Sequence[pygame.event.Event]
+    ) -> bool:
+        return self._training_early_finish and any(
+            event.type == pygame.KEYDOWN and event.key == pygame.K_F8
             for event in events
         )

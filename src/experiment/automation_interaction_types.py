@@ -7,6 +7,7 @@ from typing import Protocol
 
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.context import ExperimentCondition, ExperimentModule
+from src.experiment.lane_change import LaneChangeDirection
 from src.vehicle.carla_lane_geometry import CarlaLaneGeometryContext
 
 
@@ -23,6 +24,7 @@ class ActivationFailureReason(StrEnum):
 
 class DeactivationReason(StrEnum):
     DRIVER_BRAKE = "DRIVER_BRAKE"
+    DRIVER_STEERING = "DRIVER_STEERING"
     DRIVER_BUTTON = "DRIVER_BUTTON"
     AVAILABILITY_LOST = "AVAILABILITY_LOST"
 
@@ -52,6 +54,7 @@ class AutomationInteractionConfig:
     heading_tolerance_rad: float
     driver_brake_threshold: float
     button_deactivation_enabled: bool
+    steering_deactivation_enabled: bool = False
 
     def __post_init__(self) -> None:
         values = (
@@ -88,6 +91,7 @@ class DriverInput:
     deactivation_requested: bool = False
     exit_confirm_requested: bool = False
     exit_reject_requested: bool = False
+    lane_change_direction: LaneChangeDirection | None = None
     lane_change_in_progress: bool = False
     stage: str | None = None
 

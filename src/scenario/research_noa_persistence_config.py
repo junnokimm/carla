@@ -8,6 +8,7 @@ from src.experiment.assignment import ParticipantAssignment
 from src.experiment.context import (
     ExperimentCondition,
     ExperimentModule,
+    ExperimentPhase,
     StudyRunId,
 )
 
@@ -25,12 +26,17 @@ class ResearchPersistenceConfig:
     output_dir: Path
     module: ExperimentModule
     stage_label: str
+    segment_phase: ExperimentPhase | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
             raise ResearchPersistenceConfigError("run_id must not be blank")
         if not self.stage_label.strip():
             raise ResearchPersistenceConfigError("stage_label must not be blank")
+        if self.segment_phase not in (None, ExperimentPhase.TRAINING):
+            raise ResearchPersistenceConfigError(
+                "segment_phase only supports TRAINING override"
+            )
 
     @property
     def condition(self) -> ExperimentCondition:

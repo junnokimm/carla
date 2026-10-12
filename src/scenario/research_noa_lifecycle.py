@@ -14,7 +14,14 @@ def preserve_primary_error(
 ) -> None:
     try:
         action()
-    except (OSError, RuntimeError, ResearchCsvError, SessionClockError):
+    except (
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        ResearchCsvError,
+        SessionClockError,
+    ):
         if primary_error is None:
             raise
 
@@ -34,6 +41,8 @@ def run_with_persistence(
             reason = f"FAILURE:{type(primary_error).__name__}"
         elif result is not None and result.user_exited:
             reason = "USER_EXIT"
+        elif result is not None and result.training_completed_early:
+            reason = "TRAINING_COMPLETED_EARLY"
         else:
             reason = "NORMAL_COMPLETION"
         if persistence.stage_started:

@@ -6,11 +6,16 @@ from src.scenario.research_noa import (
     ResearchNoARunConfig,
     ResearchNoARunner,
 )
+from src.scenario.research_noa_transmission import (
+    TransmissionPrimeContext,
+    prime_live_transmission,
+)
 from tests.research_noa_fakes import (
     FakeClient,
     FakeDriverViewFactory,
     FakeResearchVehicle,
     FakeResearchWorld,
+    FakeWorldSnapshot,
     make_live_control_config,
 )
 from tests.research_noa_transmission_support import (
@@ -28,7 +33,7 @@ def test_stopped_gear_zero_primes_once_before_active_frames() -> None:
     report = run_live_frames(fixture, 100)
 
     prime = fixture.vehicle.applied_controls[0]
-    active_controls = fixture.vehicle.applied_controls[1:-1]
+    active_controls = fixture.vehicle.applied_controls[2:-1]
     shutdown = fixture.vehicle.applied_controls[-1]
     assert report.initial_gear == 0
     assert report.transmission_prime_required is True
@@ -39,7 +44,7 @@ def test_stopped_gear_zero_primes_once_before_active_frames() -> None:
     assert "transmission_prime_applied=True" in report.format()
     assert "post_prime_gear=1" in report.format()
     assert fixture.vehicle.get_control_count == 105
-    assert len(fixture.world.wait_for_tick_calls) == 3
+    assert len(fixture.world.wait_for_tick_calls) == 4
     assert prime.throttle == 0.0
     assert prime.brake == 0.5
     assert prime.steer == 0.0
@@ -55,7 +60,7 @@ def test_stopped_gear_zero_primes_once_before_active_frames() -> None:
     )
     assert report.scheduler_updates == 100
     assert report.control_frames == 100
-    assert len(fixture.vehicle.applied_controls) == report.control_frames + 2
+    assert len(fixture.vehicle.applied_controls) == report.control_frames + 3
     assert (
         sum(
             control.brake == 0.5
@@ -64,7 +69,7 @@ def test_stopped_gear_zero_primes_once_before_active_frames() -> None:
             and not control.manual_gear_shift
             for control in fixture.vehicle.applied_controls
         )
-        == 1
+        == 2
     )
     assert shutdown.brake == 0.5
     assert fixture.vehicle.destroy_count == 1
@@ -79,7 +84,7 @@ def test_immediate_prime_engagement_stops_after_first_confirmation_tick() -> Non
 
     assert report.post_prime_gear == 1
     assert fixture.vehicle.confirmation_ticks == 1
-    assert len(fixture.world.wait_for_tick_calls) == 1
+    assert len(fixture.world.wait_for_tick_calls) == 2
     assert fixture.world.wait_for_tick_calls[0] == pytest.approx(0.5)
     assert (
         sum(control.manual_gear_shift for control in fixture.vehicle.applied_controls)
@@ -106,7 +111,7 @@ def test_engaged_forward_gear_skips_transmission_prime() -> None:
     )
 
 
-def test_moving_gear_zero_fails_closed_without_priming() -> None:
+def test_moving_gear_zero_missing_owned_actor_fails_closed_without_priming() -> None:
     from src.scenario.research_noa import ResearchNoATransmissionPrimeError
 
     vehicle = FakeResearchVehicle(initial_gear=0)
@@ -122,9 +127,61 @@ def test_moving_gear_zero_fails_closed_without_priming() -> None:
     assert fixture.vehicle.autopilot_calls == [False]
     assert session.live_scheduler is not None
     assert session.live_scheduler.commands == ()
-    assert fixture.vehicle.applied_controls == []
-    assert fixture.world.wait_for_tick_calls == []
+    assert len(fixture.vehicle.applied_controls) == 1
+    preparation = fixture.vehicle.applied_controls[0]
+    assert preparation.throttle == 0.0
+    assert preparation.brake == 0.5
+    assert preparation.manual_gear_shift is False
+    assert fixture.world.wait_for_tick_calls == [pytest.approx(5.0)]
     assert fixture.vehicle.destroy_count == 1
+
+
+def test_direct_moving_caller_without_timeout_remains_strict_and_read_only() -> None:
+    from src.scenario.research_noa import ResearchNoATransmissionPrimeError
+
+    vehicle = FakeResearchVehicle(initial_gear=0)
+    world = FakeResearchWorld(vehicle)
+
+    with pytest.raises(ResearchNoATransmissionPrimeError):
+        prime_live_transmission(
+            vehicle,
+            world,
+            TransmissionPrimeContext(0.5, 3.905859375),
+        )
+
+    assert vehicle.applied_controls == []
+    assert world.wait_for_tick_calls == []
+
+
+def test_session_settles_reported_speed_before_prime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vehicle = FakeResearchVehicle(initial_gear=0, prime_engages_after_ticks=1)
+    vehicle.velocity = FakeVelocity(3.905859375 / 3.6, 0.0, 0.0)
+    fixture = make_transmission_fixture(vehicle)
+    original_wait_for_tick = fixture.world.wait_for_tick
+    settling_speeds = iter((1.0, 0.0))
+
+    def wait_for_tick(seconds: float) -> FakeWorldSnapshot:
+        snapshot = original_wait_for_tick(seconds)
+        speed_kmh = next(settling_speeds, None)
+        if speed_kmh is None:
+            return snapshot
+        vehicle.velocity = FakeVelocity(speed_kmh / 3.6, 0.0, 0.0)
+        return FakeWorldSnapshot(snapshot.frame, actor=vehicle)
+
+    monkeypatch.setattr(fixture.world, "wait_for_tick", wait_for_tick)
+
+    report = run_live_frames(fixture, 1)
+
+    assert report.initial_speed_kmh == pytest.approx(3.905859375)
+    assert report.transmission_prime_applied is True
+    assert fixture.world.wait_for_tick_calls[:2] == [
+        pytest.approx(5.0),
+        pytest.approx(4.9),
+    ]
+    assert fixture.vehicle.applied_controls[0].manual_gear_shift is False
+    assert fixture.vehicle.applied_controls[1].manual_gear_shift is True
 
 
 def test_dry_run_never_reads_or_primes_transmission() -> None:

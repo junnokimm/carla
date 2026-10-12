@@ -10,6 +10,7 @@ import pygame
 
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction import DriverInput
+from src.experiment.lane_change import LaneChangeDirection
 from src.scenario.driver_view import (
     CAMERA_BLUEPRINT_ID,
     CameraFeed,
@@ -25,6 +26,7 @@ from src.scenario.research_exit_view import (
     KeyEvent,
     ResearchExitViewController,
 )
+from src.scenario.research_lane_change_input import LaneChangeRequestInput
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.vehicle.driving_mode import DrivingMode
 
@@ -39,6 +41,8 @@ class ResearchDriverViewConfig(DriverViewConfig):
     manual_control_limits: ResearchManualControlLimits | None = None
     noa_toggle_key: int = pygame.K_n
     automation_state_source: Callable[[], AutomationState] | None = None
+    training_early_finish: bool = False
+    traffic_manager_port: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,18 +68,26 @@ class ResearchDriverView(DriverView):
                 composition=(
                     "front_only_1_rgb"
                     if self._research_config.front_camera_only
-                    else "front_rear_left_right_4_rgb"
+                    else (
+                        "front_rear_left_right_4_rgb"
+                        if self._research_config.rear_mirror_enabled
+                        else "front_left_right_3_rgb"
+                    )
                 ),
             )
             if self._research_config.camera_diagnostics
             else None
         )
         self._exit_view = ResearchExitViewController(self._research_config.window_size)
+        self._lane_change_input = LaneChangeRequestInput()
+        self._accepted_signal_event_ids: frozenset[int] | None = None
         super().__init__(
             world,
             hero,
             self._research_config,
             performance_observer=self._camera_diagnostics,
+            training_early_finish=self._research_config.training_early_finish,
+            traffic_manager_port=self._research_config.traffic_manager_port,
         )
 
     def set_exit_view_binding(self, binding: ExitViewBinding | None) -> None:
@@ -156,12 +168,26 @@ class ResearchDriverView(DriverView):
         super()._record_interaction_duration(operation, started_at)
 
     def _handle_mode_events(self, events: list[KeyEvent]) -> None:
+        accepted = self._accepted_signal_event_ids
         filtered_events = [
             event
             for event in events
-            if not (event.type == pygame.KEYDOWN and event.key == pygame.K_p)
+            if not (
+                event.type == pygame.KEYDOWN
+                and (
+                    event.key == pygame.K_p
+                    or (
+                        event.key in (pygame.K_z, pygame.K_x)
+                        and accepted is not None
+                        and id(event) not in accepted
+                    )
+                )
+            )
         ]
-        super()._handle_mode_events(filtered_events)
+        try:
+            super()._handle_mode_events(filtered_events)
+        finally:
+            self._accepted_signal_event_ids = None
 
     def _draw(self, screen: pygame.Surface) -> None:
         diagnostics = self._diagnostics
@@ -196,18 +222,50 @@ class ResearchDriverView(DriverView):
         if source is not None:
             return source()
         driver_input = super()._collect_driver_input(events)
+        has_indicator_event = any(
+            event.type in (pygame.KEYDOWN, pygame.KEYUP)
+            and event.key in (pygame.K_z, pygame.K_x)
+            for event in events
+        )
+        lights = self._hero.get_light_state() if has_indicator_event else None
+        lane_change_direction = None
+        self._accepted_signal_event_ids = frozenset()
+        if lights is not None:
+            accepted_signal = self._lane_change_input.accept(events, lights)
+            lane_change_direction = accepted_signal.direction
+            self._accepted_signal_event_ids = accepted_signal.event_ids
         toggle_requested = any(
             event.type == pygame.KEYDOWN
             and event.key == self._research_config.noa_toggle_key
             for event in events
         )
-        confirm_requested, reject_requested = self._exit_view.requests(events)
+        active_indicator_keys: frozenset[int] = frozenset()
+        if self._exit_view.indicator_confirmation:
+            if lights is None:
+                lights = self._hero.get_light_state()
+            active_indicator_keys = frozenset(
+                key
+                for key, indicator in (
+                    (pygame.K_x, carla.VehicleLightState.RightBlinker),
+                )
+                if lights & indicator
+            )
+        confirm_requested, reject_requested = self._exit_view.requests(
+            events,
+            active_indicator_keys,
+        )
+        if (
+            self._exit_view.indicator_confirmation
+            and lane_change_direction is not LaneChangeDirection.RIGHT
+        ):
+            confirm_requested = False
         return replace(
             driver_input,
             activation_requested=toggle_requested,
             deactivation_requested=toggle_requested,
             exit_confirm_requested=confirm_requested,
             exit_reject_requested=reject_requested,
+            lane_change_direction=lane_change_direction,
         )
 
 

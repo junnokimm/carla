@@ -67,6 +67,15 @@ class CarlaNoAControlObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class CarlaNoACachedControlReadback:
+    throttle: float
+    brake: float
+    steering: float
+    gear: int
+    manual_gear_shift: bool
+
+
+@dataclass(frozen=True, slots=True)
 class CarlaNoAControlStep:
     frame: int
     simulation_time_seconds: float
@@ -76,6 +85,10 @@ class CarlaNoAControlStep:
     integral_effort: float
     lane_geometry: CarlaLaneGeometryContext
     command: NoAControlCommand
+    throttle_saturated: bool = False
+    brake_saturated: bool = False
+    steering_saturated: bool = False
+    cached_readback: CarlaNoACachedControlReadback | None = None
 
 
 class CarlaNoAControlTimelineError(RuntimeError):
@@ -207,14 +220,24 @@ class SimulationTimeCarlaNoAControlBackend(CarlaNoAControlBackend):
         )
         self._last_frame = observation.frame
         self._last_simulation_time_seconds = control_time
+        target_speed_kmh = self.target_speed_kmh
+        if target_speed_kmh is None:
+            raise NoAControlInactiveError
         self._last_step = CarlaNoAControlStep(
             frame=observation.frame,
             simulation_time_seconds=observation.simulation_time_seconds,
             delta_seconds=self._longitudinal_controller.delta_seconds,
-            target_speed_kmh=self._longitudinal_config.target_speed_kmh,
+            target_speed_kmh=target_speed_kmh,
             measured_speed_kmh=observation.speed_kmh,
             integral_effort=self._longitudinal_controller.integral_effort,
             lane_geometry=lane_geometry,
             command=command,
+            throttle_saturated=(
+                command.throttle >= self._longitudinal_config.max_throttle
+            ),
+            brake_saturated=command.brake >= self._longitudinal_config.max_brake,
+            steering_saturated=(
+                abs(command.steering) >= self._lateral_config.max_steering
+            ),
         )
         return command
