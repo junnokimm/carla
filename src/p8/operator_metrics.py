@@ -4,12 +4,14 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.experiment.context import ExperimentPhase
 from src.p8.model import P8Error, Stage
 from src.p8.operator_model import ModuleRunResult
 
 
 @dataclass(frozen=True, slots=True)
 class PersistedEvent:
+    phase: str
     event_type: str
     event_value: str
     session_s: float
@@ -37,15 +39,21 @@ def reduce_module_run(
 ) -> ModuleRunResult:
     with path.open(newline="", encoding="utf-8") as source:
         rows = list(csv.DictReader(source))[offset:]
+    expected_phase = {
+        Stage.MODULE_1_RUNNING: ExperimentPhase.MODULE_1.value,
+        Stage.MODULE_2_RUNNING: ExperimentPhase.MODULE_2.value,
+    }.get(stage)
     events = sorted(
         (
             PersistedEvent(
+                row["phase"],
                 row["event_type"],
                 row["event_value"],
                 float(row["session_elapsed_s"]),
             )
             for row in rows
             if row["session_elapsed_s"]
+            and (expected_phase is None or row["phase"] == expected_phase)
         ),
         key=lambda event: event.session_s,
     )

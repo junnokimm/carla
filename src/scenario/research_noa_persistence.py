@@ -137,6 +137,13 @@ class ResearchSnapshotSample:
     control: carla.VehicleControl
     indicator: str
     speed_kmh: float
+    left_lane_id: int | None = None
+    left_lane_width_m: float | None = None
+    left_lane_transform: carla.Transform | None = None
+    left_road_id: int | None = None
+    left_section_id: int | None = None
+    right_road_id: int | None = None
+    right_section_id: int | None = None
 
 
 class ResearchNoAObservationSource:
@@ -174,29 +181,47 @@ class ResearchNoAObservationSource:
     def get_observation(self) -> VehicleObservation:
         started_ns = self._monotonic_ns()
         operation_started_at = self._started_at()
-        snapshot = self._world.get_snapshot()
-        self._record_duration("snapshot_getter", operation_started_at)
+        try:
+            snapshot = self._world.get_snapshot()
+        finally:
+            self._record_duration("snapshot_getter", operation_started_at)
         snapshot_completed_ns = self._monotonic_ns()
         simulation_seconds = float(snapshot.timestamp.elapsed_seconds)
         actor_snapshot = snapshot.find(self._hero.id)
         if actor_snapshot is None:
             raise ResearchNoAActorSnapshotError(self._hero.id)
-        velocity = actor_snapshot.get_velocity()
-        transform = actor_snapshot.get_transform()
         operation_started_at = self._started_at()
-        control = self._hero.get_control()
-        self._record_duration("control_getter", operation_started_at)
+        try:
+            velocity = actor_snapshot.get_velocity()
+            transform = actor_snapshot.get_transform()
+        finally:
+            self._record_duration("snapshot_actor_getters", operation_started_at)
         operation_started_at = self._started_at()
-        waypoint = self._world.get_map().get_waypoint(
-            transform.location,
-            project_to_road=True,
-            lane_type=carla.LaneType.Driving,
-        )
-        self._record_duration("map_getter", operation_started_at)
-        right_lane = None if waypoint is None else waypoint.get_right_lane()
+        try:
+            control = self._hero.get_control()
+        finally:
+            self._record_duration("control_getter", operation_started_at)
         operation_started_at = self._started_at()
-        lights = self._hero.get_light_state()
-        self._record_duration("light_getter", operation_started_at)
+        try:
+            waypoint = self._world.get_map().get_waypoint(
+                transform.location,
+                project_to_road=True,
+                lane_type=carla.LaneType.Driving,
+            )
+        finally:
+            self._record_duration("waypoint_query", operation_started_at)
+            self._record_duration("map_getter", operation_started_at)
+        operation_started_at = self._started_at()
+        try:
+            right_lane = None if waypoint is None else waypoint.get_right_lane()
+            left_lane = None if waypoint is None else waypoint.get_left_lane()
+        finally:
+            self._record_duration("neighbor_lane_queries", operation_started_at)
+        operation_started_at = self._started_at()
+        try:
+            lights = self._hero.get_light_state()
+        finally:
+            self._record_duration("light_getter", operation_started_at)
         left = bool(lights & carla.VehicleLightState.LeftBlinker)
         right = bool(lights & carla.VehicleLightState.RightBlinker)
         completed_ns = self._monotonic_ns()
@@ -232,6 +257,13 @@ class ResearchNoAObservationSource:
             control,
             indicator,
             calculate_speed_kmh(velocity.x, velocity.y, velocity.z),
+            None if left_lane is None else int(left_lane.lane_id),
+            None if left_lane is None else float(left_lane.lane_width),
+            None if left_lane is None else left_lane.transform,
+            None if left_lane is None else int(left_lane.road_id),
+            None if left_lane is None else int(left_lane.section_id),
+            None if right_lane is None else int(right_lane.road_id),
+            None if right_lane is None else int(right_lane.section_id),
         )
         return VehicleObservation(
             timestamp=timestamp,
@@ -266,6 +298,9 @@ class ResearchNoAPersistence:
         self.recorder = ResearchEventRecorder(source, logger, self.segment)
         self._pending_events: list[PendingResearchEvent] = []
         self._stage_started = False
+        self._stage_active = False
+        self._stage_ended = False
+        self._stage_label = config.stage_label
         self._diagnostics = diagnostics
         self._control_saturation_state: tuple[bool, bool, bool] | None = None
 
@@ -273,6 +308,21 @@ class ResearchNoAPersistence:
         observation = self.source.get_observation()
         self._write_observation(observation)
         return observation
+
+    def begin_segment(self, segment: SegmentContext, stage_label: str) -> None:
+        self.flush_events()
+        self.segment = segment
+        self.recorder = ResearchEventRecorder(self.source, self.logger, segment)
+        self._stage_started = False
+        self._stage_active = False
+        self._stage_ended = False
+        self._stage_label = stage_label
+        self._record_event(
+            self.source.get_host_timestamp(),
+            ResearchEvent("stage_start", stage_label),
+        )
+        self._stage_started = True
+        self._stage_active = True
 
     def _write_observation(self, observation: VehicleObservation) -> None:
         started_at = (
@@ -742,6 +792,14 @@ class ResearchNoAPersistence:
     def stage_started(self) -> bool:
         return self._stage_started
 
+    @property
+    def stage_active(self) -> bool:
+        return self._stage_active
+
+    @property
+    def stage_ended(self) -> bool:
+        return self._stage_ended
+
     def start_stage_attempt(self) -> None:
         timestamp = self.source.get_host_timestamp()
         self._record_event(
@@ -766,6 +824,8 @@ class ResearchNoAPersistence:
             ResearchEvent("stage_start", self.config.stage_label),
         )
         self._stage_started = True
+        self._stage_active = True
+        self._stage_ended = False
 
     def fail_stage_start(self, reason: str) -> None:
         self._record_event(
@@ -776,10 +836,10 @@ class ResearchNoAPersistence:
     def end_stage(self, interruption_reason: str) -> None:
         self._record_event(
             self.source.get_host_timestamp(),
-            ResearchEvent(
-                "stage_end", f"{self.config.stage_label}:{interruption_reason}"
-            ),
+            ResearchEvent("stage_end", f"{self._stage_label}:{interruption_reason}"),
         )
+        self._stage_active = False
+        self._stage_ended = True
 
     def record_shutdown(
         self,

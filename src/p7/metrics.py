@@ -2,9 +2,38 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import isfinite
+from typing import TypedDict
 
 from src.experiment.automation_interaction_types import DriverInput
-from src.p7.types import EventKind, Json
+from src.p7.types import EventKind, HazardOutcome, Json
+
+
+class CanonicalHazardRecord(TypedDict):
+    parameter_status: str
+    canonical_status: str
+    hazard_visible_t: None
+    brake_onset_t: None
+    steer_onset_t: None
+    ttc_at_response: None
+    min_ttc: None
+    hazard_start_speed: None
+    hazard_start_distance: None
+    hazard_outcome: str | None
+
+
+def canonical_hazard_record(outcome: HazardOutcome | None = None) -> CanonicalHazardRecord:
+    return {
+        "parameter_status": "DEV_ONLY",
+        "canonical_status": "UNVALIDATED_RESEARCH_DEFINITIONS",
+        "hazard_visible_t": None,
+        "brake_onset_t": None,
+        "steer_onset_t": None,
+        "ttc_at_response": None,
+        "min_ttc": None,
+        "hazard_start_speed": None,
+        "hazard_start_distance": None,
+        "hazard_outcome": None if outcome is None else outcome.value,
+    }
 
 
 @dataclass(frozen=True, slots=True)

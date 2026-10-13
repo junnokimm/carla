@@ -17,7 +17,7 @@ from tests.test_p8_operator_backend import (
 )
 
 
-def test_active_lane_request_normal_stop_preserves_shared_clock(tmp_path: Path) -> None:
+def test_activation_cycle_lane_request_is_rejected_on_shared_clock(tmp_path: Path) -> None:
     controller, evidence = register_dev(tmp_path, StrictClock())
     advance_to(controller, Stage.TRAINING)
     evidence.driver_inputs.append(
@@ -36,14 +36,14 @@ def test_active_lane_request_normal_stop_preserves_shared_clock(tmp_path: Path) 
             rows = list(csv.DictReader(stream))
         timestamps = [int(row["host_monotonic_ns"]) for row in rows]
         assert timestamps == sorted(timestamps)
-        ends = [
+        requests = [
             json.loads(row["event_value"])
             for row in rows
-            if row["event_type"] == "lane_change_observation_end"
+            if row["event_type"] == "lane_change_request"
         ]
-        assert len(ends) == 1
-        assert ends[0]["reason"] == "NORMAL_STOP"
-        assert ends[0]["physical_completion_claimed"] is False
+        assert len(requests) == 1
+        assert requests[0]["disposition"] == "REJECTED_ACTIVATION_CYCLE"
+        assert requests[0]["physical_completion_claimed"] is False
         assert evidence.vehicles[-1].destroy_count == 1
     finally:
         if not controller.session.closed:

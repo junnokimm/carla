@@ -13,7 +13,8 @@ not P7 completion, participant authorization, or a validated hazard scenario.
 | DEV PARAMETER | Every value in `config/p7_dev_static_smoke.json`, kinematic actor motion and operational guards |
 | LIVE VALIDATION REQUIRED | Installed asset availability, real camera occlusion/reveal, ground placement, motion quality, collision mesh/sensor behavior, cleanup and renderer timing |
 | TBD BY PILOT | Final density, trigger station/distance/TTC, positions, obstacle model/size, lead speed/profile, meaningful response thresholds and rescue boundaries |
-| BLOCKED | Participant/moving-ego live mode, authoritative first-visible-frame measurement, final rescue-owner binding, and P8 experiment orchestration |
+| IMPLEMENTED OFFLINE | P8 duration-boundary continuation keeps the same viewer input/control/render loop alive before pygame teardown, invokes this `HazardScenario` with injected geometry/actors, and uses common FINAL_HAZARD logging and owned cleanup |
+| BLOCKED | Participant/moving-ego physical backend, authoritative first-visible-frame measurement, approved final rescue policy, and production P8 authorization |
 
 No CARLA server connection/live run, Unreal Editor interaction, Tobii hardware run,
 or browser/Playwright task was performed by this final offline validation. The full
@@ -57,7 +58,8 @@ Any active stage -> ABORTED on invalidity/failure
 
 - Module 1 does not reserve, spawn or run a hazard sequence.
 - Module 2 must be in `FINAL_HAZARD_ASSESSMENT`; ordinary Module 2 attention phase
-  cannot arm. Connecting that boundary to the actual 13-minute module is P8 work.
+  cannot arm. P8 now connects the nominal 13-minute module's pre-shutdown handoff to
+  an injected loop; the default operator has no approved plan and remains blocked.
 - The DEV command explicitly shortcuts directly to the final-hazard phase and
   records `DEV_ONLY_NOT_A_13_MINUTE_MODULE_RUN`.
 - `OccurrenceRegistry` atomically creates an exclusive participant-keyed claim
@@ -223,6 +225,39 @@ V5's final automatic rescue must be bound to the existing primary ego/session ow
 after its criteria are agreed. That binding is BLOCKED/P8 work, not silently claimed
 complete here. Moving/participant live operation is therefore not enabled. Aborting
 the static tool removes its own actors; it does not brake or destroy the external ego.
+
+The P8 offline execution seam accepts a separately injected safety owner. A P7
+`termination_requested` produces `REQUESTED`, followed by either
+`RETURNED_NOT_PHYSICAL_SUCCESS` or `FAILED`. Return from that command is deliberately
+not recorded as physical-stop success. No production safety owner or road boundary is
+defined by this seam.
+
+## P8 execution-loop contract
+
+`src/p8/operator_hazard_contracts.py` defines the explicit plan, approval provenance,
+backend, resources, cleanup evidence, and safety-owner contracts. `src/p8/operator_hazard.py`
+drives the existing state machine. It does not call the standalone DEV P7 program.
+
+- Default `OperatorRuntimeConfig.hazard_execution=None` means no scenario execution.
+- An injected plan identifies policy source, approval reference, and backend-readiness
+  source. There is no physical execution scope: plans are accepted only in
+  `DEV_REHEARSAL` with an injected test client, injected viewer, and injected input.
+- The backend receives the same live `ResearchNoASession`, world, Ego, viewer/sensor
+  owner, control bundle, persistence, logger, and clock retained from Module 2.
+- There is no loop timeout, time/station conjunction, lead path/speed default, response
+  threshold promotion, rescue boundary, or 300-second observation cap in P8.
+- The backend supplies geometry only. The continuation combines it with the actual
+  `DriverInput` collected by the existing viewer frame and the timestamp captured by
+  existing post-control persistence, then drives `HazardScenario.arm/update`.
+- Persistence flushes M2 at the 780-second boundary, rebinds its segment and
+  `ResearchEventRecorder`, and captures exactly once per continued frame. Actual
+  first-visible frame stays null.
+- Backend cleanup owns only its Lead/Cargo/sensors. Normal session shutdown still owns
+  viewer and Ego, preserving one cleanup path for each resource.
+
+Offline tests use `OwnedActors` with fake Lead/Cargo and an injected fake observation
+backend through a real fake-world `ResearchNoASession`. This proves lifecycle plumbing,
+not kinematic or physical moving-lead suitability.
 
 ## DEV parameters, not final research values
 

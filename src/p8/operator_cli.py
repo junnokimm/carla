@@ -235,8 +235,9 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
             args.exit_response_timeout_s,
             args.exit_lateral_onset_threshold_m,
         )
-        module_exit = _exit_template(module_selection, behavior)
-        training_exit = _exit_template(training_selection, behavior)
+        assisted_execution = args.traffic_manager_port is not None
+        module_exit = _exit_template(module_selection, behavior, assisted_execution)
+        training_exit = _exit_template(training_selection, behavior, assisted_execution)
 
     return OperatorRuntimeConfig(
         spawn_index=args.spawn_index or 0,
@@ -279,6 +280,7 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
 def _exit_template(
     selection: ExitRouteSelection | None,
     behavior: ExitBehaviorArguments,
+    assisted_execution: bool,
 ) -> ResearchExitAssistanceConfig | None:
     if selection is None:
         return None
@@ -293,7 +295,7 @@ def _exit_template(
         lateral_onset_threshold_m=behavior.lateral_onset_threshold_m,
         confirm_key="x",
         reject_key="r",
-        assisted_execution_enabled=False,
+        assisted_execution_enabled=assisted_execution,
         indicator_confirmation=True,
     )
 

@@ -9,6 +9,8 @@ from src.experiment.automation import (
     AutomationState,
     DrivingControlMode,
 )
+from src.p7.types import P7Error
+from src.scenario.research_noa_lifecycle import retain_first_error
 from src.scenario.research_noa_runtime import ResearchNoARunner
 from tests.research_noa_fakes import (
     FakeClient,
@@ -27,6 +29,18 @@ from tests.test_p4_research_noa_integration import (
 
 class InjectedLifecycleWriteError(RuntimeError):
     pass
+
+
+def test_retain_first_error_preserves_frozen_domain_error() -> None:
+    primary = P7Error("primary")
+
+    def fail_cleanup() -> None:
+        raise RuntimeError("secondary")
+
+    retained = retain_first_error(fail_cleanup, primary)
+
+    assert retained is primary
+    assert "RuntimeError:secondary" in "\n".join(primary.__notes__)
 
 
 def test_lifecycle_and_shutdown_events_use_host_only_timestamps(

@@ -10,6 +10,10 @@ from src.experiment.lane_change import (
     LaneChangeDirection,
     LaneChangeEligibility,
 )
+from src.vehicle.carla_lane_topology import (
+    CarlaLanePairTopology,
+    capture_lane_pair_topology,
+)
 
 
 class CarlaAdjacentLaneLocation(Protocol):
@@ -46,6 +50,9 @@ class CarlaAdjacentLaneWaypoint(Protocol):
     def section_id(self) -> int: ...
 
     @property
+    def is_junction(self) -> bool: ...
+
+    @property
     def lane_change(self) -> carla.LaneChange: ...
 
 
@@ -60,6 +67,10 @@ class CarlaAdjacentLaneMap(Protocol):
         project_to_road: bool,
         lane_type: carla.LaneType,
     ) -> CarlaAdjacentLaneWaypoint | None: ...
+
+    def get_topology(
+        self,
+    ) -> list[tuple[CarlaAdjacentLaneWaypoint, CarlaAdjacentLaneWaypoint]]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +155,16 @@ class CarlaAdjacentLaneAdapter:
             )
         driving = bool(target.lane_type & carla.LaneType.Driving)
         same_direction = waypoint.lane_id * target.lane_id > 0
-        if not driving:
+        same_segment = (
+            waypoint.road_id == target.road_id
+            and waypoint.section_id == target.section_id
+        )
+        outside_junction = not waypoint.is_junction and not target.is_junction
+        if not outside_junction:
+            reason = "LANE_CHANGE_JUNCTION_UNSUPPORTED"
+        elif not same_segment:
+            reason = "ADJACENT_LANE_DIFFERENT_ROAD_SECTION"
+        elif not driving:
             reason = "ADJACENT_LANE_NOT_DRIVING"
         elif not same_direction:
             reason = "ADJACENT_LANE_OPPOSITE_DIRECTION"
@@ -165,6 +185,19 @@ class CarlaAdjacentLaneAdapter:
             marking_permitted,
             reason == "STATIC_ELIGIBLE",
             reason,
+        )
+
+    def capture_topology(
+        self,
+        vehicle: CarlaAdjacentLaneVehicle | None,
+        direction: LaneChangeDirection,
+    ) -> CarlaLanePairTopology | None:
+        if vehicle is None:
+            raise CarlaAdjacentLaneUnavailableError("vehicle")
+        return capture_lane_pair_topology(
+            self._map,
+            vehicle.get_transform(),
+            direction,
         )
 
 

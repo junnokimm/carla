@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from dataclasses import replace
 
 import carla
@@ -18,6 +19,7 @@ from src.experiment.exit_assistance import (
 from src.experiment.noa_runtime import CarlaNoARuntimeWaypoint, NoARuntimeBundle
 from src.experiment.timestamp import TimestampEnvelope
 from src.p6.runtime import P6Runtime
+from src.scenario.driver_view import RuntimeFrameContinuation
 from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
 from src.scenario.research_exit_runtime import (
     ResearchExitInteractionObserver,
@@ -26,9 +28,11 @@ from src.scenario.research_exit_runtime import (
 from src.scenario.research_lane_change import ResearchLaneChangeInteractionObserver
 from src.scenario.research_noa_cleanup import destroy_owned_hero
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
+from src.scenario.research_noa_control_delivery import ControlSender
 from src.scenario.research_noa_diagnostics import ResearchWorldTiming
 from src.scenario.research_noa_lifecycle import (
     preserve_primary_error,
+    retain_first_error,
     run_with_persistence,
 )
 from src.scenario.research_noa_observation import current_lane_id
@@ -62,7 +66,9 @@ from src.scenario.research_noa_types import (
     ResearchNoAVehicle,
     ResearchNoAViewer,
     ResearchNoAWorld,
+    ResearchNoAWorldSnapshot,
 )
+from src.scenario.research_performance_summary import build_performance_summary
 
 
 class ResearchNoAPreflightError(RuntimeError):
@@ -98,6 +104,7 @@ class ResearchNoASession:
         exit_view_binding: ResearchExitViewBinding | None = None,
         p6: P6Runtime | None = None,
         speed_policy: EffectiveResearchSpeedPolicy | None,
+        control_sender: ControlSender | None = None,
     ) -> None:
         self.world = world
         self.hero = hero
@@ -118,7 +125,10 @@ class ResearchNoASession:
         self.exit_view_binding = exit_view_binding
         self.p6 = p6
         self.speed_policy = speed_policy
+        self.control_sender = control_sender
         self._closed = False
+        self._live_shutdown_completed = False
+        self._live_shutdown_timestamp: TimestampEnvelope | None = None
         self.shutdown_brake_outcome = ShutdownBrakeOutcome.not_attempted()
 
     def request_control_mode(self, mode: DrivingControlMode) -> None:
@@ -140,12 +150,30 @@ class ResearchNoASession:
             return
         self.bundle.automation_runtime.request_control_mode(mode)
 
-    def run(self) -> ResearchSmokeReport | None:
+    def run(
+        self,
+        before_live_shutdown: Callable[[ResearchNoASession], None] | None = None,
+        *,
+        continuation_factory: Callable[
+            [ResearchNoASession], RuntimeFrameContinuation | None
+        ]
+        | None = None,
+    ) -> ResearchSmokeReport | None:
         if self.persistence is None:
-            return self._run()
-        return run_with_persistence(self._run, self.persistence)
+            return self._run(before_live_shutdown, continuation_factory)
+        return run_with_persistence(
+            lambda: self._run(before_live_shutdown, continuation_factory),
+            self.persistence,
+        )
 
-    def _run(self) -> ResearchSmokeReport | None:
+    def _run(
+        self,
+        before_live_shutdown: Callable[[ResearchNoASession], None] | None,
+        continuation_factory: Callable[
+            [ResearchNoASession], RuntimeFrameContinuation | None
+        ]
+        | None,
+    ) -> ResearchSmokeReport | None:
         if self.config.mode is ResearchNoARunMode.DRY_RUN:
             if self.persistence is not None:
                 self.persistence.start_stage()
@@ -207,13 +235,25 @@ class ResearchNoASession:
             initial_speed_kmh,
             self.monotonic_clock,
             preparation_timeout_seconds=self.config.timeout,
+            control_sender=self.control_sender,
         )
         prime = prime_live_transmission(self.hero, self.world, context)
-        initial_snapshot = self.world.get_snapshot()
         started_at = self.monotonic_clock()
         user_exited = False
         training_completed_early = False
         active_drive_seconds = 0.0
+        viewer_started = False
+        final_snapshot: ResearchNoAWorldSnapshot | None = None
+        camera_diagnostics_json: str | None = None
+        deferred_performance_error: BaseException | None = None
+        performance_capture_error: BaseException | None = None
+        initial_snapshot: ResearchNoAWorldSnapshot | None = None
+        m2_boundary_captured = False
+        scheduler_updates_at_boundary = 0
+        driver_loops_at_boundary = 0
+        commands_at_boundary = self.live_scheduler.commands
+        maximum_manual_speed_at_boundary = self.live_scheduler.maximum_manual_speed_kmh
+        final_speed_kmh: float | None = None
         try:
             if self.interaction is None:
                 self.request_control_mode(DrivingControlMode.NOA_ACTIVE)
@@ -251,33 +291,103 @@ class ResearchNoASession:
                 self.exit_assistance.start_active_drive(
                     self.persistence.source.get_host_timestamp()
                 )
+            initial_snapshot = self.world.get_snapshot()
             active_drive_started_at = self.monotonic_clock()
-            try:
-                user_exited = self.viewer.run(
-                    self.config.duration,
-                    scheduler=self.live_scheduler,
-                    diagnostics=self.live_scheduler.diagnostics,
-                    input_observer=self.interaction,
-                )
-            finally:
+            self.live_scheduler.diagnostics.begin_operation_measurement_window()
+
+            def create_continuation() -> RuntimeFrameContinuation | None:
+                nonlocal active_drive_seconds
+                nonlocal driver_loops_at_boundary
+                nonlocal final_snapshot
+                nonlocal m2_boundary_captured
+                nonlocal scheduler_updates_at_boundary
+                nonlocal commands_at_boundary
+                nonlocal final_speed_kmh
+                nonlocal maximum_manual_speed_at_boundary
+                self.live_scheduler.diagnostics.freeze_measurement_window()
+                self.viewer.freeze_performance_measurement_window()
+                m2_boundary_captured = True
                 active_drive_seconds = self.monotonic_clock() - active_drive_started_at
+                final_snapshot = self.world.get_snapshot()
+                scheduler_updates_at_boundary = self.live_scheduler.update_count
+                commands_at_boundary = self.live_scheduler.commands
+                maximum_manual_speed_at_boundary = (
+                    self.live_scheduler.maximum_manual_speed_kmh
+                )
+                final_speed_kmh = self._observe_live_speed("M2_BOUNDARY")
+                driver_loops_at_boundary = (
+                    self.live_scheduler.diagnostics.completed_driver_loop_count
+                )
+                if self.persistence is not None:
+                    self.persistence.flush_events()
+                    self.persistence.end_stage("NORMAL_COMPLETION")
+                if continuation_factory is None:
+                    return None
+                return continuation_factory(self)
+
+            try:
+                viewer_started = True
+                if continuation_factory is None:
+                    user_exited = self.viewer.run(
+                        self.config.duration,
+                        scheduler=self.live_scheduler,
+                        diagnostics=self.live_scheduler.diagnostics,
+                        input_observer=self.interaction,
+                    )
+                else:
+                    user_exited = self.viewer.run(
+                        self.config.duration,
+                        scheduler=self.live_scheduler,
+                        diagnostics=self.live_scheduler.diagnostics,
+                        input_observer=self.interaction,
+                        continuation_factory=create_continuation,
+                    )
+            finally:
+                if not m2_boundary_captured:
+                    self.live_scheduler.diagnostics.end_operation_measurement_window()
+                    active_drive_seconds = (
+                        self.monotonic_clock() - active_drive_started_at
+                    )
+                    scheduler_updates_at_boundary = self.live_scheduler.update_count
+                    commands_at_boundary = self.live_scheduler.commands
+                    maximum_manual_speed_at_boundary = (
+                        self.live_scheduler.maximum_manual_speed_kmh
+                    )
+                    driver_loops_at_boundary = (
+                        self.live_scheduler.diagnostics.completed_driver_loop_count
+                    )
+                    try:
+                        final_snapshot = self.world.get_snapshot()
+                    except (OSError, RuntimeError, TypeError, ValueError) as error:
+                        performance_capture_error = error
             training_completed_early = self.viewer.training_completed_early
-            final_speed_kmh = self._observe_live_speed("FINAL")
+            if final_speed_kmh is None:
+                final_speed_kmh = self._observe_live_speed("FINAL")
+            if (
+                before_live_shutdown is not None
+                and not user_exited
+                and performance_capture_error is None
+            ):
+                if self.persistence is not None:
+                    self.persistence.flush_events()
+                before_live_shutdown(self)
         finally:
             elapsed_seconds = self.monotonic_clock() - started_at
             trigger_state = self.bundle.automation_runtime.state
             was_active = trigger_state.control_mode is DrivingControlMode.NOA_ACTIVE
-            primary_error = sys.exception()
+            run_error = sys.exception()
+            primary_error = run_error
             shutdown_timestamps: list[TimestampEnvelope | None] = []
             try:
                 shutdown_timestamps.append(self._shutdown_live())
             except (OSError, RuntimeError, TypeError, ValueError) as cleanup_error:
                 if primary_error is None:
-                    raise
-                primary_error.add_note(
-                    "Traffic Manager shutdown cleanup failure: "
-                    f"{type(cleanup_error).__name__}:{cleanup_error}"
-                )
+                    primary_error = cleanup_error
+                else:
+                    primary_error.add_note(
+                        "Traffic Manager shutdown cleanup failure: "
+                        f"{type(cleanup_error).__name__}:{cleanup_error}"
+                    )
             shutdown_timestamp = (
                 None if not shutdown_timestamps else shutdown_timestamps[0]
             )
@@ -291,7 +401,7 @@ class ResearchNoASession:
                 )
                 and self.persistence is not None
             ):
-                preserve_primary_error(
+                primary_error = retain_first_error(
                     lambda: self.interaction.finish_lane_change_observation(
                         "ERROR"
                         if primary_error is not None
@@ -305,9 +415,11 @@ class ResearchNoASession:
                     primary_error,
                 )
             if self.persistence is not None:
-                preserve_primary_error(self.persistence.flush_events, primary_error)
+                primary_error = retain_first_error(
+                    self.persistence.flush_events, primary_error
+                )
                 if was_active:
-                    preserve_primary_error(
+                    primary_error = retain_first_error(
                         lambda: self.persistence.record_shutdown(
                             "USER_EXIT" if user_exited else "SAFETY_SHUTDOWN",
                             self.bundle.automation_runtime.state,
@@ -325,7 +437,7 @@ class ResearchNoASession:
                     if training_completed_early
                     else ExitTerminationReason.TIME_CAP
                 )
-                preserve_primary_error(
+                primary_error = retain_first_error(
                     lambda: self.exit_assistance.finish(
                         exit_reason,
                         self.persistence.source.get_host_timestamp(),
@@ -333,9 +445,82 @@ class ResearchNoASession:
                     primary_error,
                 )
             if self.p6 is not None:
-                preserve_primary_error(self.p6.stop, primary_error)
+                primary_error = retain_first_error(self.p6.stop, primary_error)
+            if viewer_started:
+                performance_error = primary_error or performance_capture_error
+                if performance_capture_error is not None:
+                    if primary_error is None:
+                        deferred_performance_error = performance_capture_error
+                    else:
+                        primary_error.add_note(
+                            "Performance final snapshot failure: "
+                            f"{type(performance_capture_error).__name__}:"
+                            f"{performance_capture_error}"
+                        )
+                measurements = (
+                    None
+                    if initial_snapshot is None or final_snapshot is None
+                    else ResearchCameraRunMeasurements(
+                        initial_world_frame=int(initial_snapshot.frame),
+                        final_world_frame=int(final_snapshot.frame),
+                        initial_simulation_seconds=float(
+                            initial_snapshot.timestamp.elapsed_seconds
+                        ),
+                        final_simulation_seconds=float(
+                            final_snapshot.timestamp.elapsed_seconds
+                        ),
+                        host_elapsed_seconds=active_drive_seconds,
+                        loop_count=driver_loops_at_boundary,
+                    )
+                )
+                try:
+                    camera_diagnostics_json = (
+                        self.viewer.camera_diagnostics_json(measurements)
+                        if self.config.camera_diagnostics
+                        else None
+                    )
+                except (OSError, RuntimeError, TypeError, ValueError) as error:
+                    if performance_error is None:
+                        performance_error = error
+                        deferred_performance_error = error
+                    else:
+                        performance_error.add_note(
+                            "Camera performance summary failure: "
+                            f"{type(error).__name__}:{error}"
+                        )
+                if self.persistence is not None:
+                    try:
+                        performance_json = build_performance_summary(
+                            diagnostics=self.live_scheduler.diagnostics,
+                            world=(
+                                None
+                                if initial_snapshot is None or final_snapshot is None
+                                else ResearchWorldTiming.from_snapshots(
+                                    initial_snapshot, final_snapshot
+                                )
+                            ),
+                            wall_elapsed_seconds=active_drive_seconds,
+                            scheduler_updates=scheduler_updates_at_boundary,
+                            camera_diagnostics_json=camera_diagnostics_json,
+                            error=performance_error,
+                        )
+                        completed_timestamp = (
+                            self.persistence.source.get_host_timestamp()
+                        )
+                        self.persistence.record_phase2_event(
+                            "performance_summary",
+                            performance_json,
+                            completed_timestamp,
+                        )
+                    except (OSError, RuntimeError, TypeError, ValueError) as error:
+                        if performance_error is None:
+                            raise
+                        performance_error.add_note(
+                            "Performance summary persistence failure: "
+                            f"{type(error).__name__}:{error}"
+                        )
             if self.persistence is not None:
-                preserve_primary_error(
+                primary_error = retain_first_error(
                     self.persistence.flush_events,
                     primary_error,
                 )
@@ -345,29 +530,18 @@ class ResearchNoASession:
                     "BOUNDED_SHUTDOWN_REQUESTED",
                     state=trigger_state,
                 )
-        final_snapshot = self.world.get_snapshot()
+            if deferred_performance_error is not None and primary_error is None:
+                raise deferred_performance_error
+            if run_error is None and primary_error is not None:
+                raise primary_error
+        if initial_snapshot is None or final_snapshot is None:
+            raise ResearchNoAPreflightError("performance final snapshot is missing")
+        if final_speed_kmh is None:
+            raise ResearchNoAPreflightError("performance final speed is missing")
         diagnostics = self.live_scheduler.diagnostics.summarize(
             ResearchWorldTiming.from_snapshots(initial_snapshot, final_snapshot),
-            elapsed_seconds,
-            self.live_scheduler.update_count,
-        )
-        camera_diagnostics_json = (
-            self.viewer.camera_diagnostics_json(
-                ResearchCameraRunMeasurements(
-                    initial_world_frame=int(initial_snapshot.frame),
-                    final_world_frame=int(final_snapshot.frame),
-                    initial_simulation_seconds=float(
-                        initial_snapshot.timestamp.elapsed_seconds
-                    ),
-                    final_simulation_seconds=float(
-                        final_snapshot.timestamp.elapsed_seconds
-                    ),
-                    host_elapsed_seconds=elapsed_seconds,
-                    loop_count=self.live_scheduler.update_count,
-                )
-            )
-            if self.config.camera_diagnostics
-            else None
+            active_drive_seconds,
+            scheduler_updates_at_boundary,
         )
 
         return build_research_smoke_report(
@@ -385,7 +559,10 @@ class ResearchNoASession:
             active_drive_seconds=active_drive_seconds,
             diagnostics=diagnostics,
             user_exited=user_exited,
-            scheduler=self.live_scheduler,
+            scheduler_updates=scheduler_updates_at_boundary,
+            commands=commands_at_boundary,
+            maximum_manual_speed_kmh=maximum_manual_speed_at_boundary,
+            final_control_mode=self.live_scheduler.runtime.state.control_mode,
             camera_diagnostics_json=camera_diagnostics_json,
             training_completed_early=training_completed_early,
             applied_target_speed_kmh=(
@@ -423,8 +600,12 @@ class ResearchNoASession:
                 brake=self.config.control_config.longitudinal.max_brake,
                 steer=0.0,
             )
+            if self.live_scheduler is not None:
+                self.live_scheduler.diagnostics.set_control_mode(
+                    self.bundle.automation_runtime.state.control_mode
+                )
             try:
-                self.hero.apply_control(brake_control)
+                (self.control_sender or self.hero.apply_control)(brake_control)
             except (OSError, RuntimeError, TypeError, ValueError) as error:
                 self.shutdown_brake_outcome = ShutdownBrakeOutcome(
                     ShutdownBrakeCommandOutcome.RAISED,
@@ -517,7 +698,12 @@ class ResearchNoASession:
         preserve_primary_error(record_violation, error)
 
     def _shutdown_live(self) -> TimestampEnvelope | None:
-        return self._deactivate_live()
+        if self._live_shutdown_completed:
+            return self._live_shutdown_timestamp
+        shutdown_timestamp = self._deactivate_live()
+        self._live_shutdown_timestamp = shutdown_timestamp
+        self._live_shutdown_completed = True
+        return shutdown_timestamp
 
     def close(self) -> None:
         if self._closed:
@@ -526,7 +712,9 @@ class ResearchNoASession:
         repeated_shutdown_phase_failure = False
         try:
             try:
-                if (
+                if self._live_shutdown_completed:
+                    pass
+                elif (
                     inherited_primary is not None
                     and self.bundle.traffic_manager_backend is not None
                 ):

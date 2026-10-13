@@ -8,6 +8,7 @@ import carla
 
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.timestamp import TimestampEnvelope
+from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.scenario.research_noa_persistence import ResearchSnapshotSample
 
 
@@ -73,13 +74,32 @@ class ResearchTrafficLightObserver:
         persistence: TrafficLightEventSink,
         authority: TrafficManagerAuthority,
         metadata: TrafficLightRuntimeMetadata,
+        diagnostics: ResearchNoADiagnostics | None = None,
     ) -> None:
         self._vehicle = vehicle
         self._persistence = persistence
         self._authority = authority
         self._metadata = metadata
+        self._diagnostics = diagnostics
 
     def record(
+        self,
+        sample: ResearchSnapshotSample,
+        state: AutomationState,
+    ) -> None:
+        performance_started = (
+            None if self._diagnostics is None else self._diagnostics.timestamp()
+        )
+        try:
+            self._record_observation(sample, state)
+        finally:
+            if performance_started is not None:
+                self._diagnostics.record_operation_duration(
+                    "traffic_light_observation",
+                    self._diagnostics.timestamp() - performance_started,
+                )
+
+    def _record_observation(
         self,
         sample: ResearchSnapshotSample,
         state: AutomationState,
@@ -87,12 +107,26 @@ class ResearchTrafficLightObserver:
         started = self._persistence.source.get_host_timestamp()
         is_at_light = self._vehicle.is_at_traffic_light()
         vehicle_state = self._vehicle.get_traffic_light_state()
-        actor = self._vehicle.get_traffic_light()
+        actor = None
+        if is_at_light:
+            lookup_started = (
+                None if self._diagnostics is None else self._diagnostics.timestamp()
+            )
+            try:
+                actor = self._vehicle.get_traffic_light()
+            finally:
+                if lookup_started is not None:
+                    self._diagnostics.record_operation_duration(
+                        "traffic_light_actor_lookup",
+                        self._diagnostics.timestamp() - lookup_started,
+                    )
         actor_id: int | None = None
         actor_state: str | None = None
         affected_relation = "UNKNOWN"
         stop_relation = "UNKNOWN"
-        associated_actor_status = "NO_ASSOCIATED_ACTOR"
+        associated_actor_status = (
+            "NO_ASSOCIATED_ACTOR" if is_at_light else "NOT_QUERIED_NOT_AT_LIGHT"
+        )
         observed_red: bool | None = None
         affected_lane_ids: list[int] = []
         stop_lane_ids: list[int] = []
@@ -122,6 +156,7 @@ class ResearchTrafficLightObserver:
         payload = {
             "vehicle_id": self._vehicle.id,
             "vehicle_is_at_traffic_light": is_at_light,
+            "actor_lookup_performed": is_at_light,
             "associated_actor_id": actor_id,
             "actor_traffic_light_state": actor_state,
             "vehicle_cached_traffic_light_state": vehicle_state.name,
@@ -162,9 +197,22 @@ class ResearchTrafficLightObserver:
             "client_version": self._metadata.client_version,
             "server_version": self._metadata.server_version,
         }
+        serialization_started = (
+            None if self._diagnostics is None else self._diagnostics.timestamp()
+        )
+        try:
+            payload_json = json.dumps(
+                payload, allow_nan=False, separators=(",", ":"), sort_keys=True
+            )
+        finally:
+            if serialization_started is not None:
+                self._diagnostics.record_operation_duration(
+                    "json_serialize",
+                    self._diagnostics.timestamp() - serialization_started,
+                )
         self._persistence.record_phase2_event(
             "traffic_light_observation",
-            json.dumps(payload, allow_nan=False, separators=(",", ":"), sort_keys=True),
+            payload_json,
             completed,
         )
 

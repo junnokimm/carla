@@ -19,6 +19,7 @@ from src.experiment.context import (
     Module1Condition,
     Module2Condition,
 )
+from src.p8.tm_runtime_attestation import RuntimeAttestation
 from src.scenario.research_noa_config import (
     ResearchAutomationInteractionConfig,
     ResearchNoARunConfig,
@@ -26,6 +27,8 @@ from src.scenario.research_noa_config import (
 )
 from src.scenario.research_noa_runtime import ResearchNoARunner
 from src.scenario.research_noa_traffic_manager import (
+    LaneChangeSubmissionStatus,
+    StaleLaneChangeGenerationError,
     TrafficManagerNoAControlBackend,
     TrafficManagerScheduler,
     build_traffic_manager_noa_runtime,
@@ -37,6 +40,7 @@ from tests.research_noa_fakes import (
     FakeResearchVehicle,
     FakeResearchWorld,
     FakeTrafficManager,
+    FakeTrafficManagerRuntimeAttestor,
     make_live_control_config,
 )
 
@@ -122,6 +126,125 @@ def test_tm_backend_exposes_only_transition_capabilities() -> None:
 
     assert not hasattr(bundle.control_backend, "step")
     assert not hasattr(bundle.control_backend, "set_driver_steering")
+
+
+def test_tm_lane_change_is_one_shot_owned_and_empty_rehearsal_only() -> None:
+    vehicle = FakeResearchVehicle()
+    world = FakeResearchWorld(vehicle)
+    traffic_manager = FakeTrafficManager(8123)
+    attestor = FakeTrafficManagerRuntimeAttestor()
+    backend = TrafficManagerNoAControlBackend(
+        vehicle,
+        traffic_manager,
+        world=world,
+        ownership_verifier=attestor,
+        runtime_attestation=attestor.attestation,
+    )
+    backend.enter_noa_control()
+
+    submission = backend.submit_lane_change(
+        "LC-1",
+        backend.activation_generation,
+        right_lane_change=True,
+    )
+
+    assert submission.request_id == "LC-1"
+    assert submission.direction == "RIGHT"
+    assert traffic_manager.calls[-1] == ("force_lane_change", True)
+    assert attestor.calls[-1] == ("owned", attestor.attestation)
+    ongoing = backend.submit_lane_change(
+        "LC-2",
+        backend.activation_generation,
+        right_lane_change=False,
+    )
+    duplicate = backend.submit_lane_change(
+        "LC-1",
+        backend.activation_generation,
+        right_lane_change=True,
+    )
+    assert ongoing.status is LaneChangeSubmissionStatus.REJECTED
+    assert ongoing.reason == "LANE_CHANGE_ALREADY_IN_FLIGHT"
+    assert duplicate.status is LaneChangeSubmissionStatus.REJECTED
+    assert duplicate.reason == "REQUEST_ID_ALREADY_CONSUMED"
+
+
+def test_tm_lane_change_generation_is_invalidated_before_manual_deregistration() -> (
+    None
+):
+    vehicle = FakeResearchVehicle()
+    world = FakeResearchWorld(vehicle)
+    attestor = FakeTrafficManagerRuntimeAttestor()
+    backend = TrafficManagerNoAControlBackend(
+        vehicle,
+        FakeTrafficManager(8123),
+        world=world,
+        ownership_verifier=attestor,
+        runtime_attestation=attestor.attestation,
+    )
+    backend.enter_noa_control()
+    submission = backend.submit_lane_change(
+        "LC-1",
+        backend.activation_generation,
+        right_lane_change=False,
+    )
+
+    backend.enter_manual_control()
+
+    assert backend.lane_change_in_flight is None
+    with pytest.raises(StaleLaneChangeGenerationError):
+        backend.complete_lane_change(submission.generation)
+
+
+def test_tm_lane_change_inventory_failure_is_nonfatal_and_does_not_force() -> None:
+    vehicle = FakeResearchVehicle()
+    traffic_manager = FakeTrafficManager(8123)
+    attestor = FakeTrafficManagerRuntimeAttestor()
+    backend = TrafficManagerNoAControlBackend(
+        vehicle,
+        traffic_manager,
+        world=None,
+        ownership_verifier=attestor,
+        runtime_attestation=attestor.attestation,
+    )
+    backend.enter_noa_control()
+
+    result = backend.submit_lane_change(
+        "LC-BLOCKED",
+        backend.activation_generation,
+        right_lane_change=True,
+    )
+
+    assert result.status is LaneChangeSubmissionStatus.BLOCKED
+    assert result.reason == "EMPTY_REHEARSAL_INVENTORY_UNAVAILABLE"
+    assert all(call[0] != "force_lane_change" for call in traffic_manager.calls)
+
+
+def test_tm_lane_change_ownership_loss_propagates_without_force() -> None:
+    class LostOwnershipAttestor(FakeTrafficManagerRuntimeAttestor):
+        def verify_owned(self, _attestation: RuntimeAttestation) -> None:
+            raise RuntimeError("listener ownership lost")
+
+    vehicle = FakeResearchVehicle()
+    world = FakeResearchWorld(vehicle)
+    traffic_manager = FakeTrafficManager(8123)
+    attestor = LostOwnershipAttestor()
+    backend = TrafficManagerNoAControlBackend(
+        vehicle,
+        traffic_manager,
+        world=world,
+        ownership_verifier=attestor,
+        runtime_attestation=attestor.attestation,
+    )
+    backend.enter_noa_control()
+
+    with pytest.raises(RuntimeError, match="ownership lost"):
+        backend.submit_lane_change(
+            "LC-LOST",
+            backend.activation_generation,
+            right_lane_change=True,
+        )
+
+    assert all(call[0] != "force_lane_change" for call in traffic_manager.calls)
 
 
 def test_tm_configuration_failure_attempts_deregistration() -> None:
@@ -221,6 +344,7 @@ def test_tm_activation_failure_deregisters_before_brake_and_destroy() -> None:
         ),
         client=FakeClient(world, FakeTrafficManager(8123)),
         viewer_factory=FakeDriverViewFactory(),
+        tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
     )
 
     with (
@@ -262,6 +386,7 @@ def test_tm_report_marks_absent_custom_control_samples_as_none() -> None:
         client=FakeClient(world, FakeTrafficManager()),
         viewer_factory=viewer_factory,
         monotonic_clock=clock,
+        tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
     )
 
     with runner.session() as session:
@@ -276,6 +401,86 @@ def test_tm_report_marks_absent_custom_control_samples_as_none() -> None:
     assert "mean_commanded_throttle=None" in formatted
     assert "max_observed_brake=None" in formatted
     assert "max_observed_abs_steering=None" in formatted
+
+
+def test_successful_tm_run_does_not_repeat_shutdown_during_close() -> None:
+    runner, client, _, vehicle = _tm_runner_with_client()
+
+    with runner.session() as session:
+        report = session.run()
+
+    assert report is not None
+    assert len(client.batch_calls) == 1
+    assert vehicle.autopilot_port_calls == [
+        (False, 8000),
+        (True, 8000),
+        (False, 8000),
+    ]
+
+
+def test_failed_tm_shutdown_is_retried_during_close() -> None:
+    runner, client, _, _ = _tm_runner_with_client()
+    client.batch_errors.append(RuntimeError("injected shutdown delivery failure"))
+
+    with (
+        pytest.raises(RuntimeError, match="injected shutdown delivery failure"),
+        runner.session() as session,
+    ):
+        session.run()
+
+    assert len(client.batch_calls) == 1
+
+
+def _tm_runner_with_client() -> tuple[
+    ResearchNoARunner,
+    FakeClient,
+    FakeResearchWorld,
+    FakeResearchVehicle,
+]:
+    vehicle = FakeResearchVehicle()
+    world = FakeResearchWorld(vehicle)
+    client = FakeClient(world, FakeTrafficManager())
+    viewer_factory = FakeDriverViewFactory()
+    runner = ResearchNoARunner(
+        ResearchNoARunConfig(
+            duration=1.0,
+            control_config=replace(
+                make_live_control_config(),
+                longitudinal=replace(
+                    make_live_control_config().longitudinal,
+                    target_speed_kmh=None,
+                ),
+            ),
+            mode=ResearchNoARunMode.LIVE_SMOKE,
+            spawn_index=0,
+            traffic_manager_port=8000,
+        ),
+        client=client,
+        viewer_factory=viewer_factory,
+        tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
+    )
+    return runner, client, world, vehicle
+
+
+def test_tm_runner_spawns_sticky_control_vehicle() -> None:
+    runner, _, world, _ = _tm_runner_with_client()
+
+    with runner.session():
+        assert ("sticky_control", "true") in world.blueprint.attributes
+
+
+def test_tm_runner_delivers_shutdown_brake_through_reused_client_batch() -> None:
+    runner, client, _, vehicle = _tm_runner_with_client()
+
+    with runner.session():
+        pass
+
+    assert len(client.batch_calls) == 1
+    commands, do_tick = client.batch_calls[0]
+    assert do_tick is False
+    assert len(commands) == 1
+    assert commands[0].actor_id == vehicle.id
+    assert commands[0].control.brake == pytest.approx(0.5)
 
 
 def test_driver_steering_deregisters_tm_before_manual_control_write() -> None:

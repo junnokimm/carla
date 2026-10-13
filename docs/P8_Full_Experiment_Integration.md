@@ -1,8 +1,12 @@
 # V5-P8 full-flow orchestration foundation
 
+Current patched TM execution contract: [P8_Patched_TM_LaneChange.md](P8_Patched_TM_LaneChange.md).
+Its separate-environment command supersedes the historical request-only commands below.
+
 Phase2 current additions: [P5 timing, general indicator requests, traffic-light evidence](P8_Phase2_P5_LaneChange_TrafficLights.md).
 Module P5 now requires explicit M1/M2 eligibility windows. General Z/X requests
-are logged independently of P5; actual lane-change execution remains BLOCKED.
+are logged independently of P5; one-shot patched-TM submission is connected only
+for an attested EMPTY_REHEARSAL_ONLY runtime and remains physically UNVERIFIED.
 Actor-specific signal-ignore0 is reasserted, but red-light stopping is UNVERIFIED.
 
 ## Current authority: Traffic Manager replacement
@@ -12,7 +16,8 @@ See [P8_Traffic_Manager_Integration.md](P8_Traffic_Manager_Integration.md) for t
 current control contract, explicit V5 changes, API limitations, full-duration
 command and physical-validation blockers. No P8 110 km/h guard or required
 `--noa-max-throttle` remains. Steering disengages; exit confirmation uses indicators.
-P5 assisted execution is BLOCKED; physical driving is UNVERIFIED; readiness stays blocked.
+P5 assisted submission is withheld until coordinator guards pass and then shares
+the general one-shot path; physical driving is UNVERIFIED and readiness stays blocked.
 Sections describing activation-speed hold or NoA110 below are historical records,
 not current operator instructions. Standalone custom-controller diagnostics remain.
 
@@ -26,7 +31,17 @@ for every V5 section 11 field and its connected/separate/missing boundary.
 The latest user-confirmed workflow supersedes the earlier administrative UI.
 The same `src.p8.orchestrator.ExperimentSession` and `Stage` remain authoritative.
 Training, M1 and M2 borrow one context, logger and SessionClock; each Runner owns
-its vehicle/viewer lifecycle. Training is one continuous planned-600-second run.
+its vehicle/viewer lifecycle. After a successful nominal M2 viewer loop, a synchronous
+callback enters the guarded FINAL_HAZARD boundary on the same live session before
+the Runner performs its ordinary shutdown and cleanup.
+The bounded-run event remains explicitly attributed to `MODULE_2_RUNNING` after
+that callback changes the current stage. A failed final world snapshot prevents the
+handoff. Successful terminal shutdown is cached so context close does not repeat TM
+deregistration or the shutdown brake; a failed shutdown remains retryable during
+close. An entry without a live binding records inactive/unbound evidence rather than
+claiming live continuity. This is only the P8 pre-shutdown boundary: P7 arm/update,
+hazard actors, observation loop, and rescue ownership are still not integrated.
+Training is one continuous planned-600-second run.
 Module execution now defaults to one **600-second M1 run and one 780-second M2 run**.
 Duration completion is not full experimental completion or participant readiness.
 Explicitly configured P5 exits are connected; route approval, P6 and moving hazard
@@ -189,7 +204,7 @@ require research/safety policy decisions and user-side CARLA validation.
    Countdown and forced waiting are removed; a separate fresh Space starts M2.
 6. M2 instruction Space starts one continuous780-second run in its assigned initial mode. MANUAL still permits N;
    actual active transitions remain protocol deviations, without forced OFF.
-7. After M2, unavailable moving hazard is recorded NOT RUN/SKIPPED internally,
+7. After M2, unavailable moving hazard is recorded BLOCKED/NOT OBSERVED internally,
    external post-procedure responsibility is recorded, and the saved-data end screen
    remains visible until closed. No hazard, survey, debrief or data-use input screen.
 
@@ -313,10 +328,11 @@ operator-reported evidence, but current offline reanalysis does not validate its
 clock or physical AOI accuracy. Clock retesting, tablet hardware/AOI, the remaining
 P5 matrix and P7 live validation are still pending.
 
-The pre-change baseline was 981 passing tests; the final offline suite is 1014
-passing tests. No actual CARLA drive, Tobii acquisition, tablet/browser validation,
-Unreal Editor action or 55-minute participant run was performed for this
-implementation.
+The earlier pre-change baseline was 981 passing tests and that integration pass
+ended at 1014. After subsequent P5/P7/P8 work and the latest guarded-handoff
+follow-up, the current full offline collection and suite are both **1523**, all
+passing. No actual CARLA drive, Tobii acquisition, tablet/browser validation,
+Unreal Editor action or 55-minute participant run was performed for this work.
 This is not P8 completion or participant-ready software.
 
 ## Status / requirement map
@@ -334,7 +350,7 @@ This is not P8 completion or participant-ready software.
 | P5 one exit opportunity per module | IMPLEMENTED reuse / DEV STUB observations | Real ExitAssistanceCoordinator, fake route/reference/presentation/observations; live matrix remains pending |
 | P6 condition-specific tablet/gaze lifecycle | IMPLEMENTED reuse / DEV STUB transport | Real TabletSession, explicit SyntheticGazeSource and existing gaze writer; no hardware claim |
 | P6 real clock/tablet/TABLET AOI readiness | HARDWARE BLOCKED | P8 orchestration does not promote revised P6 clock fits or add synthetic fallback into real mode; fitted versus verified remains explicit |
-| M2 boundary → P7 once-only hazard | IMPLEMENTED reuse / DEV STUB actors | Existing HazardScenario and OccurrenceRegistry, shared P4 clock |
+| M2 boundary → guarded P7 binding | PRE-SHUTDOWN LIVE HANDOFF IMPLEMENTED / EXECUTION BLOCKED | Nominal M2 enters FINAL_HAZARD synchronously with the same ResearchNoASession Ego/world/viewer/control/logger/clock and live MANUAL/NOA state before ordinary shutdown; no P7 actors, occurrence claim, or hazard loop while policy/readiness remains blocked |
 | P7 moving-ego/live/rescue behavior | LIVE VALIDATION REQUIRED / P8/PARTICIPANT BLOCKED | No automatic activation of unvalidated moving-ego path |
 | Survey/debrief/data use | IMPLEMENTED lifecycle / NOT_IMPLEMENTED UI | External operator-step boundary, no questionnaires or consent decisions fabricated |
 | Partial abort / new participant isolation | IMPLEMENTED / SOFTWARE TESTED | Stream close/flush, owned cleanup, final manifest; fresh per-run component graph |

@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 
 import carla
+import pytest
 
 from src.experiment.automation import (
     AutomationAvailability,
@@ -15,6 +16,7 @@ from src.experiment.timestamp import (
     HostClockTimestamp,
     TimestampEnvelope,
 )
+from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.scenario.research_noa_persistence import ResearchSnapshotSample
 from src.scenario.research_traffic_light import (
     ResearchTrafficLightObserver,
@@ -60,6 +62,12 @@ class Vehicle:
 
     def get_traffic_light_state(self) -> carla.TrafficLightState:
         return carla.TrafficLightState.Green
+
+
+@dataclass(frozen=True, slots=True)
+class NoLightVehicle(Vehicle):
+    def get_traffic_light(self) -> Light | None:
+        raise AssertionError("actor lookup must not run when the cached at-light flag is false")
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,11 +166,9 @@ def test_red_actor_records_affecting_lane_facts_without_violation_claim() -> Non
     assert sink.events[0][2].host.monotonic_ns == 500
 
 
-def test_cached_nonaffecting_red_actor_is_not_dropped_or_called_not_applicable() -> (
-    None
-):
+def test_cached_nonaffecting_actor_is_not_queried_when_vehicle_is_not_at_light() -> None:
     sink = Sink()
-    vehicle = Vehicle(
+    vehicle = NoLightVehicle(
         at_light=False,
         light=Light(8, carla.TrafficLightState.Red, [Waypoint(40, 0, -2)], []),
     )
@@ -170,18 +176,42 @@ def test_cached_nonaffecting_red_actor_is_not_dropped_or_called_not_applicable()
     observer(vehicle, sink).record(sample(), ACTIVE)
 
     payload = json.loads(sink.events[0][1])
-    assert payload["associated_actor_status"] == "UNVERIFIED_ASSOCIATION"
-    assert payload["affected_lane_relation"] == "FALSE"
+    assert payload["actor_lookup_performed"] is False
+    assert payload["associated_actor_status"] == "NOT_QUERIED_NOT_AT_LIGHT"
+    assert payload["associated_actor_id"] is None
+    assert payload["actor_traffic_light_state"] is None
+    assert payload["affected_lane_relation"] == "UNKNOWN"
     assert payload["stop_waypoint_relation"] == "UNKNOWN"
 
 
-def test_no_actor_records_explicit_absence_with_unknown_lane_relations() -> None:
+def test_at_light_without_actor_records_explicit_absence_with_unknown_lane_relations() -> None:
     sink = Sink()
 
-    observer(Vehicle(), sink).record(sample(), ACTIVE)
+    observer(Vehicle(at_light=True), sink).record(sample(), ACTIVE)
 
     payload = json.loads(sink.events[0][1])
+    assert payload["actor_lookup_performed"] is True
     assert payload["associated_actor_status"] == "NO_ASSOCIATED_ACTOR"
     assert payload["actor_traffic_light_state"] is None
     assert payload["observed_red_fact"] is None
     assert payload["affected_lane_relation"] == "UNKNOWN"
+
+
+def test_actor_lookup_timing_is_zero_when_skipped_and_recorded_when_queried() -> None:
+    times = iter((0.0, 0.032, 0.032, 0.033, 1.0, 1.010, 1.025, 1.030, 1.030, 1.031))
+    diagnostics = ResearchNoADiagnostics(lambda: next(times))
+    sink = Sink()
+    metadata = TrafficLightRuntimeMetadata(8000, "0.9.16", "server-build", False)
+
+    ResearchTrafficLightObserver(
+        NoLightVehicle(), sink, Authority(True), metadata, diagnostics
+    ).record(sample(), ACTIVE)
+    ResearchTrafficLightObserver(
+        Vehicle(at_light=True), Sink(), Authority(True), metadata, diagnostics
+    ).record(sample(), ACTIVE)
+
+    lookup = diagnostics.operation_timing("traffic_light_actor_lookup")
+    observation = diagnostics.operation_timing("traffic_light_observation")
+    assert lookup.count == 1
+    assert lookup.maximum_ms == pytest.approx(15.0)
+    assert observation.count == 2

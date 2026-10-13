@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
@@ -24,6 +25,10 @@ from src.experiment.session_clock import SessionClock
 from src.logging.csv_logger import ResearchCsvLogger
 from src.p6.clock import SessionOrigin
 from src.p6.runtime import P6Runtime
+from src.p8.tm_runtime_attestation import (
+    RuntimeAttestation,
+    TrafficManagerRuntimeAttestor,
+)
 from src.scenario.research_exit_runtime import (
     ResearchExitInteractionObserver,
     ResearchExitObservationSource,
@@ -36,6 +41,10 @@ from src.scenario.research_lane_change import (
 )
 from src.scenario.research_noa_cleanup import destroy_owned_hero
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
+from src.scenario.research_noa_control_delivery import (
+    ControlSender,
+    make_checked_control_sender,
+)
 from src.scenario.research_noa_diagnostics import (
     PerformanceClock,
     ResearchNoADiagnostics,
@@ -113,6 +122,7 @@ class ResearchNoARunner:
             [ExitRoute, ResearchNoAMap, ResearchNoAVehicle], None
         ] = validate_exit_route_map,
         borrowed_log: OpenResearchLog | None = None,
+        tm_runtime_attestor: TrafficManagerRuntimeAttestor | None = None,
     ) -> None:
         self._config = config
         self._client = client
@@ -126,6 +136,7 @@ class ResearchNoARunner:
         self._performance_clock = performance_clock
         self._exit_route_validator = exit_route_validator
         self._borrowed_log = borrowed_log
+        self._tm_runtime_attestor = tm_runtime_attestor or TrafficManagerRuntimeAttestor()
         self.log_paths: ResearchLogPaths | None = None
 
     @property
@@ -139,6 +150,14 @@ class ResearchNoARunner:
         if self._viewer_factory is not None:
             return "INJECTED_TEST_VIEWER"
         return "REAL_KEYBOARD_PATH"
+
+    @property
+    def viewer_source(self) -> str:
+        return (
+            "INJECTED_TEST_VIEWER"
+            if self._viewer_factory is not None
+            else "REAL_DRIVER_VIEW"
+        )
 
     @property
     def config(self) -> ResearchNoARunConfig:
@@ -215,6 +234,8 @@ class ResearchNoARunner:
             client = carla.Client(self._config.host, self._config.port)
             client.set_timeout(self._config.timeout)
         world = client.get_world()
+        diagnostics = ResearchNoADiagnostics(self._performance_clock)
+        diagnostics.set_control_mode(DrivingControlMode.MANUAL)
         if (
             self._config.mode is ResearchNoARunMode.LIVE_SMOKE
             and (
@@ -227,11 +248,14 @@ class ResearchNoARunner:
                 "operator live runtime requires synchronous_mode=false"
             )
         traffic_manager_port = self._config.traffic_manager_port
-        traffic_manager = (
-            None
-            if traffic_manager_port is None
-            else client.get_trafficmanager(traffic_manager_port)
-        )
+        traffic_manager = None
+        tm_attestation: RuntimeAttestation | None = None
+        if traffic_manager_port is not None:
+            prepared = self._tm_runtime_attestor.verify_before_creation(
+                traffic_manager_port
+            )
+            traffic_manager = client.get_trafficmanager(traffic_manager_port)
+            tm_attestation = self._tm_runtime_attestor.attest_after_creation(prepared)
         world_map = world.get_map()
         spawn_transform, spawn_waypoint = self._select_spawn(world_map)
         exit_config = self._config.exit_assistance
@@ -257,7 +281,25 @@ class ResearchNoARunner:
         blueprint = world.get_blueprint_library().find(self._config.vehicle_blueprint)
         if blueprint.has_attribute("role_name"):
             blueprint.set_attribute("role_name", "research_noa")
+        if traffic_manager is not None:
+            if not blueprint.has_attribute("sticky_control"):
+                raise ResearchNoAPreflightError(
+                    "hero blueprint does not support sticky_control"
+                )
+            blueprint.set_attribute("sticky_control", "true")
         hero = world.spawn_actor(blueprint, spawn_transform)
+        control_sender = (
+            None
+            if traffic_manager is None
+            else make_checked_control_sender(
+                client,
+                hero.id,
+                timing_callback=lambda duration: diagnostics.record_operation_duration(
+                    "manual_batch_rpc_wait", duration
+                ),
+                clock=diagnostics.timestamp,
+            )
+        )
         viewer = None
         ownership_transferred = False
         try:
@@ -283,16 +325,21 @@ class ResearchNoARunner:
                     hero,
                     world_map,
                     traffic_manager,
+                    world=world,
+                    ownership_verifier=self._tm_runtime_attestor,
+                    runtime_attestation=tm_attestation,
                 )
             )
             viewer = self._create_viewer(
-                world, hero, lambda: bundle.automation_runtime.state
+                world,
+                hero,
+                lambda: bundle.automation_runtime.state,
+                control_sender,
             )
             viewer.attach()
             if self._config.camera_diagnostics:
                 viewer.capture_camera_diagnostics_environment(world)
             live_scheduler = None
-            diagnostics = ResearchNoADiagnostics(self._performance_clock)
             persistence: ResearchNoAPersistence | None = None
             interaction_events: list[AutomationInteractionEvent] = []
             interaction: (
@@ -302,6 +349,7 @@ class ResearchNoARunner:
                 | ResearchExitInteractionObserver
                 | None
             ) = None
+            lane_change_interaction: ResearchLaneChangeInteractionObserver | None = None
             exit_assistance = None
             exit_view_binding = None
             persistence_config = self._config.persistence
@@ -327,6 +375,21 @@ class ResearchNoARunner:
                     diagnostics=diagnostics,
                     exit_context=None if exit_config is None else exit_config.context,
                 )
+                if tm_attestation is not None:
+                    persistence.record_phase2_event(
+                        "tm_runtime_attestation",
+                        json.dumps({
+                            "port": tm_attestation.port,
+                            "owner_pid": tm_attestation.owner_pid,
+                            "libcarla_path": str(tm_attestation.libcarla_path),
+                            "libcarla_sha256": tm_attestation.libcarla_sha256,
+                            "status": "VERIFIED_LOCAL_PROCESS",
+                            "external_client_exclusion": "OPERATING_PREREQUISITE",
+                            "physical_validation": "UNVERIFIED",
+                        }),
+                        source.get_host_timestamp(),
+                    )
+                    persistence.flush_events()
             if self._config.mode is ResearchNoARunMode.LIVE_SMOKE:
                 custom_control_backend = bundle.custom_control_backend
                 if traffic_manager is None:
@@ -437,7 +500,7 @@ class ResearchNoARunner:
                             raise ResearchNoAPreflightError(
                                 "Traffic Manager authority backend is missing"
                             )
-                        interaction = ResearchLaneChangeInteractionObserver(
+                        lane_change_interaction = ResearchLaneChangeInteractionObserver(
                             interaction,
                             bundle.adjacent_lanes,
                             hero,
@@ -461,8 +524,12 @@ class ResearchNoARunner:
                                     client.get_server_version(),
                                     world.get_settings().synchronous_mode,
                                 ),
+                                diagnostics,
                             ),
+                            traffic_manager_backend,
+                            self._config.automation_interaction.policy,
                         )
+                        interaction = lane_change_interaction
             if exit_config is not None:
                 if (
                     persistence is None
@@ -497,6 +564,12 @@ class ResearchNoARunner:
                     route_reference,
                     persistence.record_exit,
                     session_clock=session_clock,
+                    assisted_submission=(
+                        None
+                        if lane_change_interaction is None
+                        else lane_change_interaction.submit_confirmed_p5
+                    ),
+                    submission_clock=persistence.source.get_host_timestamp,
                 )
                 persistence.record_exit_config(exit_config, exit_route)
                 interaction = ResearchExitInteractionObserver(
@@ -527,6 +600,7 @@ class ResearchNoARunner:
                 exit_view_binding=exit_view_binding,
                 p6=p6,
                 speed_policy=effective_speed_policy,
+                control_sender=control_sender,
             )
             ownership_transferred = True
             return session
@@ -565,6 +639,7 @@ class ResearchNoARunner:
         world: ResearchNoAWorld,
         hero: ResearchNoAVehicle,
         automation_state_source: Callable[[], AutomationState],
+        control_sender: ControlSender | None = None,
     ) -> ResearchNoAViewer:
         interaction = self._config.automation_interaction
         manual_control_limits = (
@@ -587,6 +662,7 @@ class ResearchNoARunner:
             automation_state_source=automation_state_source,
             training_early_finish=self._config.operator_training,
             traffic_manager_port=self._config.traffic_manager_port,
+            control_sender=control_sender,
             noa_toggle_key=(
                 ord(interaction.noa_key) if interaction is not None else ord("n")
             ),

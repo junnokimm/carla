@@ -133,6 +133,7 @@ def test_opt_in_observer_records_each_host_loop_segment(monkeypatch) -> None:
         def __init__(self) -> None:
             self.now = 0.0
             self.segments: list[str] = []
+            self.completed_display_flips = 0
 
         def timestamp(self) -> float:
             self.now += 0.001
@@ -141,6 +142,9 @@ def test_opt_in_observer_records_each_host_loop_segment(monkeypatch) -> None:
         def record_duration(self, segment: str, duration_seconds: float) -> None:
             assert duration_seconds > 0.0
             self.segments.append(segment)
+
+        def record_completed_display_flip(self) -> None:
+            self.completed_display_flips += 1
 
         def record_camera_preparation(
             self, role, snapshot, prepared_at_seconds
@@ -177,3 +181,87 @@ def test_opt_in_observer_records_each_host_loop_segment(monkeypatch) -> None:
         "fps_limiter",
         "driver_loop",
     ]
+    assert observer.completed_display_flips == 1
+
+
+def test_duration_continuation_uses_same_input_control_and_render_loop(
+    monkeypatch,
+) -> None:
+    from src.scenario import driver_view
+
+    trace: list[str] = []
+    times = iter((0.0, 0.0, 1.0, 1.1, 1.2))
+    monkeypatch.setattr(driver_view.time, "monotonic", lambda: next(times))
+    monkeypatch.setattr(
+        driver_view.pygame.display, "init", lambda: trace.append("init")
+    )
+    monkeypatch.setattr(driver_view.pygame.display, "set_mode", lambda size: None)
+    monkeypatch.setattr(driver_view.pygame.display, "set_caption", lambda title: None)
+    monkeypatch.setattr(
+        driver_view.pygame.display, "flip", lambda: trace.append("flip")
+    )
+    training_finish = driver_view.pygame.event.Event(
+        driver_view.pygame.KEYDOWN, key=driver_view.pygame.K_F8
+    )
+    event_batches = iter(([], [training_finish], [], []))
+    monkeypatch.setattr(driver_view.pygame.event, "get", lambda: next(event_batches))
+    monkeypatch.setattr(driver_view.pygame.time, "Clock", FakeFrameClock)
+    monkeypatch.setattr(driver_view.pygame, "quit", lambda: trace.append("quit"))
+    monkeypatch.setattr(
+        driver_view.pygame.key,
+        "get_pressed",
+        lambda: defaultdict(bool),
+    )
+
+    class Scheduler:
+        def update(self) -> bool:
+            trace.append("scheduler")
+            return True
+
+    class InputObserver:
+        def update(self, driver_input):
+            trace.append("input")
+            return AutomationState(
+                AutomationAvailability.AVAILABLE, DrivingControlMode.MANUAL
+            )
+
+        def after_control_applied(self) -> None:
+            trace.append("post_control")
+
+    class Continuation:
+        def __init__(self) -> None:
+            self.frames = 0
+
+        def start(self) -> None:
+            trace.append("continuation_start")
+
+        def after_control_applied(self, driver_input) -> bool:
+            self.frames += 1
+            trace.append("hazard_observer")
+            return self.frames < 3
+
+        def finalize(self, reason: str, error=None) -> None:
+            trace.append(f"finalize:{reason}")
+
+    viewer = driver_view.DriverView(FakeWorld(), FakeHero(), training_early_finish=True)
+    monkeypatch.setattr(viewer, "_update_turn_signal_audio", lambda: None)
+    monkeypatch.setattr(viewer, "_draw", lambda screen: trace.append("draw"))
+
+    viewer.run(
+        1.0,
+        Scheduler(),
+        InputObserver(),
+        lambda: Continuation(),
+    )
+
+    assert trace.count("hazard_observer") == 3
+    assert trace.count("input") == 4
+    assert trace.count("scheduler") == 4
+    assert trace.count("draw") == 4
+    assert trace.count("flip") == 4
+    assert viewer.training_completed_early is False
+    assert trace.index("continuation_start") > trace.index("flip")
+    assert trace.index("hazard_observer") < trace.index(
+        "draw", trace.index("continuation_start")
+    )
+    assert trace[-2:] == ["finalize:TERMINAL", "quit"]

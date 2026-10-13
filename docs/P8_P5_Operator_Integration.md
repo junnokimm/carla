@@ -1,18 +1,24 @@
 # Existing P5 connected to the single P8 operator
 
+Current patched-runtime command and validation limits:
+[P8_Patched_TM_LaneChange.md](P8_Patched_TM_LaneChange.md).
+Historical execution commands below do not select the new validation environment.
+
 ## Current TM override
 
 Phase2 adds explicit module time windows and general left/right requests:
 [current contract and full command](P8_Phase2_P5_LaneChange_TrafficLights.md).
 Z is now a general LEFT request, not rejection; optional R rejects P5. X confirms
-by turning the right indicator on. Physical assistance remains BLOCKED.
+by turning the right indicator on. Patched-TM one-shot assistance is connected only
+under the EMPTY_REHEARSAL_ONLY gate; physical behavior remains UNVERIFIED.
 
 [P8_Traffic_Manager_Integration.md](P8_Traffic_Manager_Integration.md) defines the
 current operator contract and supersedes custom-control/activation-speed-hold
 statements below. P8 uses default-speed TM; it never arms the P5 custom lateral
 route reference. X OFF-to-ON confirms the existing right-exit recommendation,
 Optional R rejects it; no separate confirmation button is required. A confirmed assisted request is
-recorded BLOCKED/UNVERIFIED, not executed. Physical P5 observations continue and
+withheld until coordinator guards pass, then uses the same one-shot TM submission
+path as general requests. Physical P5 observations continue and
 are distinct from assistance status. Original manifests and Exit47 Fork Fix remain.
 
 ## Status and authority
@@ -90,6 +96,15 @@ does not itself establish approval.
 - All P5 fields stay in the common research CSV: identities, route/version, t0,
   mode at t0, decisions/input times, indicator/steering/lateral/crossing observations,
   outcomes and reasons. Unknown values remain null/blank.
+- A manifest exit-segment identity now records `lc_exit_entry_observed`; only the
+  existing terminal route observation records `lc_completed`/`EXIT`. These records
+  carry `highway_rejoin_status=NOT_CONFIGURED` because the development manifests do
+  not define a validated rejoin boundary. Neither event is inferred from lane-change
+  completion.
+- Lane-change diagnostics retain target center pose, heading, width, existing
+  alignment tolerances and the observed alignment failure. If generation changes
+  before executor completion acknowledgement, the lifecycle is `UNVERIFIED`, not
+  `COMPLETED`, and automatic indicator OFF is not attempted.
 - Per-stage summaries compare complete live event type/time/payload evidence with
   persisted records, checking identities, duplicates and contradictory/missing data.
   Live evidence is stably ordered by original timestamps; Coordinator events are

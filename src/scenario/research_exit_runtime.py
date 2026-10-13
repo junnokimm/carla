@@ -21,6 +21,7 @@ from src.experiment.exit_route import (
     RouteProjection,
     project_route,
 )
+from src.experiment.lane_change import LaneChangeDirection
 from src.experiment.lane_geometry import PlanarPose, compute_lane_relative_geometry
 from src.experiment.timestamp import TimestampEnvelope
 from src.scenario.research_exit_config import ResearchExitAssistanceConfig
@@ -38,6 +39,14 @@ class LaneChangeObservationFinisher(Protocol):
         reason: str,
         timestamp: TimestampEnvelope,
     ) -> None: ...
+
+
+@runtime_checkable
+class AssistedLaneChangeInteraction(LaneChangeInteraction, Protocol):
+    @property
+    def lane_change_in_progress(self) -> bool: ...
+
+    def submit_confirmed_p5(self) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +154,11 @@ class ResearchExitInteractionObserver:
         persistence: ResearchNoAPersistence,
     ) -> None:
         self._interaction = interaction
+        self._assisted_interaction = (
+            interaction
+            if isinstance(interaction, AssistedLaneChangeInteraction)
+            else None
+        )
         self.coordinator = coordinator
         self._observations = observations
         self._persistence = persistence
@@ -178,11 +192,24 @@ class ResearchExitInteractionObserver:
 
     def update(self, driver_input: DriverInput) -> AutomationState:
         receipt_timestamp = self._persistence.source.get_host_timestamp()
+        assisted = self._assisted_interaction
+        p5_candidate = (
+            assisted is not None
+            and driver_input.exit_confirm_requested
+            and driver_input.lane_change_direction is LaneChangeDirection.RIGHT
+        )
         effective_input = replace(
             driver_input,
             lane_change_in_progress=(
                 driver_input.lane_change_in_progress
-                or self.coordinator.lane_change_in_progress
+                or (
+                    assisted.lane_change_in_progress
+                    if assisted is not None
+                    else self.coordinator.lane_change_in_progress
+                )
+            ),
+            lane_change_direction=(
+                None if p5_candidate else driver_input.lane_change_direction
             ),
         )
         state = self._interaction.update(effective_input)

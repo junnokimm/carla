@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol
 
 import carla
@@ -12,6 +13,7 @@ from src.experiment.automation_scheduler import AutomationRuntimeStateSource
 from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
+from src.p8.tm_runtime_attestation import RuntimeAttestation
 from src.scenario.driver_view import RuntimeDriverInputObserver
 from src.scenario.research_exit_runtime import ResearchExitViewBinding
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
@@ -84,6 +86,9 @@ class FakeResearchVehicle(FakeVehicle):
 
     def get_light_state(self) -> carla.VehicleLightState:
         return self.current_light_state
+
+    def set_light_state(self, state: carla.VehicleLightState) -> None:
+        self.current_light_state = state
 
     def get_speed_limit(self) -> float:
         return self.speed_limit_kmh
@@ -173,7 +178,7 @@ class FakeBlueprint:
         self.attributes: list[tuple[str, str]] = []
 
     def has_attribute(self, name: str) -> bool:
-        return name == "role_name"
+        return name in {"role_name", "sticky_control"}
 
     def set_attribute(self, name: str, value: str) -> None:
         self.attributes.append((name, value))
@@ -187,6 +192,14 @@ class FakeBlueprintLibrary:
     def find(self, identifier: str) -> FakeBlueprint:
         self.requests.append(identifier)
         return self.blueprint
+
+
+class FakeActorList(tuple[FakeResearchVehicle, ...]):
+    def filter(self, pattern: str) -> FakeActorList:
+        prefix = pattern.removesuffix("*")
+        return FakeActorList(
+            actor for actor in self if actor.type_id.startswith(prefix)
+        )
 
 
 class FakeResearchWorld:
@@ -223,6 +236,9 @@ class FakeResearchWorld:
 
     def get_blueprint_library(self) -> FakeBlueprintLibrary:
         return self.blueprints
+
+    def get_actors(self) -> FakeActorList:
+        return FakeActorList((self.vehicle,))
 
     def spawn_actor(
         self,
@@ -307,11 +323,49 @@ class FakeTrafficManager:
         self.calls.append(("ignore_lights_percentage", percentage))
         actor.events.append(f"tm:ignore_lights_percentage:{percentage}")
 
+    def force_lane_change(self, actor: FakeResearchVehicle, direction: bool) -> None:
+        self.calls.append(("force_lane_change", direction))
+
+
+class FakeTrafficManagerRuntimeAttestor:
+    def __init__(self) -> None:
+        self.attestation = RuntimeAttestation(
+            8000,
+            1,
+            Path("fake-libcarla.pyd"),
+            "FAKE",
+        )
+        self.calls: list[tuple[str, int | object]] = []
+
+    def verify_before_creation(self, port: int) -> object:
+        self.calls.append(("before", port))
+        return self.attestation
+
+    def attest_after_creation(self, prepared: object) -> object:
+        self.calls.append(("after", prepared))
+        return self.attestation
+
+    def verify_owned(self, attestation: RuntimeAttestation) -> None:
+        self.calls.append(("owned", attestation))
+
+
+@dataclass(frozen=True, slots=True)
+class FakeCommandResponse:
+    actor_id: int
+    error: str = ""
+
+    def has_error(self) -> bool:
+        return bool(self.error)
+
 
 @dataclass(frozen=True, slots=True)
 class FakeClient:
     world: FakeResearchWorld
     traffic_manager: FakeTrafficManager | None = None
+    batch_calls: list[tuple[tuple[carla.command.ApplyVehicleControl, ...], bool]] = (
+        field(default_factory=list)
+    )
+    batch_errors: list[RuntimeError] = field(default_factory=list)
 
     def get_world(self) -> FakeResearchWorld:
         return self.world
@@ -327,6 +381,31 @@ class FakeClient:
 
     def get_server_version(self) -> str:
         return "0.9.16-test-server"
+
+    def apply_batch_sync(
+        self,
+        commands: list[carla.command.ApplyVehicleControl],
+        do_tick: bool = False,
+    ) -> list[FakeCommandResponse]:
+        if self.batch_errors:
+            raise self.batch_errors.pop(0)
+        self.batch_calls.append((tuple(commands), do_tick))
+        responses: list[FakeCommandResponse] = []
+        for command in commands:
+            control = command.control
+            self.world.vehicle.apply_control(
+                carla.VehicleControl(
+                    throttle=control.throttle,
+                    steer=control.steer,
+                    brake=control.brake,
+                    hand_brake=control.hand_brake,
+                    reverse=control.reverse,
+                    manual_gear_shift=control.manual_gear_shift,
+                    gear=control.gear,
+                )
+            )
+            responses.append(FakeCommandResponse(command.actor_id))
+        return responses
 
 
 class ResearchTestScheduler(Protocol):
@@ -384,12 +463,16 @@ class FakeDriverView:
             self.camera_diagnostics_action(measurements)
         return self.camera_diagnostics_payload
 
+    def freeze_performance_measurement_window(self) -> None:
+        return
+
     def run(
         self,
         duration: float,
         scheduler: ResearchTestScheduler | None = None,
         diagnostics: ResearchNoADiagnostics | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
+        continuation_factory=None,
     ) -> bool:
         duration_cap = 780.0
         assert 0.0 < duration <= duration_cap
@@ -408,6 +491,27 @@ class FakeDriverView:
                 input_observer.after_control_applied()
             if diagnostics is not None:
                 diagnostics.record_render_duration(0.0)
+        if continuation_factory is not None:
+            continuation = continuation_factory()
+            if continuation is not None:
+                continuation.start()
+                try:
+                    active = True
+                    while active:
+                        source = self.config.driver_input_source
+                        driver_input = source() if source is not None else DriverInput()
+                        if input_observer is not None:
+                            input_observer.update(driver_input)
+                        scheduler.update()
+                        if isinstance(input_observer, ResearchPostControlObserver):
+                            input_observer.after_control_applied()
+                        active = continuation.after_control_applied(driver_input)
+                        if diagnostics is not None:
+                            diagnostics.record_render_duration(0.0)
+                    continuation.finalize("TERMINAL")
+                except BaseException as error:
+                    continuation.finalize("ERROR", error)
+                    raise
         return False
 
     def close(self) -> None:

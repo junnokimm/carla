@@ -39,6 +39,7 @@ class ExitEventData:
     active_drive_start: TimestampEnvelope | None
     eligibility_elapsed_s: float | None
     presentation_window_status: str | None
+    highway_rejoin_status: str | None
 
 
 def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
@@ -89,6 +90,7 @@ def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
         else None,
         "outcome": data.outcome,
         "termination_reason": data.termination_reason,
+        "highway_rejoin_status": data.highway_rejoin_status,
         "observation_frame": None
         if data.observation is None
         else data.observation.carla_frame,

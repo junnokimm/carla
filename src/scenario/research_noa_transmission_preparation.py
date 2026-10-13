@@ -8,6 +8,7 @@ from typing import assert_never
 
 import carla
 
+from src.scenario.research_noa_control_delivery import ControlSender
 from src.scenario.research_noa_types import ResearchNoAVehicle, ResearchNoAWorld
 from src.vehicle.speed import calculate_speed_kmh
 
@@ -72,6 +73,7 @@ class TransmissionPreparationContext:
     timeout_seconds: float
     stationary_threshold_kmh: float
     monotonic_clock: Callable[[], float]
+    control_sender: ControlSender | None = None
 
 
 def prepare_moving_gear_zero(
@@ -88,7 +90,7 @@ def prepare_moving_gear_zero(
             TransmissionPreparationFailure.FRAME
         ) from error
     try:
-        vehicle.apply_control(
+        (context.control_sender or vehicle.apply_control)(
             carla.VehicleControl(
                 throttle=0.0,
                 brake=context.bounded_brake,

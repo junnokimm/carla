@@ -106,7 +106,12 @@ class ExperimentSession:
             Stage.ABORTED,
         ):
             raise P8Error("DEV_OUTCOME_APPROVAL_NOT_ALLOWED_FOR_STAGE")
-        if outcome not in ("PARTIAL", "SKIPPED") or not reason.strip():
+        if not reason.strip():
+            raise P8Error("DEV_OUTCOME_REQUIRES_REASON")
+        if self.state is Stage.FINAL_HAZARD:
+            if outcome != "BLOCKED":
+                raise P8Error("FINAL_HAZARD_OUTCOME_MUST_BE_BLOCKED")
+        elif outcome not in ("PARTIAL", "SKIPPED"):
             raise P8Error("DEV_OUTCOME_REQUIRES_PARTIAL_OR_SKIPPED_AND_REASON")
         approval: dict[str, Json] = {
             "outcome": outcome,
@@ -124,7 +129,7 @@ class ExperimentSession:
             or self.components.kind != "ACTUAL_BOUNDED_OPERATOR"
         ):
             raise P8Error("EXECUTION_POLICY_OUTCOME_REQUIRES_OPERATOR_REHEARSAL")
-        if outcome not in ("PARTIAL", "SKIPPED") or not reason.strip():
+        if outcome not in ("PARTIAL", "SKIPPED", "BLOCKED") or not reason.strip():
             raise P8Error("EXECUTION_POLICY_OUTCOME_REQUIRES_REASON")
         match self.state:
             case Stage.CONSENT_AND_ELIGIBILITY | Stage.POST_EXPERIMENT:
@@ -158,7 +163,7 @@ class ExperimentSession:
                     "completion_unverified": True,
                 }
             case Stage.FINAL_HAZARD:
-                if outcome != "SKIPPED":
+                if outcome != "BLOCKED":
                     raise P8Error("EXECUTION_POLICY_OUTCOME_NOT_ALLOWED_FOR_STAGE")
                 scope = {
                     "external_management": False,

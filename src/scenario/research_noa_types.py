@@ -10,6 +10,7 @@ from src.experiment.noa_runtime import (
 )
 from src.scenario.driver_view import (
     ResearchPostControlObserver,
+    RuntimeContinuationFactory,
     RuntimeDriverInputObserver,
     RuntimeIterationScheduler,
 )
@@ -43,12 +44,15 @@ class ResearchNoAViewer(Protocol):
         measurements: ResearchCameraRunMeasurements | None = None,
     ) -> str | None: ...
 
+    def freeze_performance_measurement_window(self) -> None: ...
+
     def run(
         self,
         duration: float,
         scheduler: RuntimeIterationScheduler | None = None,
         diagnostics: ResearchNoADiagnostics | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
+        continuation_factory: RuntimeContinuationFactory | None = None,
     ) -> bool: ...
 
     def close(self) -> None: ...
@@ -145,6 +149,19 @@ class ResearchNoAClient(Protocol):
     def get_client_version(self) -> str: ...
 
     def get_server_version(self) -> str: ...
+
+    def apply_batch_sync(
+        self,
+        commands: list[carla.command.ApplyVehicleControl],
+        do_tick: bool = False,
+    ) -> list[ResearchNoACommandResponse]: ...
+
+
+class ResearchNoACommandResponse(Protocol):
+    actor_id: int
+    error: str
+
+    def has_error(self) -> bool: ...
 
 
 class ResearchNoAWorldSettings(Protocol):

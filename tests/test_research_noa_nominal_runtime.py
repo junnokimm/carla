@@ -15,6 +15,7 @@ from tests.research_noa_fakes import (
     FakeDriverViewFactory,
     FakeMonotonicClock,
     FakeResearchWorld,
+    FakeSnapshotReadError,
 )
 from tests.test_noa_runtime import FakeVelocity
 from tests.test_research_noa_live_safety import SequencedResearchVehicle
@@ -139,8 +140,40 @@ def test_module_two_post_initialization_guard_runs_before_viewer(
         assert session.persistence.stage_started is False
 
 
+def test_final_snapshot_failure_suppresses_pre_shutdown_callback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vehicle = HoldingSpeedVehicle([0.0])
+    world = FakeResearchWorld(vehicle)
+    viewer_factory = FakeDriverViewFactory()
+    runner = ResearchNoARunner(
+        nominal_config(tmp_path, ExperimentModule.MODULE_2),
+        client=FakeClient(world),
+        viewer_factory=viewer_factory,
+    )
+    callbacks = []
+
+    with runner.session() as session:
+        viewer = viewer_factory.created[0]
+        run_viewer = viewer.run
+
+        def run_then_fail_final_snapshot(*args, **kwargs):
+            result = run_viewer(*args, **kwargs)
+            world.snapshot_error_at_call = world.get_snapshot_count + 1
+            return result
+
+        monkeypatch.setattr(viewer, "run", run_then_fail_final_snapshot)
+
+        with pytest.raises(FakeSnapshotReadError):
+            session.run(callbacks.append)
+
+    assert callbacks == []
+
+
 def test_noa_overspeed_at_final_observation_preserves_shutdown_and_cleanup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     vehicle = HoldingSpeedVehicle([0.0])
     factory = FakeDriverViewFactory()
@@ -164,7 +197,10 @@ def test_noa_overspeed_at_final_observation_preserves_shutdown_and_cleanup(
 
         assert caught.value.source == "FINAL"
         assert caught.value.hard_limit_kmh == 110.0
-        assert session.bundle.automation_runtime.state.control_mode is DrivingControlMode.MANUAL
+        assert (
+            session.bundle.automation_runtime.state.control_mode
+            is DrivingControlMode.MANUAL
+        )
         assert vehicle.applied_controls[-1].brake == pytest.approx(0.5)
     assert viewer.close_count == 1
     assert vehicle.destroy_count == 1

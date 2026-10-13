@@ -1,11 +1,17 @@
 # P8 field coverage matrix
 
+Current lane-change delta: [P8_Patched_TM_LaneChange.md](P8_Patched_TM_LaneChange.md).
+Submission, observed alignment and signal cancellation are connected offline;
+physical driving, exit/rejoin and traffic safety remain unverified. Older BLOCKED
+execution statements below describe the earlier implementation.
+
 ## Phase2 delta
 
 See [Phase2 contract](P8_Phase2_P5_LaneChange_TrafficLights.md). General left/right
 requests, static lane eligibility, geometric samples and observation termination
-are CONNECTED. General physical onset/crossing/completion remain UNVERIFIED and
-automatic lane execution BLOCKED. P5 has explicit active-drive time windows plus
+are CONNECTED. Patched-TM one-shot submission is CONNECTED only behind loaded-PYD,
+exclusive-listener, and EMPTY_REHEARSAL_ONLY gates. General physical onset,
+crossing, direction, and completion remain UNVERIFIED. P5 has explicit active-drive time windows plus
 original location checks; no in-window arrival means NOT_PRESENTED, not completion.
 Traffic-light vehicle/actor states and host acquisition intervals are CONNECTED;
 actual red-light stopping/violation attribution remain UNVERIFIED. Current Town04

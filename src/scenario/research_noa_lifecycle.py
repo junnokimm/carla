@@ -9,9 +9,9 @@ from src.scenario.research_noa_persistence import ResearchNoAPersistence
 from src.scenario.research_noa_report import ResearchSmokeReport
 
 
-def preserve_primary_error(
+def retain_first_error(
     action: Callable[[], None], primary_error: BaseException | None
-) -> None:
+) -> BaseException | None:
     try:
         action()
     except (
@@ -21,9 +21,24 @@ def preserve_primary_error(
         ValueError,
         ResearchCsvError,
         SessionClockError,
-    ):
+    ) as error:
         if primary_error is None:
-            raise
+            return error
+        note = f"Secondary cleanup failure: {type(error).__name__}:{error}"
+        notes = getattr(primary_error, "__notes__", None)
+        if notes is None:
+            object.__setattr__(primary_error, "__notes__", [])
+            notes = primary_error.__notes__
+        notes.append(note)
+    return primary_error
+
+
+def preserve_primary_error(
+    action: Callable[[], None], primary_error: BaseException | None
+) -> None:
+    retained_error = retain_first_error(action, primary_error)
+    if primary_error is None and retained_error is not None:
+        raise retained_error
 
 
 def run_with_persistence(
@@ -45,9 +60,9 @@ def run_with_persistence(
             reason = "TRAINING_COMPLETED_EARLY"
         else:
             reason = "NORMAL_COMPLETION"
-        if persistence.stage_started:
+        if persistence.stage_active:
             preserve_primary_error(lambda: persistence.end_stage(reason), primary_error)
-        else:
+        elif not persistence.stage_ended:
             preserve_primary_error(
                 lambda: persistence.fail_stage_start(reason), primary_error
             )

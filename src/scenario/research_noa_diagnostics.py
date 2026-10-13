@@ -5,10 +5,31 @@ from dataclasses import dataclass
 from math import isfinite
 from time import perf_counter
 
+from src.experiment.automation import DrivingControlMode
 from src.experiment.noa_control import NoAControlCommand
 from src.scenario.research_noa_types import ResearchNoAWorldSnapshot
 
 type PerformanceClock = Callable[[], float]
+type DiagnosticsValue = str | int | float | None | dict[str, "DiagnosticsValue"]
+
+PERFORMANCE_OPERATIONS = (
+    "input_collection",
+    "input_observer",
+    "scheduler",
+    "manual_batch_rpc_wait",
+    "post_control",
+    "snapshot_getter",
+    "snapshot_actor_getters",
+    "control_getter",
+    "waypoint_query",
+    "neighbor_lane_queries",
+    "light_getter",
+    "traffic_light_observation",
+    "traffic_light_actor_lookup",
+    "json_serialize",
+    "telemetry_write",
+    "event_write",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +120,8 @@ class _RunningStats:
 
 class ResearchNoADiagnostics:
     __slots__ = (
+        "_active_operations",
+        "_active_operations_by_mode",
         "_applied_brake",
         "_applied_hand_brake_seen",
         "_applied_manual_gear_shift_seen",
@@ -115,7 +138,11 @@ class ResearchNoADiagnostics:
         "_loop",
         "_loop_iterations",
         "_loop_started_at",
+        "_measurement_frozen",
+        "_mode",
+        "_operation_measurement_active",
         "_operations",
+        "_operations_by_mode",
         "_render",
         "_scheduler",
         "_speed",
@@ -129,6 +156,15 @@ class ResearchNoADiagnostics:
         self._scheduler = _RunningStats()
         self._render = _RunningStats()
         self._operations: dict[str, _RunningStats] = {}
+        self._operations_by_mode: dict[DrivingControlMode, dict[str, _RunningStats]] = {
+            mode: {} for mode in DrivingControlMode
+        }
+        self._active_operations: dict[str, _RunningStats] = {}
+        self._active_operations_by_mode: dict[
+            DrivingControlMode, dict[str, _RunningStats]
+        ] = {mode: {} for mode in DrivingControlMode}
+        self._operation_measurement_active: bool | None = None
+        self._mode: DrivingControlMode | None = None
         self._speed = _RunningStats()
         self._throttle = _RunningStats()
         self._brake = _RunningStats()
@@ -144,34 +180,116 @@ class ResearchNoADiagnostics:
         self._gear_minimum: int | None = None
         self._gear_maximum: int | None = None
         self._gear_change_count = 0
+        self._measurement_frozen = False
 
     def timestamp(self) -> float:
         return self._clock()
 
+    @property
+    def completed_driver_loop_count(self) -> int:
+        return self._loop_iterations
+
     def begin_driver_loop(self) -> None:
-        now = self.timestamp()
-        if self._loop_started_at is not None:
-            self._loop.record(now - self._loop_started_at)
+        if self._measurement_frozen:
+            return
+        self._loop_started_at = self.timestamp()
+
+    def complete_driver_loop(self) -> None:
+        if self._measurement_frozen:
+            return
+        if self._loop_started_at is None:
+            return
+        self._loop.record(self.timestamp() - self._loop_started_at)
         self._loop_iterations += 1
-        self._loop_started_at = now
+        self._loop_started_at = None
 
     def discard_incomplete_driver_loop(self) -> None:
         self._loop_started_at = None
 
     def record_driver_loop_duration(self, duration_seconds: float) -> None:
+        if self._measurement_frozen:
+            return
         self._loop_iterations += 1
         self._loop.record(duration_seconds)
 
     def record_scheduler_duration(self, duration_seconds: float) -> None:
+        if self._measurement_frozen:
+            return
         self._scheduler.record(duration_seconds)
 
     def record_render_duration(self, duration_seconds: float) -> None:
+        if self._measurement_frozen:
+            return
         self._render.record(duration_seconds)
 
     def record_operation_duration(
         self, operation: str, duration_seconds: float
     ) -> None:
+        if self._measurement_frozen:
+            return
         self._operations.setdefault(operation, _RunningStats()).record(duration_seconds)
+        if self._mode is not None:
+            self._operations_by_mode[self._mode].setdefault(
+                operation, _RunningStats()
+            ).record(duration_seconds)
+        if self._operation_measurement_active is not True:
+            return
+        self._active_operations.setdefault(operation, _RunningStats()).record(
+            duration_seconds
+        )
+        if self._mode is not None:
+            self._active_operations_by_mode[self._mode].setdefault(
+                operation, _RunningStats()
+            ).record(duration_seconds)
+
+    def begin_operation_measurement_window(self) -> None:
+        self._active_operations = {}
+        self._active_operations_by_mode = {mode: {} for mode in DrivingControlMode}
+        self._operation_measurement_active = True
+
+    def end_operation_measurement_window(self) -> None:
+        self._operation_measurement_active = False
+
+    def freeze_measurement_window(self) -> None:
+        self.end_operation_measurement_window()
+        self._measurement_frozen = True
+
+    def set_control_mode(self, mode: DrivingControlMode) -> None:
+        self._mode = mode
+
+    def performance_payload(self) -> dict[str, DiagnosticsValue]:
+        operations_source = (
+            self._operations
+            if self._operation_measurement_active is None
+            else self._active_operations
+        )
+        modes_source = (
+            self._operations_by_mode
+            if self._operation_measurement_active is None
+            else self._active_operations_by_mode
+        )
+        operations = {
+            operation: _optional_timing_payload(operations_source.get(operation))
+            for operation in PERFORMANCE_OPERATIONS
+        }
+        operations.update(
+            {
+                operation: _optional_timing_payload(stats)
+                for operation, stats in operations_source.items()
+                if operation not in operations
+            }
+        )
+        return {
+            "mode_definition": "canonical automation control mode at operation completion",
+            "operations": operations,
+            "operations_by_mode": {
+                mode.value: {
+                    operation: _optional_timing_payload(stats)
+                    for operation, stats in sorted(mode_operations.items())
+                }
+                for mode, mode_operations in modes_source.items()
+            },
+        }
 
     def operation_timing(self, operation: str) -> OperationTimingSummary:
         stats = self._operations.setdefault(operation, _RunningStats())
@@ -182,9 +300,13 @@ class ResearchNoADiagnostics:
         )
 
     def record_speed(self, speed_kmh: float) -> None:
+        if self._measurement_frozen:
+            return
         self._speed.record(speed_kmh)
 
     def record_command(self, command: NoAControlCommand) -> None:
+        if self._measurement_frozen:
+            return
         self._throttle.record(command.throttle)
         self._brake.record(command.brake)
 
@@ -197,6 +319,8 @@ class ResearchNoADiagnostics:
         reverse: bool,
         manual_gear_shift: bool,
     ) -> None:
+        if self._measurement_frozen:
+            return
         self._applied_throttle.record(throttle)
         self._applied_brake.record(brake)
         self._applied_hand_brake_seen |= hand_brake
@@ -204,6 +328,8 @@ class ResearchNoADiagnostics:
         self._applied_manual_gear_shift_seen |= manual_gear_shift
 
     def record_gear(self, gear: int) -> None:
+        if self._measurement_frozen:
+            return
         if self._gear_final is not None and gear != self._gear_final:
             self._gear_change_count += 1
         if self._gear_initial is None:
@@ -274,6 +400,21 @@ def _milliseconds(seconds: float | None) -> float:
 
 
 def _rate(count: int, elapsed_seconds: float) -> float | None:
-    if not isfinite(elapsed_seconds) or elapsed_seconds <= 0.0:
+    if count < 0 or not isfinite(elapsed_seconds) or elapsed_seconds <= 0.0:
         return None
     return count / elapsed_seconds
+
+
+def _optional_timing_payload(
+    stats: _RunningStats | None,
+) -> dict[str, DiagnosticsValue]:
+    measured = stats is not None and stats.count > 0
+    return {
+        "count": 0 if stats is None else stats.count,
+        "mean_ms": _milliseconds(stats.mean)
+        if measured and stats is not None
+        else None,
+        "max_ms": (
+            _milliseconds(stats.maximum) if measured and stats is not None else None
+        ),
+    }

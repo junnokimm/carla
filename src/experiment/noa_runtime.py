@@ -122,6 +122,10 @@ class CarlaNoARuntimeMap(Protocol):
         lane_type: carla.LaneType,
     ) -> CarlaNoARuntimeWaypoint | None: ...
 
+    def get_topology(
+        self,
+    ) -> list[tuple[CarlaNoARuntimeWaypoint, CarlaNoARuntimeWaypoint]]: ...
+
 
 @dataclass(frozen=True, slots=True)
 class NoAControlConfig:

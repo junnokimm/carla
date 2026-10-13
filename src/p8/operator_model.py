@@ -15,6 +15,7 @@ from src.experiment.noa_runtime import NoAControlConfig
 from src.p7.types import Json
 from src.p8.model import Stage
 from src.p8.operator_exit_result import ExitOpportunityResult
+from src.p8.operator_hazard_contracts import HazardExecutionPlan
 from src.scenario.research_exit_config import (
     ExitEligibilityWindow,
     ResearchExitAssistanceConfig,
@@ -31,6 +32,7 @@ from src.scenario.research_noa_speed_policy import (
 class DevOutcome(StrEnum):
     PARTIAL = "PARTIAL"
     SKIPPED = "SKIPPED"
+    BLOCKED = "BLOCKED"
 
 
 class TrainingRun(StrEnum):
@@ -76,6 +78,7 @@ class OperatorRuntimeConfig:
     traffic_manager_port: int = 8000
     module_1_exit_window: ExitEligibilityWindow | None = None
     module_2_exit_window: ExitEligibilityWindow | None = None
+    hazard_execution: HazardExecutionPlan | None = None
 
     def __post_init__(self) -> None:
         self.validate_safety_contract()
@@ -123,10 +126,10 @@ class OperatorRuntimeConfig:
         ):
             if exit_config is None:
                 continue
-            if exit_config.assisted_execution_enabled:
+            if not exit_config.assisted_execution_enabled:
                 raise ResearchSpeedPolicyError(
                     field,
-                    "must disable assisted execution",
+                    "must enable guarded Traffic Manager assisted execution",
                 )
             if not exit_config.indicator_confirmation:
                 raise ResearchSpeedPolicyError(

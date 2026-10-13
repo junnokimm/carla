@@ -24,7 +24,7 @@ def test_accepted_dev_data_use_remains_analysis_ineligible_everywhere(
     controller.execute_current_module(1.0)
     controller.approve_dev_outcome(DevOutcome.PARTIAL, "M2 bounded")
     controller.advance()
-    controller.approve_dev_outcome(DevOutcome.SKIPPED, "hazard blocked")
+    controller.approve_dev_outcome(DevOutcome.BLOCKED, "hazard blocked")
     controller.advance()
     controller.record_actual(Receipt("survey", "NOT_IMPLEMENTED", None))
     controller.record_actual(Receipt("debrief", "EXTERNAL_OPERATOR_STEP", True))

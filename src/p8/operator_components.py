@@ -1,18 +1,27 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import assert_never
 
 from src.experiment.context import ExperimentModule, ExperimentPhase
 from src.p7.occurrence import OccurrenceRegistry
 from src.p7.types import Json
 from src.p8.model import P8Error, Stage
-from src.p8.operator_execution import OperatorRunExecutor, OperatorRunRequest
+from src.p8.operator_continuity import OperatorRuntimeContinuity
+from src.p8.operator_execution import OperatorRunExecutor
 from src.p8.operator_exit_result import (
     ExitOpportunityClassification,
     ExitOpportunityResult,
 )
+from src.p8.operator_hazard import (
+    OperatorHazardLoop,
+)
+from src.p8.operator_hazard_contracts import HazardExecutionResources
+from src.p8.operator_hazard_record import blocked_hazard_record
 from src.p8.operator_model import ModuleRunResult, OperatorRuntimeConfig, TrainingRun
+from src.p8.operator_run_config import OperatorRunRequest
 from src.p8.services import SessionServices
+from src.scenario.driver_view import RuntimeFrameContinuation
 
 
 class OperatorComponents:
@@ -23,10 +32,12 @@ class OperatorComponents:
         services: SessionServices,
         occurrences: OccurrenceRegistry,
         runtime: OperatorRuntimeConfig,
+        nominal_m2_handoff: Callable[[], RuntimeFrameContinuation | None],
     ) -> None:
         self.services = services
         self.occurrences = occurrences
         self.runtime = runtime
+        self.nominal_m2_handoff = nominal_m2_handoff
         self.runs: list[ModuleRunResult] = []
         self.exit_slots: dict[Stage, ExitOpportunityResult] = {}
         self.post: dict[str, Json] = {
@@ -37,10 +48,44 @@ class OperatorComponents:
             "deletion_status": "NOT_REQUESTED",
         }
         self.clean = False
+        self.hazard_observation: dict[str, Json] | None = None
+        self.hazard_loop: OperatorHazardLoop | None = None
+        self.continuity = OperatorRuntimeContinuity()
 
     def enter(self, stage: Stage) -> None:
         if stage is not self.services.stage:
             raise P8Error("COMPONENT_STAGE_CONTEXT_MISMATCH")
+        if stage is Stage.FINAL_HAZARD and self.hazard_observation is None:
+            timestamp = self.services.stamp()
+            identities = (
+                self.continuity.bind_final_hazard(self.services)
+                if self.continuity.active
+                else None
+            )
+            resources = (
+                None
+                if identities is None
+                else HazardExecutionResources(
+                    self.continuity.bound_session,
+                    self.services,
+                    identities,
+                )
+            )
+            plan = self.runtime.hazard_execution
+            if plan is None or resources is None:
+                record = blocked_hazard_record(resources, self.services, timestamp)
+                self.services.emit("hazard_observation", record, timestamp=timestamp)
+                self.hazard_observation = record
+            else:
+                self.hazard_loop = OperatorHazardLoop(
+                    plan,
+                    resources,
+                    self.occurrences,
+                    self._store_hazard_record,
+                )
+
+    def _store_hazard_record(self, record: dict[str, Json]) -> None:
+        self.hazard_observation = record
 
     def leave(self, stage: Stage) -> None:
         return
@@ -89,6 +134,12 @@ class OperatorComponents:
                         assert_never(unreachable)
             return "FULL_ROUTE_EXIT_AND_NOMINAL_WINDOW_BLOCKED"
         if stage is Stage.FINAL_HAZARD:
+            if (
+                self.hazard_observation is not None
+                and self.hazard_observation.get("execution_status")
+                == "EXECUTED_OFFLINE"
+            ):
+                return "PHYSICAL_HAZARD_VALIDATION_BLOCKED"
             return "MOVING_HAZARD_INTEGRATION_BLOCKED"
         return None
 
@@ -167,6 +218,8 @@ class OperatorComponents:
             self.runtime,
             self.runs,
             self.exit_slots,
+            self.continuity,
+            self.nominal_m2_handoff,
         ).execute(
             OperatorRunRequest(
                 module,
@@ -191,8 +244,17 @@ class OperatorComponents:
                 stage.value: result.manifest()
                 for stage, result in self.exit_slots.items()
             },
-            "hazard_state": "BLOCKED_NOT_RUN",
+            "hazard_state": (
+                "BLOCKED_NOT_RUN"
+                if self.hazard_observation is None
+                else str(self.hazard_observation.get("hazard_state", "BLOCKED_NOT_RUN"))
+            ),
+            "hazard_observation": (
+                None
+                if self.hazard_observation is None
+                else dict(self.hazard_observation)
+            ),
             "post": dict(self.post),
-            "owned_resource_tokens": [],
+            "owned_resource_tokens": list(self.continuity.tokens()),
             "cleanup_completed": self.clean,
         }

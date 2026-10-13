@@ -179,10 +179,10 @@ def test_live_report_uses_precontrol_speed_samples_and_selected_spawn() -> None:
         assert fixture.world.get_snapshot_count == 5
         assert fixture.world.wait_for_tick_calls == []
         assert fixture.vehicle.events[-4:] == [
+            "snapshot",
             "speed",
             "autopilot:False",
             "control:0.5",
-            "snapshot",
         ]
         assert len(fixture.vehicle.applied_controls) == 4
         assert fixture.vehicle.applied_controls[-1].brake == pytest.approx(0.5)

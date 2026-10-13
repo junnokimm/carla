@@ -1,10 +1,14 @@
 # P8 Phase 2: P5 시간창, 상시 방향지시등 요청, 신호 대응 조사
 
+> Current guarded execution, observed completion and automatic signal cancellation:
+> [P8_Patched_TM_LaneChange.md](P8_Patched_TM_LaneChange.md). Earlier BLOCKED findings below remain historical evidence.
+
 ## 현재 판정
 
 단일 `python -m src.p8.operator_cli`에 요청·시간창·관측 연결을 구현했다.
-**안전한 자동 차로변경 실행은 BLOCKED, 적색 신호 정지 및 재합류 물리 동작은
-UNVERIFIED다. Phase 2 전체 기능 완성 또는 참가자 운영 준비를 주장하지 않는다.**
+**패치된 TM 단발 차로변경은 EMPTY_REHEARSAL_ONLY 조건에서 코드 연결됐으며,
+물리 방향·완료·적색 신호 정지 및 재합류 동작은 UNVERIFIED다. Phase 2 전체 기능
+완성 또는 참가자 운영 준비를 주장하지 않는다.**
 이번에 실제 주행은 시작하지 않았다. 별도 운전 프로그램/Custom Controller를 만들지 않았다.
 지도 확인은 기존 서버에 읽기 전용으로 수행했으며 Actor 생성, vehicle control,
 TM 생성/설정, 신호 변경, World tick/설정 변경을 하지 않았다.
@@ -35,8 +39,9 @@ V5 §6.1의 출구 상황 한정 요청에서 **NoA ON 일반 주행 중 좌/우
 - 인접 차로 존재, Driving 타입, lane ID 방향, waypoint lane-change permission을
   검사한다. 이는 정적 자격 검사이지 주변 차량 gap 안전성 검증이 아니다.
 - 부적합 차로는 `REJECTED_STATIC_INELIGIBLE`, 수동 우선은
-  `REJECTED_MANUAL_PRIORITY`, 적합한 요청도 현재
-  `BLOCKED_SAFE_TM_EXECUTION_UNAVAILABLE`로 기록한다.
+  `REJECTED_MANUAL_PRIORITY`로 기록한다. 적합한 요청은 `REQUESTED` 뒤 로드된
+  PYD 해시, TM listener PID 단독 소유권, ego 외 vehicle/walker/static.prop 부재를
+  매 제출 직전에 확인하고 `SUBMITTED_TO_TM`, `IN_PROGRESS`를 기록한다.
 
 ### 안전한 실행이 차단된 이유와 대안
 

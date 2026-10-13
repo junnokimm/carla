@@ -8,7 +8,6 @@ from src.experiment.automation import DrivingControlMode
 from src.experiment.noa_control import NoAControlCommand
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnosticsSummary
-from src.scenario.research_noa_smoke import ResearchLiveScheduler
 from src.scenario.research_noa_transmission import ResearchTransmissionPrimeTelemetry
 from src.scenario.research_noa_types import ResearchNoAMap, ResearchNoAVehicle
 
@@ -79,7 +78,9 @@ class ResearchSmokeReport:
         mean_brake = (
             self.diagnostics.mean_commanded_brake if has_control_samples else None
         )
-        min_brake = self.diagnostics.min_commanded_brake if has_control_samples else None
+        min_brake = (
+            self.diagnostics.min_commanded_brake if has_control_samples else None
+        )
         fields = (
             ("mode", ResearchNoARunMode.LIVE_SMOKE.value),
             ("preflight", "passed"),
@@ -189,7 +190,10 @@ def build_research_smoke_report(
     active_drive_seconds: float,
     diagnostics: ResearchNoADiagnosticsSummary,
     user_exited: bool,
-    scheduler: ResearchLiveScheduler,
+    scheduler_updates: int,
+    commands: tuple[NoAControlCommand, ...],
+    maximum_manual_speed_kmh: float | None,
+    final_control_mode: DrivingControlMode,
     camera_diagnostics_json: str | None,
     training_completed_early: bool = False,
     applied_target_speed_kmh: float | None = None,
@@ -197,7 +201,7 @@ def build_research_smoke_report(
     location = spawn_transform.location
     rotation = spawn_transform.rotation
     active_maximum_speed = diagnostics.maximum_active_speed_kmh
-    manual_maximum_speed = scheduler.maximum_manual_speed_kmh
+    manual_maximum_speed = maximum_manual_speed_kmh
     return ResearchSmokeReport(
         map_name=str(world_map.name),
         spawn_index=spawn_index,
@@ -227,10 +231,10 @@ def build_research_smoke_report(
         active_drive_seconds=active_drive_seconds,
         diagnostics=diagnostics,
         shutdown_brake=config.control_config.longitudinal.max_brake,
-        scheduler_updates=scheduler.update_count,
-        commands=scheduler.commands,
+        scheduler_updates=scheduler_updates,
+        commands=commands,
         user_exited=user_exited,
-        final_control_mode=scheduler.runtime.state.control_mode,
+        final_control_mode=final_control_mode,
         camera_diagnostics_json=camera_diagnostics_json,
         provider=(
             "CUSTOM_NOA_CONTROLLER"

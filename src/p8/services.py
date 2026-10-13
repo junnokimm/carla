@@ -90,8 +90,8 @@ class SessionServices:
     def elapsed(self) -> float:
         return self.clock.elapsed_seconds(self.stamp().host)
 
-    def segment(self) -> SegmentContext:
-        stage = self.stage
+    def segment(self, stage: Stage | None = None) -> SegmentContext:
+        stage = self.stage if stage is None else stage
         module, condition, outcome = None, None, None
         if stage in (
             Stage.MODULE_1_PREPARE,
@@ -146,12 +146,14 @@ class SessionServices:
         payload: dict[str, Json] | None = None,
         *,
         timestamp: TimestampEnvelope | None = None,
+        stage: Stage | None = None,
     ) -> None:
         if self.closed:
             raise P8Error("SESSION_LOG_CLOSED")
+        event_stage = self.stage if stage is None else stage
         body = {
             **(payload or {}),
-            "orchestration_stage": self.stage.value,
+            "orchestration_stage": event_stage.value,
             "participant_run": False,
             "development_mode": self.mode is not Mode.PARTICIPANT,
             "provenance": self.provenance,
@@ -159,7 +161,7 @@ class SessionServices:
             "timing_profile": self.profile.label,
         }
         self.logger.write_event(
-            self.segment(),
+            self.segment(event_stage),
             timestamp or self.stamp(),
             ResearchEvent(name, json.dumps(body, allow_nan=False)),
         )

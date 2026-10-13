@@ -19,6 +19,7 @@ from tests.research_noa_fakes import (
     FakeMonotonicClock,
     FakeResearchVehicle,
     FakeResearchWorld,
+    FakeTrafficManagerRuntimeAttestor,
     FakeWorldSnapshot,
 )
 from tests.test_p8_operator_backend import RunnerEvidence, StrictClock, runtime_config
@@ -91,6 +92,7 @@ def test_all_p8_stages_prepare_fresh_moving_gear_zero_without_aborting(
             config, client=FakeClient(world), viewer_factory=viewer_factory,
             monotonic_clock=run_clock, monotonic_ns=clock.monotonic_ns,
             utc_ns=clock.utc_ns, borrowed_log=borrowed_log,
+            tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
         )
 
     controller = OperatorController(

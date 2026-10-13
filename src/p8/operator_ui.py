@@ -144,11 +144,12 @@ class OperatorApp:
             if result.exit_opportunity is None
             else result.exit_opportunity.classification.value
         )
-        self.controller.record_execution_policy_outcome(
-            DevOutcome.PARTIAL,
-            f"{module} {window_status}; P5={exit_status}; P6 remains blocked",
-        )
-        self._advance()
+        if running_stage is not Stage.MODULE_2_RUNNING or not result.nominal_request:
+            self.controller.record_execution_policy_outcome(
+                DevOutcome.PARTIAL,
+                f"{module} {window_status}; P5={exit_status}; P6 remains blocked",
+            )
+            self._advance()
         if prepare_stage is Stage.MODULE_1_PREPARE:
             self._advance()
             completion = (
@@ -156,10 +157,11 @@ class OperatorApp:
             )
             self.status = f"M1 actual {result.actual_active_drive_s:.1f}s; {completion}"
             return
-        self.controller.record_execution_policy_outcome(
-            DevOutcome.SKIPPED,
-            "moving hazard integration blocked and not run",
-        )
+        if not result.nominal_request:
+            self.controller.record_execution_policy_outcome(
+                DevOutcome.BLOCKED,
+                "moving hazard policy and physical readiness blocked; not run",
+            )
         self._advance()
         self.controller.record_execution_policy_outcome(
             DevOutcome.SKIPPED,

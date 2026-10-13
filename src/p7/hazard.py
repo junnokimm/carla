@@ -9,11 +9,12 @@ from src.experiment.context import ExperimentModule, ExperimentPhase
 from src.experiment.session_clock import SessionClock
 from src.experiment.timestamp import HostClockTimestamp, TimestampEnvelope
 from src.p7.config import HazardConfig
-from src.p7.metrics import ResponseMetrics
+from src.p7.metrics import ResponseMetrics, canonical_hazard_record
 from src.p7.occurrence import OccurrenceRegistry
 from src.p7.types import (
     EventKind,
     HazardObservation,
+    HazardOutcome,
     HazardState,
     Json,
     P7Error,
@@ -39,6 +40,7 @@ class HazardScenario:
             raise P7Error("SHARED_SESSION_CLOCK_ORIGIN_MISMATCH")
         self.clock = session_clock or SessionClock(HostClockTimestamp(origin_ns, 0))
         self.state = HazardState.IDLE
+        self.outcome: HazardOutcome | None = None
         self.metrics = ResponseMetrics(brake_candidate=config.brake_candidate, steer_candidate=config.steer_candidate)
         self.termination_requested = False
         self._lateral_started = self._lead_complete = False
@@ -62,20 +64,38 @@ class HazardScenario:
             self.metrics.observe_input(self.clock.elapsed_seconds(observation.timestamp.host), observation.driver_input)
             return True
         except (P7Error, RuntimeError) as error:
-            self.abort(observation, str(error))
+            self.abort(observation, str(error), HazardOutcome.UNOBSERVABLE)
             raise
 
     def update(self, observation: HazardObservation) -> None:
         if self.state in (HazardState.IDLE, HazardState.COMPLETED, HazardState.ABORTED):
             return
         now = self.clock.elapsed_seconds(observation.timestamp.host)
-        if observation.collision_actor_id is not None or observation.road_departure:
-            kind = EventKind.COLLISION if observation.collision_actor_id is not None else EventKind.ROAD_DEPARTURE
-            self._emit(kind, observation, {"other_actor_id": observation.collision_actor_id,
-                       "sensor_frame": observation.collision_frame, "sensor_simulation_s": observation.collision_simulation_s})
+        collision_observed = observation.collision_actor_id is not None
+        if collision_observed or observation.road_departure:
+            if collision_observed and observation.road_departure:
+                reason = "COLLISION_AND_ROAD_DEPARTURE"
+            elif collision_observed:
+                reason = EventKind.COLLISION.value
+                self.outcome = HazardOutcome.COLLISION
+            else:
+                reason = EventKind.ROAD_DEPARTURE.value
+                self.outcome = HazardOutcome.ROAD_DEPARTURE
+            safety_evidence: dict[str, Json] = {
+                "other_actor_id": observation.collision_actor_id,
+                "sensor_frame": observation.collision_frame,
+                "sensor_simulation_s": observation.collision_simulation_s,
+                "collision_observed": collision_observed,
+                "road_departure_observed": observation.road_departure,
+            }
+            if collision_observed:
+                self._emit(EventKind.COLLISION, observation, safety_evidence)
+            if observation.road_departure:
+                self._emit(EventKind.ROAD_DEPARTURE, observation, safety_evidence)
             self.termination_requested = True
-            self._emit(EventKind.TERMINATION, observation, {"reason": kind.value, "ego_actuation": "OWNER_REQUIRED_NOT_PERFORMED_BY_P7"})
-            self.abort(observation, kind.value)
+            self._emit(EventKind.TERMINATION, observation, {"reason": reason,
+                       "ego_actuation": "OWNER_REQUIRED_NOT_PERFORMED_BY_P7", **safety_evidence})
+            self.abort(observation, reason)
             return
         for valid, reason in ((observation.actors_alive, "ACTOR_LOST"),
                               (observation.obstacle_stationary, "OBSTACLE_MOVED"),
@@ -83,14 +103,14 @@ class HazardScenario:
                               (observation.lead_path_clear, "LEAD_PATH_BLOCKED"),
                               (not observation.p5_active, "P5_CONFLICT")):
             if not valid:
-                self.abort(observation, reason)
+                self.abort(observation, reason, HazardOutcome.UNOBSERVABLE)
                 return
         if not all(isfinite(value) for value in (self._station(observation), observation.distance_m,
                                                 observation.closing_speed_mps, observation.ego_speed_mps)):
-            self.abort(observation, "NONFINITE_OBSERVATION")
+            self.abort(observation, "NONFINITE_OBSERVATION", HazardOutcome.UNOBSERVABLE)
             return
         if self.state is HazardState.ARMED and (observation.reveal_clear or abs(observation.lead_lateral_m) >= self.config.lateral_onset_m):
-            self.abort(observation, "PRETRIGGER_LEAD_OR_REVEAL_INVALID")
+            self.abort(observation, "PRETRIGGER_LEAD_OR_REVEAL_INVALID", HazardOutcome.UNOBSERVABLE)
             return
         if self.state is HazardState.ARMED and self._station(observation) >= self.config.trigger_station_m:
             self.state = HazardState.TRIGGERED
@@ -103,7 +123,7 @@ class HazardScenario:
             try:
                 self.actors.begin_reveal(observation.timestamp)
             except RuntimeError as error:
-                self.abort(observation, f"LEAD_START_FAILED:{error}")
+                self.abort(observation, f"LEAD_START_FAILED:{error}", HazardOutcome.UNOBSERVABLE)
                 return
             self.state = HazardState.LEAD_MOVING_ASIDE
             self._emit(EventKind.LEAD_START, observation, {"target_lane_id": observation.target_lane_id})
@@ -137,10 +157,13 @@ class HazardScenario:
             self.state = HazardState.COMPLETED
             self._emit(EventKind.COMPLETE, observation, {**self.metrics.snapshot(), "outcome": "DEV_OBSERVATION_ENDED_NOT_VALIDATED"})
 
-    def abort(self, observation: HazardObservation, reason: str) -> None:
-        if self.state is HazardState.ABORTED:
+    def abort(self, observation: HazardObservation, reason: str,
+              outcome: HazardOutcome | None = None) -> None:
+        if self.state in (HazardState.COMPLETED, HazardState.ABORTED):
             return
         self.state = HazardState.ABORTED
+        if outcome is not None:
+            self.outcome = outcome
         self._emit(EventKind.ABORT, observation, {"reason": reason, **self.metrics.snapshot()})
 
     def _station(self, observation: HazardObservation) -> float:
@@ -155,4 +178,10 @@ class HazardScenario:
     def _emit(self, kind: EventKind, observation: HazardObservation, payload: dict[str, Json]) -> None:
         self._sink(P7Event(kind, observation.timestamp, {"hazard_occurrence": f"{self.run_id}:final-hazard",
                    "participant_id": self.participant_id, "run_id": self.run_id,
-                   "module": self.module.value, "state": self.state.value, **payload}))
+                   "module": self.module.value, "state": self.state.value, **payload,
+                   **canonical_hazard_record(self.outcome),
+                   "driver_input": None if observation.driver_input is None else asdict(observation.driver_input),
+                   "input_source": observation.input_source,
+                   "session_elapsed_s": self.clock.project_elapsed_seconds(observation.timestamp.host),
+                   "collision_observed": observation.collision_actor_id is not None,
+                   "road_departure_observed": observation.road_departure}))

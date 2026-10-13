@@ -16,10 +16,27 @@ from src.experiment.noa_runtime import (
     CarlaNoARuntimeVehicle,
     NoARuntimeBundle,
 )
+from src.p8.tm_runtime_attestation import RuntimeAttestation
+from src.scenario.lane_change_execution import (
+    LaneChangeSubmission,
+    LaneChangeSubmissionStatus,
+    StaleLaneChangeGenerationError,
+)
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.scenario.research_noa_smoke import observe_live_smoke_speed_kmh
+from src.scenario.traffic_manager_lane_change import (
+    LaneChangeOwnershipVerifier,
+    LaneChangeWorld,
+    TrafficManagerLaneChangeExecutor,
+)
 from src.vehicle.carla_adjacent_lanes import CarlaAdjacentLaneAdapter
 from src.vehicle.carla_lane_geometry import CarlaLaneGeometryAdapter
+
+__all__ = [
+    "LaneChangeSubmissionStatus",
+    "StaleLaneChangeGenerationError",
+    "TrafficManagerNoAControlBackend",
+]
 
 
 class TrafficManager(Protocol):
@@ -45,17 +62,32 @@ class TrafficManager(Protocol):
         self, actor: CarlaNoARuntimeVehicle, percentage: float
     ) -> None: ...
 
+    def force_lane_change(
+        self, actor: CarlaNoARuntimeVehicle, direction: bool
+    ) -> None: ...
+
 
 class TrafficManagerNoAControlBackend:
     def __init__(
         self,
         vehicle: CarlaNoARuntimeVehicle,
         traffic_manager: TrafficManager,
+        *,
+        world: LaneChangeWorld | None = None,
+        ownership_verifier: LaneChangeOwnershipVerifier | None = None,
+        runtime_attestation: RuntimeAttestation | None = None,
     ) -> None:
         self._vehicle = vehicle
         self._traffic_manager = traffic_manager
         self._port = traffic_manager.get_port()
         self._active = False
+        self._lane_changes = TrafficManagerLaneChangeExecutor(
+            vehicle,
+            traffic_manager,
+            world,
+            ownership_verifier,
+            runtime_attestation,
+        )
         try:
             traffic_manager.auto_lane_change(vehicle, False)
             traffic_manager.random_left_lanechange_percentage(vehicle, 0.0)
@@ -95,13 +127,46 @@ class TrafficManagerNoAControlBackend:
             raise
         else:
             self._active = True
+            self._lane_changes.activate()
 
     def enter_manual_control(self) -> None:
+        self._lane_changes.begin_deactivation()
         self._vehicle.set_autopilot(False, self._port)
+        self._lane_changes.confirm_deactivation()
         self._active = False
 
     def ensure_manual_control(self) -> None:
         self.enter_manual_control()
+
+    @property
+    def lane_change_in_flight(self) -> LaneChangeSubmission | None:
+        return self._lane_changes.in_flight
+
+    @property
+    def activation_generation(self) -> int:
+        return self._lane_changes.activation_generation
+
+    def submit_lane_change(
+        self,
+        request_id: str,
+        activation_generation: int,
+        *,
+        right_lane_change: bool,
+    ) -> LaneChangeSubmission:
+        return self._lane_changes.submit(
+            request_id,
+            activation_generation,
+            right_lane_change=right_lane_change,
+        )
+
+    def complete_lane_change(self, generation: int) -> LaneChangeSubmission:
+        return self._lane_changes.complete(generation)
+
+    def interrupt_lane_change(self) -> LaneChangeSubmission | None:
+        return self._lane_changes.interrupt()
+
+    def invalidate_lane_change(self) -> LaneChangeSubmission | None:
+        return self._lane_changes.invalidate()
 
 
 class TrafficManagerScheduler:
@@ -168,9 +233,19 @@ def build_traffic_manager_noa_runtime(
     vehicle: CarlaNoARuntimeVehicle,
     carla_map: CarlaNoARuntimeMap,
     traffic_manager: TrafficManager,
+    *,
+    world: LaneChangeWorld | None = None,
+    ownership_verifier: LaneChangeOwnershipVerifier | None = None,
+    runtime_attestation: RuntimeAttestation | None = None,
 ) -> NoARuntimeBundle:
     lane_geometry = CarlaLaneGeometryAdapter(carla_map)
-    backend = TrafficManagerNoAControlBackend(vehicle, traffic_manager)
+    backend = TrafficManagerNoAControlBackend(
+        vehicle,
+        traffic_manager,
+        world=world,
+        ownership_verifier=ownership_verifier,
+        runtime_attestation=runtime_attestation,
+    )
     runtime = AutomationRuntimeController(
         AutomationState(
             AutomationAvailability.AVAILABLE,

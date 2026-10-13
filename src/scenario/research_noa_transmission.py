@@ -7,6 +7,7 @@ from math import isfinite
 from time import monotonic
 from typing import Final, assert_never
 
+from src.scenario.research_noa_control_delivery import ControlSender
 from src.scenario.research_noa_transmission_confirmation import (
     StationaryPrimeContext,
     prime_stationary_gear_zero,
@@ -120,6 +121,7 @@ class TransmissionPrimeContext:
     actual_speed_kmh: float
     monotonic_clock: MonotonicClock = monotonic
     preparation_timeout_seconds: float | None = None
+    control_sender: ControlSender | None = None
 
 
 def _preparation_failure(
@@ -198,6 +200,7 @@ def prime_live_transmission(
                     timeout_seconds=timeout,
                     stationary_threshold_kmh=TRANSMISSION_PRIME_STATIONARY_THRESHOLD_KMH,
                     monotonic_clock=context.monotonic_clock,
+                    control_sender=context.control_sender,
                 ),
             )
         except TransmissionPreparationError as error:
@@ -237,6 +240,7 @@ def prime_live_transmission(
                 actual_speed_kmh=actual_speed_kmh,
                 confirmation_window_seconds=confirmation_window,
                 monotonic_clock=context.monotonic_clock,
+                control_sender=context.control_sender,
             ),
         )
     except TransmissionPreparationError as error:

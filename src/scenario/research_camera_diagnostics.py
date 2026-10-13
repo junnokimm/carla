@@ -7,6 +7,7 @@ from time import perf_counter
 
 import carla
 
+from src.experiment.automation import DrivingControlMode
 from src.scenario.camera_feed import CameraFeed, CameraFeedSnapshot
 from src.scenario.driver_view import DriverViewConfig
 from src.scenario.research_camera_metadata import (
@@ -67,12 +68,54 @@ class _RoleRenderState:
         self.age = _RunningStats()
 
 
+class _RoleCallbackState:
+    __slots__ = (
+        "callback_duration",
+        "count",
+        "first_sensor_frame",
+        "first_sensor_timestamp",
+        "host_arrival_interval",
+        "last_host_receipt",
+        "last_sensor_frame",
+        "last_sensor_timestamp",
+    )
+
+    def __init__(self) -> None:
+        self.count = 0
+        self.first_sensor_frame: int | None = None
+        self.last_sensor_frame: int | None = None
+        self.first_sensor_timestamp: float | None = None
+        self.last_sensor_timestamp: float | None = None
+        self.last_host_receipt: float | None = None
+        self.host_arrival_interval = _RunningStats()
+        self.callback_duration = _RunningStats()
+
+    def record(
+        self,
+        sensor_frame: int,
+        sensor_timestamp: float,
+        host_receipt: float,
+        duration: float,
+    ) -> None:
+        if self.first_sensor_frame is None:
+            self.first_sensor_frame = sensor_frame
+            self.first_sensor_timestamp = sensor_timestamp
+        if self.last_host_receipt is not None:
+            self.host_arrival_interval.record(host_receipt - self.last_host_receipt)
+        self.last_sensor_frame = sensor_frame
+        self.last_sensor_timestamp = sensor_timestamp
+        self.last_host_receipt = host_receipt
+        self.callback_duration.record(duration)
+        self.count += 1
+
+
 class ResearchCameraDiagnostics:
     def __init__(
         self,
         clock: Callable[[], float] = perf_counter,
         run_id: str | None = None,
         composition: str = "front_left_right_3_rgb",
+        control_mode_source: Callable[[], DrivingControlMode] | None = None,
     ) -> None:
         self._clock = clock
         self._uses_default_clock = clock is perf_counter
@@ -81,7 +124,17 @@ class ResearchCameraDiagnostics:
         self._lock = Lock()
         self._roles: dict[str, _RoleRenderState] = {}
         self._timing: dict[str, _RunningStats] = {}
+        self._control_mode_source = control_mode_source
+        self._timing_by_mode: dict[str, dict[str, _RunningStats]] = {}
         self._turn_signal_audio_timing = TurnSignalAudioTiming()
+        self._active_callbacks: dict[str, _RoleCallbackState] = {}
+        self._active_start: float | None = None
+        self._active_end: float | None = None
+        self._active_complete: bool | None = None
+        self._completed_display_flips = 0
+        self._active_completed_display_flip_baseline = 0
+        self._measurement_frozen = False
+        self._frozen_feed_snapshots: dict[str, CameraFeedSnapshot] | None = None
         self._window_start: float | None = None
         self._window_end: float | None = None
         self._environment: dict[str, JsonValue] = {
@@ -96,14 +149,85 @@ class ResearchCameraDiagnostics:
         self._environment = _environment_payload(world)
 
     def record_duration(self, segment: str, duration_seconds: float) -> None:
+        if self._measurement_frozen:
+            return
+        mode = (
+            None if self._control_mode_source is None else self._control_mode_source()
+        )
         with self._lock:
             self._timing.setdefault(segment, _RunningStats()).record(duration_seconds)
+            if mode is not None:
+                self._timing_by_mode.setdefault(mode.value, {}).setdefault(
+                    segment, _RunningStats()
+                ).record(duration_seconds)
+
+    def begin_active_window(self, feeds: Sequence[CameraFeed]) -> None:
+        del feeds
+        with self._lock:
+            self._active_callbacks = {}
+            self._active_start = self._clock()
+            self._active_end = None
+            self._active_complete = None
+            self._active_completed_display_flip_baseline = self._completed_display_flips
+
+    def end_active_window(
+        self,
+        feeds: Sequence[CameraFeed],
+        *,
+        complete: bool,
+    ) -> None:
+        del feeds
+        with self._lock:
+            if self._measurement_frozen:
+                return
+            self._active_end = self._clock()
+            self._active_complete = complete
+
+    def freeze_measurement_window(self, feeds: Sequence[CameraFeed]) -> None:
+        with self._lock:
+            self._active_end = self._clock()
+            self._active_complete = True
+            self._frozen_feed_snapshots = {feed.role: feed.snapshot() for feed in feeds}
+            self._measurement_frozen = True
+
+    def record_camera_callback(
+        self,
+        role: str,
+        sensor_frame: int,
+        sensor_timestamp_seconds: float,
+        host_receipt_seconds: float,
+        duration_seconds: float,
+    ) -> None:
+        with self._lock:
+            if (
+                self._active_start is None
+                or host_receipt_seconds < self._active_start
+                or (
+                    self._active_end is not None
+                    and host_receipt_seconds >= self._active_end
+                )
+            ):
+                return
+            self._active_callbacks.setdefault(role, _RoleCallbackState()).record(
+                sensor_frame,
+                sensor_timestamp_seconds,
+                host_receipt_seconds,
+                duration_seconds,
+            )
+
+    def record_completed_display_flip(self) -> None:
+        if self._measurement_frozen:
+            return
+        with self._lock:
+            self._completed_display_flips += 1
 
     def record_turn_signal_audio_duration(
         self,
         operation: str,
         duration_seconds: float,
     ) -> None:
+        if self._measurement_frozen:
+            return
         with self._lock:
             self._turn_signal_audio_timing.record(operation, duration_seconds)
 
@@ -113,6 +237,8 @@ class ResearchCameraDiagnostics:
         snapshot: CameraFeedSnapshot,
         prepared_at_seconds: float,
     ) -> None:
+        if self._measurement_frozen:
+            return
         with self._lock:
             state = self._roles.setdefault(role, _RoleRenderState())
             state.prepared_count += 1
@@ -154,8 +280,13 @@ class ResearchCameraDiagnostics:
         config: DriverViewConfig | None = None,
         run_measurements: ResearchCameraRunMeasurements | None = None,
     ) -> str:
-        feed_snapshots = [(feed, feed.snapshot()) for feed in feeds]
-        summary_at = self._clock()
+        frozen = self._frozen_feed_snapshots
+        feed_snapshots = [
+            (feed, feed.snapshot() if frozen is None else frozen[feed.role])
+            for feed in feeds
+        ]
+        summary_at = self._active_end if self._measurement_frozen else self._clock()
+        assert summary_at is not None
         roles: dict[str, JsonValue] = {}
         for feed, snapshot in feed_snapshots:
             role_payload = self._role_payload(feed.role, snapshot, summary_at)
@@ -194,11 +325,17 @@ class ResearchCameraDiagnostics:
                     "definition": "prepared, updated, repeated, and no-image counters",
                 },
             },
+            "active_drive_window": self._active_window_payload(),
             "clocks": _clock_payload(self._uses_default_clock),
             "roles": roles,
             "timing": {
                 name: stats.payload() for name, stats in sorted(self._timing.items())
             },
+            "timing_by_mode": {
+                mode: {name: stats.payload() for name, stats in timings.items()}
+                for mode, timings in self._timing_by_mode.items()
+            },
+            "timing_mode_definition": "canonical mode at operation completion",
             "turn_signal_audio_timing": self._turn_signal_audio_timing.payload(),
             "turn_signal_audio_timing_definitions": (
                 self._turn_signal_audio_timing.definitions()
@@ -226,6 +363,37 @@ class ResearchCameraDiagnostics:
             },
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+    def _active_window_payload(self) -> dict[str, JsonValue]:
+        elapsed = (
+            None
+            if self._active_start is None or self._active_end is None
+            else self._active_end - self._active_start
+        )
+        display_count = max(
+            0,
+            self._completed_display_flips
+            - self._active_completed_display_flip_baseline,
+        )
+        return {
+            "status": (
+                "NOT_STARTED"
+                if self._active_start is None
+                else "PARTIAL"
+                if self._active_complete is not True
+                else "COMPLETE"
+            ),
+            "start_host_monotonic_seconds": _rounded(self._active_start),
+            "end_host_monotonic_seconds": _rounded(self._active_end),
+            "host_elapsed_seconds": _rounded(elapsed),
+            "completed_display_flip_count": display_count,
+            "completed_display_flips_per_wall_second": _rate(display_count, elapsed),
+            "roles": {
+                role: _active_role_payload(state, elapsed)
+                for role, state in sorted(self._active_callbacks.items())
+            },
+            "definition": "viewer.run entry through exit; callbacks require host receipt within [start, end); callback lifecycle is separate",
+        }
 
     def _role_payload(
         self,
@@ -269,3 +437,44 @@ def _rounded(value: float | None) -> float | None:
 
 def _rounded_ms(value: float) -> float:
     return round(value * 1000.0, 6)
+
+
+def _rate(count: int, elapsed: float | None) -> float | None:
+    if elapsed is None or elapsed <= 0.0:
+        return None
+    return count / elapsed
+
+
+def _active_role_payload(
+    state: _RoleCallbackState,
+    elapsed: float | None,
+) -> dict[str, JsonValue]:
+    sensor_elapsed = (
+        None
+        if state.first_sensor_timestamp is None or state.last_sensor_timestamp is None
+        else state.last_sensor_timestamp - state.first_sensor_timestamp
+    )
+    sensor_frame_delta = (
+        0
+        if state.first_sensor_frame is None or state.last_sensor_frame is None
+        else state.last_sensor_frame - state.first_sensor_frame
+    )
+    return {
+        "callback_count": state.count,
+        "callbacks_per_wall_second": _rate(state.count, elapsed),
+        "sensor_frame_delta": sensor_frame_delta,
+        "sensor_elapsed_seconds": _rounded(sensor_elapsed),
+        "sensor_frames_per_sensor_second": _rate(sensor_frame_delta, sensor_elapsed),
+        "host_arrival_interval": _optional_stats_payload(state.host_arrival_interval),
+        "callback_duration": _optional_stats_payload(state.callback_duration),
+    }
+
+
+def _optional_stats_payload(stats: _RunningStats) -> dict[str, JsonValue]:
+    return {
+        "count": stats.count,
+        "mean_ms": (
+            None if stats.count == 0 else _rounded_ms(stats.total / stats.count)
+        ),
+        "max_ms": None if stats.count == 0 else _rounded_ms(stats.maximum),
+    }

@@ -155,7 +155,7 @@ def test_cli_builds_explicit_module_and_training_exit_templates(
     assert runtime.training_exit.context is ExitContext.TRAINING
     assert runtime.module_exit.confirm_key == "x"
     assert runtime.module_exit.reject_key == "r"
-    assert runtime.module_exit.assisted_execution_enabled is False
+    assert runtime.module_exit.assisted_execution_enabled is True
     assert runtime.module_1_exit_window is not None
     assert runtime.module_1_exit_window.open_s == 120.0
     assert runtime.module_2_exit_window is not None

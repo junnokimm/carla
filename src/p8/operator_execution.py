@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from src.experiment.context import ExperimentModule, ExperimentPhase
-from src.p8.model import P8Error, Stage
+from src.p8.model import Mode, P8Error, Stage
+from src.p8.operator_continuity import OperatorRuntimeContinuity
 from src.p8.operator_exit_ledger_view import LiveCoordinatorEvidence
 from src.p8.operator_exit_result import (
     ExitOpportunityResult,
@@ -15,22 +16,21 @@ from src.p8.operator_exit_result import (
 from src.p8.operator_live_evidence import after_cleanup_evidence, live_evidence
 from src.p8.operator_metrics import event_count, reduce_module_run
 from src.p8.operator_model import ModuleRunResult, OperatorRuntimeConfig
+from src.p8.operator_run_config import OperatorRunRequest, prepare_operator_run
 from src.p8.services import SessionServices
-from src.scenario.research_noa_config import (
-    ResearchAutomationInteractionConfig,
-    ResearchNoARunConfig,
-    ResearchNoARunMode,
-)
-from src.scenario.research_noa_persistence_config import ResearchPersistenceConfig
+from src.scenario.driver_view import RuntimeFrameContinuation
+from src.scenario.research_noa_runtime import ResearchNoARunner
 
 
-@dataclass(frozen=True, slots=True)
-class OperatorRunRequest:
-    module: ExperimentModule
-    stage: Stage
-    duration: float
-    segment_phase: ExperimentPhase | None
-    nominal_request: bool = False
+def require_offline_hazard_runner(mode: Mode, runner: ResearchNoARunner) -> None:
+    if mode is not Mode.DEV_REHEARSAL:
+        raise P8Error("HAZARD_EXECUTION_REQUIRES_DEV_REHEARSAL")
+    if runner.client_source != "INJECTED_TEST_CLIENT":
+        raise P8Error("HAZARD_EXECUTION_REQUIRES_INJECTED_TEST_CLIENT")
+    if runner.viewer_source != "INJECTED_TEST_VIEWER":
+        raise P8Error("HAZARD_EXECUTION_REQUIRES_INJECTED_TEST_VIEWER")
+    if runner.driver_input_source != "INJECTED_TEST_DRIVER_INPUT":
+        raise P8Error("HAZARD_EXECUTION_REQUIRES_INJECTED_TEST_DRIVER_INPUT")
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,60 +39,14 @@ class OperatorRunExecutor:
     runtime: OperatorRuntimeConfig
     runs: list[ModuleRunResult]
     exit_slots: dict[Stage, ExitOpportunityResult]
+    continuity: OperatorRuntimeContinuity
+    nominal_m2_handoff: Callable[[], RuntimeFrameContinuation | None]
 
     def execute(self, request: OperatorRunRequest) -> ModuleRunResult:
-        self.runtime.validate_safety_contract()
         if any(result.stage is request.stage for result in self.runs):
             raise P8Error("ONE_ACTUAL_BOUNDED_RUN_PER_STAGE")
-        exit_template = (
-            self.runtime.training_exit
-            if request.stage is Stage.TRAINING
-            else self.runtime.module_exit
-        )
-        if (
-            exit_template is not None
-            and request.stage in (Stage.MODULE_1_RUNNING, Stage.MODULE_2_RUNNING)
-            and not request.nominal_request
-        ):
-            raise P8Error("P5_MODULE_EXIT_REQUIRES_NOMINAL_WINDOW")
-        limit = 600.0 if request.stage is Stage.TRAINING else 60.0
-        if request.nominal_request:
-            limit = 600.0 if request.stage is Stage.MODULE_1_RUNNING else 780.0
-        if not 1.0 <= request.duration <= limit:
-            raise P8Error(f"ACTUAL_RUN_DURATION_REQUIRES_1_TO_{round(limit)}_SECONDS")
-        exit_config = (
-            None
-            if exit_template is None
-            else replace(
-                exit_template,
-                lc_event_id=(
-                    f"{self.services.context.study_run_id}:"
-                    f"{request.stage.value}:{exit_template.route_id}"
-                ),
-                eligibility_open_s=(
-                    exit_template.eligibility_open_s
-                    if request.stage is Stage.TRAINING
-                    else self.runtime.module_1_exit_window.open_s
-                    if request.module is ExperimentModule.MODULE_1
-                    and self.runtime.module_1_exit_window is not None
-                    else self.runtime.module_2_exit_window.open_s
-                    if request.module is ExperimentModule.MODULE_2
-                    and self.runtime.module_2_exit_window is not None
-                    else exit_template.eligibility_open_s
-                ),
-                eligibility_close_s=(
-                    exit_template.eligibility_close_s
-                    if request.stage is Stage.TRAINING
-                    else self.runtime.module_1_exit_window.close_s
-                    if request.module is ExperimentModule.MODULE_1
-                    and self.runtime.module_1_exit_window is not None
-                    else self.runtime.module_2_exit_window.close_s
-                    if request.module is ExperimentModule.MODULE_2
-                    and self.runtime.module_2_exit_window is not None
-                    else exit_template.eligibility_close_s
-                ),
-            )
-        )
+        prepared = prepare_operator_run(self.services, self.runtime, request)
+        exit_config = prepared.exit_config
         path = self.services.logger.event_path
         runtime_started_session_s = self.services.elapsed
         live: LiveCoordinatorEvidence | None = None
@@ -100,53 +54,22 @@ class OperatorRunExecutor:
         primary_error: BaseException | None = None
         secondary_errors: list[BaseException] = []
         try:
-            condition = (
-                self.services.context.module_1_condition
-                if request.module is ExperimentModule.MODULE_1
-                else self.services.context.module_2_condition
-            )
-            persistence = ResearchPersistenceConfig(
-                self.services.assignment,
-                self.services.context.study_run_id,
-                self.services.directory,
-                request.module,
-                request.stage.value
-                if request.nominal_request
-                else f"P8_OPERATOR_{request.stage.value}_BOUNDED_PARTIAL",
-                segment_phase=request.segment_phase,
-            )
-            interaction = ResearchAutomationInteractionConfig(
-                request.module,
-                condition,
-                self.runtime.interaction_policy,
-                initial_stage=request.stage.value,
-            )
-            config = ResearchNoARunConfig(
-                duration=request.duration,
-                control_config=self.runtime.control_config,
-                speed_policy=self.runtime.speed_policy,
-                mode=ResearchNoARunMode.LIVE_SMOKE,
-                spawn_index=self.runtime.spawn_index,
-                host=self.runtime.host,
-                port=self.runtime.port,
-                timeout=self.runtime.timeout,
-                run_id=str(self.services.context.study_run_id),
-                automation_interaction=interaction,
-                persistence=persistence,
-                rear_mirror_enabled=self.runtime.rear_mirror_enabled,
-                operator_training=request.stage is Stage.TRAINING,
-                operator_nominal_module=request.nominal_request,
-                activation_speed_hold=False,
-                exit_assistance=exit_config,
-                traffic_manager_port=self.runtime.traffic_manager_port,
-            )
             offset = event_count(path)
             runner = self.runtime.runner_builder(
-                config,
+                prepared.config,
                 self.services.borrowed_research_log(),
             )
+            handoff_enabled = (
+                request.stage is Stage.MODULE_2_RUNNING and request.nominal_request
+            )
+            if handoff_enabled and self.runtime.hazard_execution is not None:
+                require_offline_hazard_runner(self.services.mode, runner)
             try:
-                with runner.session() as actual:
+                with self.continuity.session(
+                    runner,
+                    self.services,
+                    handoff_enabled=handoff_enabled,
+                ) as actual:
                     try:
                         if (
                             actual.persistence is None
@@ -154,7 +77,13 @@ class OperatorRunExecutor:
                             or actual.persistence.study_run is not self.services.context
                         ):
                             raise P8Error("OPERATOR_SHARED_RESOURCE_IDENTITY_MISMATCH")
-                        report = actual.run()
+                        report = actual.run(
+                            continuation_factory=(
+                                (lambda _: self.nominal_m2_handoff())
+                                if handoff_enabled
+                                else None
+                            )
+                        )
                     except (
                         KeyboardInterrupt,
                         OSError,
@@ -271,5 +200,9 @@ class OperatorRunExecutor:
         result = replace(result, exit_opportunity=exit_result)
         self.exit_slots[request.stage] = exit_result
         self.runs.append(result)
-        self.services.emit("p8_actual_bounded_run", result.manifest())
+        self.services.emit(
+            "p8_actual_bounded_run",
+            result.manifest(),
+            stage=request.stage,
+        )
         return result

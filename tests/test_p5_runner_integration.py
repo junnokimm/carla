@@ -232,6 +232,9 @@ class SnapshotWaypoint:
     def get_right_lane(self) -> None:
         return None
 
+    def get_left_lane(self) -> None:
+        return None
+
 
 class SnapshotMap:
     def __init__(self) -> None:

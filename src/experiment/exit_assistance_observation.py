@@ -52,6 +52,7 @@ class ObservationLifecycle(Protocol):
         input_timestamp: TimestampEnvelope | None = None,
         observation_gap_previous_frame: int | None = None,
         presentation_window_status: str | None = None,
+        highway_rejoin_status: str | None = None,
     ) -> None: ...
 
     def is_time_eligible(self, timestamp: TimestampEnvelope) -> bool: ...
@@ -202,10 +203,21 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
         and observation.route_reference_distance_m
         > observation.route_reference_half_width_m
     )
+    first_exit_entry = (
+        identity in route.exit_segments and subject._path_outcome != "EXIT"
+    )
     if identity in route.exit_segments:
         subject._path_outcome = "EXIT"
     elif separated_through:
         subject._path_outcome = "MISSED"
+    if first_exit_entry:
+        subject._emit(
+            "lc_exit_entry_observed",
+            observation.timestamp,
+            outcome="EXIT_ENTRY_OBSERVED",
+            observation=observation,
+            highway_rejoin_status="NOT_CONFIGURED",
+        )
 
     if subject._maneuver_in_progress and (
         observation.lane_id == route.target_lane_id
@@ -245,6 +257,9 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
         observation.timestamp,
         outcome=subject._path_outcome,
         observation=observation,
+        highway_rejoin_status=(
+            "NOT_CONFIGURED" if subject._path_outcome == "EXIT" else None
+        ),
     )
     if subject._route_was_armed:
         subject._reference.cancel()

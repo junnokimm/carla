@@ -257,6 +257,32 @@ def test_preparation_control_failure_preserves_cause() -> None:
     assert isinstance(caught.value.__cause__, PreparationControlFailure)
 
 
+def test_preparation_callback_failure_preserves_cause() -> None:
+    clock = FakeClock()
+    vehicle = FakeResearchVehicle(initial_gear=0)
+    world = PreparationWorld(vehicle, clock, [])
+    expected = PreparationControlFailure("fake batch response failure")
+
+    def fail_control(_control: carla.VehicleControl) -> None:
+        raise expected
+
+    prime_context = context(clock, 1.0)
+    prime_context = TransmissionPrimeContext(
+        bounded_brake=prime_context.bounded_brake,
+        actual_speed_kmh=prime_context.actual_speed_kmh,
+        monotonic_clock=prime_context.monotonic_clock,
+        preparation_timeout_seconds=prime_context.preparation_timeout_seconds,
+        control_sender=fail_control,
+    )
+
+    with pytest.raises(ResearchNoATransmissionPrimeError) as caught:
+        prime_live_transmission(vehicle, world, prime_context)
+
+    assert caught.value.failure.value == "preparation-control"
+    assert caught.value.__cause__ is expected
+    assert vehicle.applied_controls == []
+
+
 def test_manual_prime_requires_automatic_forward_readback() -> None:
     clock = FakeClock()
     vehicle = ManualAutomaticReadbackVehicle(

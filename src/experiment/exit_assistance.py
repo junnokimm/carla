@@ -50,7 +50,11 @@ class ExitAssistanceCoordinator:
         event_sink: Callable[[ExitAssistanceEvent], None] | None = None,
         *,
         session_clock: SessionClock | None = None,
+        assisted_submission: Callable[[], bool] | None = None,
+        submission_clock: Callable[[], TimestampEnvelope] | None = None,
     ) -> None:
+        if assisted_submission is not None and submission_clock is None:
+            raise ExitPresentationError("TM submission requires its observation clock")
         self.config = config
         self._reference = reference
         self.status = ExitAssistanceStatus.WAITING
@@ -80,6 +84,8 @@ class ExitAssistanceCoordinator:
         self._path_outcome: str | None = None
         self._route_was_armed = False
         self._session_clock = session_clock
+        self._assisted_submission = assisted_submission
+        self._submission_clock = submission_clock
         self._active_drive_start: TimestampEnvelope | None = None
         self._active_drive_start_elapsed_s: float | None = None
 
@@ -335,8 +341,19 @@ class ExitAssistanceCoordinator:
                     termination_reason="ASSISTED_EXECUTION_BLOCKED",
                 )
                 return
-            self._reference.arm(self.config.route, observation.route_point_index)
-            self._route_was_armed = True
+            if self._assisted_submission is None:
+                self._reference.arm(self.config.route, observation.route_point_index)
+                self._route_was_armed = True
+            elif not self._assisted_submission():
+                self.status = ExitAssistanceStatus.INTERRUPTED
+                if self._submission_clock is None:
+                    raise ExitPresentationError("TM submission clock is unavailable")
+                self._emit(
+                    "lc_finished",
+                    self._submission_clock(),
+                    outcome="UNVERIFIED",
+                    termination_reason="ASSISTED_SUBMISSION_UNVERIFIED",
+                )
 
     def finish(
         self, reason: ExitTerminationReason, timestamp: TimestampEnvelope
@@ -382,6 +399,7 @@ class ExitAssistanceCoordinator:
         input_timestamp: TimestampEnvelope | None = None,
         observation_gap_previous_frame: int | None = None,
         presentation_window_status: str | None = None,
+        highway_rejoin_status: str | None = None,
     ) -> None:
         event = build_exit_event(
             ExitEventData(
@@ -409,6 +427,7 @@ class ExitAssistanceCoordinator:
                 active_drive_start=self._active_drive_start,
                 eligibility_elapsed_s=self.eligibility_elapsed_seconds(timestamp),
                 presentation_window_status=presentation_window_status,
+                highway_rejoin_status=highway_rejoin_status,
             )
         )
         self.events.append(event)

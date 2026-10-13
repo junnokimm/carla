@@ -1,8 +1,12 @@
 # P8 Traffic Manager 전환: 1단계 운영 계약
 
+> Current implementation and patched-environment command: [P8_Patched_TM_LaneChange.md](P8_Patched_TM_LaneChange.md).
+> The stage-one/phase-two BLOCKED descriptions below are historical, not the current execution contract.
+
 > 현재 Phase2 계약은 [P8_Phase2_P5_LaneChange_TrafficLights.md](P8_Phase2_P5_LaneChange_TrafficLights.md)를 따른다.
 > 일반 Z/X 요청과 M1/M2 명시적 안내 시간창, 차량별 신호 정책·관측이 추가됐다.
-> Z는 좌측 요청, P5 선택적 거부는 R이다. 자동 차로변경 실행은 여전히 BLOCKED다.
+> Z는 좌측 요청, P5 선택적 거부는 R이다. 패치된 TM 단발 실행은
+> EMPTY_REHEARSAL_ONLY 조건에서 코드 연결됐고 물리 동작은 UNVERIFIED다.
 > 아래 1단계 검증 기록은 당시 결과이며 Phase2의 읽기 전용 지도 조회와 구분한다.
 
 ## 완료 범위
@@ -13,7 +17,9 @@ Custom PI/Lateral Controller가 아닌 CARLA Traffic Manager(TM)를 등록한다
 
 코드 연결 및 Fake CARLA Offline 검증은 실제 물리 주행 검증과 다르다.
 이번 작업에서는 CARLA 서버에 접속하거나 실제 주행을 시작하지 않았다.
-**차로변경 실행은 BLOCKED, 실제 TM 주행은 UNVERIFIED, Participant 운영은 BLOCKED**다.
+**차로변경 실행 경로는 EMPTY_REHEARSAL_ONLY로 CONNECTED, 실제 TM 주행은
+UNVERIFIED, Participant 운영은 BLOCKED**다. 실행 전 로드된 PYD 해시와 Windows
+listener PID 단독 소유권을 확인하며, 어느 하나라도 알 수 없으면 실패한다.
 
 ## 연구 문서와 명시적 변경
 

@@ -21,6 +21,7 @@ from src.p8.operator_registration import claim_registration
 from src.p8.orchestrator import ExperimentSession
 from src.p8.readiness import Readiness, require_participant_ready
 from src.p8.services import SessionServices
+from src.scenario.driver_view import RuntimeFrameContinuation
 
 
 class OperatorController:
@@ -77,7 +78,12 @@ class OperatorController:
         def create_components(
             owned_services: SessionServices, occurrences: OccurrenceRegistry
         ) -> OperatorComponents:
-            components = OperatorComponents(owned_services, occurrences, self.runtime)
+            components = OperatorComponents(
+                owned_services,
+                occurrences,
+                self.runtime,
+                self._handoff_nominal_m2,
+            )
             self._components = components
             return components
 
@@ -205,6 +211,28 @@ class OperatorController:
             self.session.abort("USER_EXIT")
             raise P8Error("USER_EXIT_ABORTED_OPERATING_SESSION")
         return result
+
+    def _handoff_nominal_m2(self) -> RuntimeFrameContinuation | None:
+        session = self.session
+        if session.state is not Stage.MODULE_2_RUNNING:
+            raise P8Error("NOMINAL_M2_HANDOFF_REQUIRES_MODULE_2_RUNNING")
+        session.record_execution_policy_outcome(
+            DevOutcome.PARTIAL.value,
+            "nominal M2 viewer window completed; final reduction follows live handoff",
+        )
+        session.transition(Stage.FINAL_HAZARD)
+        components = self._operator_components()
+        continuation_prepared = components.hazard_loop is not None
+        session.record_execution_policy_outcome(
+            DevOutcome.BLOCKED.value,
+            (
+                "offline P7 continuation prepared with injected test dependencies; "
+                "physical hazard execution remains blocked"
+                if continuation_prepared
+                else "moving hazard policy and physical readiness blocked; not run"
+            ),
+        )
+        return components.hazard_loop
 
     def _done_claim(self) -> DoneClaim:
         result = self.session.result

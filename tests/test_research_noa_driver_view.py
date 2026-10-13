@@ -4,9 +4,11 @@ import json
 from collections import defaultdict
 
 import pygame
+import pytest
 
 from src.experiment.automation import DrivingControlMode
 from src.scenario.driver_view import DriverView
+from src.scenario.research_camera_diagnostics import ResearchCameraDiagnostics
 from src.scenario.research_noa import (
     ResearchDriverView,
     ResearchDriverViewConfig,
@@ -61,6 +63,10 @@ class RealLiveDriverViewFactory:
         viewer = ResearchLiveDriverView(self.camera_world, hero, config)
         self.created.append(viewer)
         return viewer
+
+
+class InjectedSchedulerError(RuntimeError):
+    pass
 
 
 def test_runner_real_driver_view_manual_frames_do_not_inject_control(
@@ -122,6 +128,98 @@ def test_runner_real_driver_view_manual_frames_do_not_inject_control(
     ] == [(1, 1), (1, 1), (1, 1)]
     assert clock.tick_rates == [driver_view.FRAME_RATE] * 3
     assert audio.close_count >= 1
+
+
+def test_failed_scheduler_call_records_elapsed_without_completing_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.scenario import driver_view
+
+    diagnostics_clock = FakeMonotonicClock()
+    monkeypatch.setattr(driver_view, "TurnSignalAudio", FakeTurnSignalAudio)
+    monotonic_values = iter((0.0, 0.1))
+    monkeypatch.setattr(driver_view.time, "monotonic", monotonic_values.__next__)
+    monkeypatch.setattr(driver_view.pygame.display, "init", lambda: None)
+    monkeypatch.setattr(
+        driver_view.pygame.display,
+        "set_mode",
+        lambda size: pygame.Surface(size),
+    )
+    monkeypatch.setattr(driver_view.pygame.display, "set_caption", lambda title: None)
+    monkeypatch.setattr(driver_view.pygame.event, "get", list)
+    monkeypatch.setattr(driver_view.pygame, "quit", lambda: None)
+    viewer = ResearchLiveDriverView(
+        FakeWorld(),
+        FakeResearchVehicle(),
+        ResearchDriverViewConfig(),
+    )
+    diagnostics = ResearchNoADiagnostics(diagnostics_clock)
+
+    class FailingScheduler:
+        def update(self) -> bool:
+            diagnostics_clock.advance(0.2)
+            raise InjectedSchedulerError("scheduler failed")
+
+    diagnostics.begin_operation_measurement_window()
+
+    with pytest.raises(InjectedSchedulerError, match="scheduler failed"):
+        viewer.run(1.0, scheduler=FailingScheduler(), diagnostics=diagnostics)
+
+    timing = diagnostics.performance_payload()["operations"]["scheduler"]
+    assert timing == {
+        "count": 1,
+        "mean_ms": pytest.approx(200.0),
+        "max_ms": pytest.approx(200.0),
+    }
+    assert diagnostics.completed_driver_loop_count == 0
+
+
+def test_failed_display_flip_records_duration_without_completed_flip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.scenario import driver_view
+
+    diagnostics_clock = FakeMonotonicClock()
+    frame_clock = FakeFrameClock()
+    monkeypatch.setattr(driver_view, "TurnSignalAudio", FakeTurnSignalAudio)
+    monotonic_values = iter((0.0, 0.1))
+    monkeypatch.setattr(driver_view.time, "monotonic", monotonic_values.__next__)
+    monkeypatch.setattr(driver_view.pygame.display, "init", lambda: None)
+    monkeypatch.setattr(
+        driver_view.pygame.display,
+        "set_mode",
+        lambda size: pygame.Surface(size),
+    )
+    monkeypatch.setattr(driver_view.pygame.display, "set_caption", lambda title: None)
+    monkeypatch.setattr(driver_view.pygame.event, "get", list)
+    monkeypatch.setattr(driver_view.pygame.time, "Clock", lambda: frame_clock)
+    monkeypatch.setattr(driver_view.pygame, "quit", lambda: None)
+
+    def fail_flip() -> None:
+        diagnostics_clock.advance(0.25)
+        raise RuntimeError("flip failed")
+
+    monkeypatch.setattr(driver_view.pygame.display, "flip", fail_flip)
+    viewer = ResearchLiveDriverView(
+        FakeWorld(),
+        FakeResearchVehicle(),
+        ResearchDriverViewConfig(camera_diagnostics=True),
+    )
+    camera_diagnostics = ResearchCameraDiagnostics(diagnostics_clock)
+    viewer._camera_diagnostics = camera_diagnostics
+    viewer._performance_observer = camera_diagnostics
+    monkeypatch.setattr(viewer, "_apply_manual_control", lambda: None)
+    monkeypatch.setattr(viewer, "_update_turn_signal_audio", lambda: None)
+    monkeypatch.setattr(viewer, "_draw", lambda screen: None)
+    loop_diagnostics = ResearchNoADiagnostics(diagnostics_clock)
+
+    with pytest.raises(RuntimeError, match="flip failed"):
+        viewer.run(1.0, diagnostics=loop_diagnostics)
+
+    payload = json.loads(camera_diagnostics.to_json(()))
+    assert payload["timing"]["display_flip"]["max_ms"] == pytest.approx(250.0)
+    assert payload["active_drive_window"]["completed_display_flip_count"] == 0
+    assert loop_diagnostics.completed_driver_loop_count == 0
 
 
 def test_live_driver_view_allows_manual_keyboard_control_but_ignores_p_key(

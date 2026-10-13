@@ -49,6 +49,7 @@ def test_audio_deactivation_cancels_schedule_and_reactivation_clicks_immediately
     audio.update(active=True, now=0.2)
 
     assert sound.play_count == 2
+    assert sound.stop_count == 1
 
 
 def test_audio_close_stops_sound_and_prevents_more_playback(monkeypatch) -> None:

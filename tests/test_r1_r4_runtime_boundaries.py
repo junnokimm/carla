@@ -22,6 +22,7 @@ from src.experiment.automation_interaction_types import DriverInputError
 from src.experiment.context import ExperimentCondition, ExperimentModule
 from src.experiment.timestamp import HostClockTimestamp, TimestampEnvelope
 from src.logging.csv_logger import ResearchEvent
+from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.scenario.research_noa_persistence import (
     PersistedInteractionObserver,
     ResearchNoAObservationSource,
@@ -100,6 +101,10 @@ class PrimaryInteractionError(RuntimeError):
 
 
 class PersistenceCleanupError(RuntimeError):
+    pass
+
+
+class SnapshotGetterError(RuntimeError):
     pass
 
 
@@ -432,3 +437,31 @@ def test_actual_runner_records_persistence_delays_on_scheduler_diagnostics(
         assert diagnostics.operation_timing(
             "telemetry_write"
         ).maximum_ms == pytest.approx(200.0)
+
+
+def test_failed_snapshot_getter_records_elapsed_operation_time() -> None:
+    clock = FakeMonotonicClock()
+    vehicle = FakeResearchVehicle()
+
+    class FailingWorld(FakeResearchWorld):
+        def get_snapshot(self):
+            clock.advance(0.2)
+            raise SnapshotGetterError("snapshot failed")
+
+    diagnostics = ResearchNoADiagnostics(clock)
+    source = ResearchNoAObservationSource(
+        FailingWorld(vehicle),
+        vehicle,
+        diagnostics=diagnostics,
+    )
+    diagnostics.begin_operation_measurement_window()
+
+    with pytest.raises(SnapshotGetterError, match="snapshot failed"):
+        source.get_observation()
+
+    timing = diagnostics.performance_payload()["operations"]["snapshot_getter"]
+    assert timing == {
+        "count": 1,
+        "mean_ms": pytest.approx(200.0),
+        "max_ms": pytest.approx(200.0),
+    }

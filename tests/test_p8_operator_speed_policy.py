@@ -23,6 +23,7 @@ from tests.research_noa_fakes import (
     FakeMonotonicClock,
     FakeResearchVehicle,
     FakeResearchWorld,
+    FakeTrafficManagerRuntimeAttestor,
 )
 from tests.test_p8_operator_backend import (
     RunnerEvidence,
@@ -152,6 +153,7 @@ def test_three_stages_borrow_same_explicit_policy_and_log_real_speed(
             monotonic_ns=clock.monotonic_ns,
             utc_ns=clock.utc_ns,
             borrowed_log=borrowed,
+            tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
         )
 
     controller = OperatorController(

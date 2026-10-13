@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -37,6 +38,7 @@ from tests.research_noa_fakes import (
     FakeMonotonicClock,
     FakeResearchVehicle,
     FakeResearchWorld,
+    FakeTrafficManagerRuntimeAttestor,
     make_live_control_config,
 )
 from tests.test_p5_boundary_contracts import observation
@@ -71,6 +73,7 @@ class RunnerEvidence:
     p5_scenario: str | None = None
     observed_driver_inputs: list[DriverInput] = field(default_factory=list)
     user_exit: bool = False
+    driver_input_action: Callable[[], None] | None = None
 
 
 class EvidenceDriverView(FakeDriverView):
@@ -78,8 +81,21 @@ class EvidenceDriverView(FakeDriverView):
         super().__init__(config)
         self.evidence = evidence
 
-    def run(self, duration, scheduler=None, diagnostics=None, input_observer=None):
-        super().run(duration, scheduler, diagnostics, input_observer)
+    def run(
+        self,
+        duration,
+        scheduler=None,
+        diagnostics=None,
+        input_observer=None,
+        continuation_factory=None,
+    ):
+        super().run(
+            duration,
+            scheduler,
+            diagnostics,
+            input_observer,
+            None if self.evidence.user_exit else continuation_factory,
+        )
         return self.evidence.user_exit
 
     def close(self) -> None:
@@ -98,6 +114,7 @@ def runtime_config(
     runtime: OperatorRuntimeConfig
 
     def build(config, borrowed_log):
+        assert config.camera_diagnostics is True
         vehicle = FakeResearchVehicle()
         run_clock = FakeMonotonicClock()
         world = FakeResearchWorld(vehicle, monotonic_clock=run_clock)
@@ -130,6 +147,8 @@ def runtime_config(
         evidence.vehicles.append(vehicle)
 
         def next_driver_input() -> DriverInput:
+            if evidence.driver_input_action is not None:
+                evidence.driver_input_action()
             value = evidence.driver_inputs.pop(0)
             evidence.observed_driver_inputs.append(value)
             return value
@@ -148,6 +167,7 @@ def runtime_config(
             ),
             exit_route_validator=lambda route, carla_map, hero: None,
             borrowed_log=borrowed_log,
+            tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
         )
 
     runtime = OperatorRuntimeConfig(
@@ -338,7 +358,7 @@ def exit_template(context: ExitContext) -> ResearchExitAssistanceConfig:
         lateral_onset_threshold_m=0.15,
         confirm_key="x",
         reject_key="r",
-        assisted_execution_enabled=False,
+        assisted_execution_enabled=True,
         indicator_confirmation=True,
     )
 
@@ -421,7 +441,7 @@ def test_training_p5_accepts_blank_module_identity(
         ("off_exit", ExitOpportunityClassification.EXIT_CONFIRMED, None, "MANUAL"),
         (
             "on_confirm_exit",
-            ExitOpportunityClassification.BLOCKED,
+            ExitOpportunityClassification.INCOMPLETE,
             "CONFIRM",
             "NOA_ACTIVE",
         ),
@@ -673,22 +693,30 @@ def test_active_timestamps_come_from_persisted_drive_window(tmp_path: Path) -> N
     with event_path.open("w", newline="", encoding="utf-8") as target:
         writer = csv.DictWriter(
             target,
-            fieldnames=("event_type", "event_value", "session_elapsed_s"),
+            fieldnames=(
+                "phase",
+                "event_type",
+                "event_value",
+                "session_elapsed_s",
+            ),
         )
         writer.writeheader()
         writer.writerows(
             (
                 {
+                    "phase": "MODULE_1",
                     "event_type": "initial_state",
                     "event_value": "AVAILABLE|MANUAL",
                     "session_elapsed_s": "2.0",
                 },
                 {
+                    "phase": "MODULE_1",
                     "event_type": "stage_start",
                     "event_value": "MODULE_1_RUNNING",
                     "session_elapsed_s": "3.0",
                 },
                 {
+                    "phase": "MODULE_1",
                     "event_type": "stage_end",
                     "event_value": "MODULE_1_RUNNING",
                     "session_elapsed_s": "7.0",
@@ -1155,7 +1183,7 @@ def test_m2_manual_successful_activation_is_protocol_deviation_at_transition_tim
     assert result.nominal_on_proportion is None
 
 
-def test_explicit_partial_and_skipped_outcomes_return_done_claim(
+def test_explicit_partial_and_blocked_outcomes_return_done_claim(
     tmp_path: Path,
 ) -> None:
     clock = StrictClock()
@@ -1171,7 +1199,7 @@ def test_explicit_partial_and_skipped_outcomes_return_done_claim(
     controller.execute_current_module(1.0)
     controller.approve_dev_outcome(DevOutcome.PARTIAL, "M2 bounded")
     controller.advance()
-    controller.approve_dev_outcome(DevOutcome.SKIPPED, "hazard moving route blocked")
+    controller.approve_dev_outcome(DevOutcome.BLOCKED, "hazard moving route blocked")
     controller.advance()
     controller.record_actual(Receipt("survey", "NOT_IMPLEMENTED", None))
     controller.record_actual(Receipt("debrief", "EXTERNAL_OPERATOR_STEP", True))

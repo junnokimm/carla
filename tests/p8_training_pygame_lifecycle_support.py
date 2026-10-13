@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import carla
 import pygame
@@ -25,6 +26,7 @@ from tests.research_noa_fakes import (
     FakeClient,
     FakeResearchVehicle,
     FakeResearchWorld,
+    FakeTrafficManagerRuntimeAttestor,
     make_live_control_config,
 )
 from tests.test_p8_operator_backend import StrictClock
@@ -80,6 +82,9 @@ class LifecycleWorld(FakeResearchWorld):
     def __init__(self, hero: LifecycleHero, evidence: LifecycleEvidence) -> None:
         super().__init__(hero)
         self._evidence = evidence
+
+    def get_weather(self) -> SimpleNamespace:
+        return SimpleNamespace()
 
     def spawn_actor(self, blueprint, transform, attach_to=None):
         self.spawn_calls.append((blueprint, transform))
@@ -151,6 +156,7 @@ def build_controller(
             borrowed_log=borrowed_log,
             monotonic_ns=clock.monotonic_ns,
             utc_ns=clock.utc_ns,
+            tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
         )
 
     return OperatorController(

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import carla
 
+from src.scenario.research_noa_control_delivery import ControlSender
 from src.scenario.research_noa_transmission_preparation import (
     TransmissionPreparationError,
     TransmissionPreparationFailure,
@@ -18,6 +19,7 @@ class StationaryPrimeContext:
     actual_speed_kmh: float
     confirmation_window_seconds: float
     monotonic_clock: Callable[[], float]
+    control_sender: ControlSender | None = None
 
 
 def _wait_for_fresh_tick(
@@ -48,7 +50,7 @@ def prime_stationary_gear_zero(
             post_gear=post_gear,
         ) from error
     try:
-        vehicle.apply_control(
+        (context.control_sender or vehicle.apply_control)(
             carla.VehicleControl(
                 throttle=0.0,
                 brake=context.bounded_brake,
@@ -92,7 +94,7 @@ def prime_stationary_gear_zero(
             )
 
     try:
-        vehicle.apply_control(
+        (context.control_sender or vehicle.apply_control)(
             carla.VehicleControl(
                 throttle=0.0,
                 brake=context.bounded_brake,

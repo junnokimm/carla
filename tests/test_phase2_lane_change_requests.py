@@ -206,12 +206,10 @@ def test_p5_right_confirm_uses_one_request_with_coordinator_identity() -> None:
     payload = json.loads(persistence.events[0][1])
     assert payload["context"] == "P5"
     assert payload["lc_event_id"] == "p5-event-1"
-    assert payload["execution_status"] == "BLOCKED_SAFE_TM_EXECUTION_UNAVAILABLE"
+    assert payload["execution_status"] == "UNSUPPORTED_NO_EXECUTOR"
 
 
-def test_post_request_lane_identity_crossing_is_observed_without_completion_claim() -> (
-    None
-):
+def test_no_executor_does_not_claim_observation_lifecycle() -> None:
     vehicle = FakeVehicle()
     persistence = Persistence()
     subject = ResearchLaneChangeInteractionObserver(
@@ -240,15 +238,13 @@ def test_post_request_lane_identity_crossing_is_observed_without_completion_clai
 
     subject.after_control_applied()
 
-    event_type, payload_json = persistence.events[-1]
-    payload = json.loads(payload_json)
-    assert event_type == "lane_change_geometric_sample"
-    assert payload["target_identity_transition"] is True
-    assert payload["physical_boundary_crossing_verified"] is False
-    assert payload["physical_completion_claimed"] is False
+    assert len(persistence.events) == 1
+    event_type, payload_json = persistence.events[0]
+    assert event_type == "lane_change_request"
+    assert json.loads(payload_json)["disposition"] == "UNSUPPORTED_NO_EXECUTOR"
 
 
-def test_tracker_records_every_sample_and_ends_on_manual_priority() -> None:
+def test_no_executor_request_remains_unsupported_after_manual_priority() -> None:
     vehicle = FakeVehicle()
     persistence = Persistence()
     subject = ResearchLaneChangeInteractionObserver(
@@ -280,13 +276,12 @@ def test_tracker_records_every_sample_and_ends_on_manual_priority() -> None:
     subject.update(DriverInput(brake=0.5))
 
     event_types = [event_type for event_type, _ in persistence.events]
-    assert event_types.count("lane_change_geometric_sample") == 2
-    assert event_types[-1] == "lane_change_observation_end"
-    payload = json.loads(persistence.events[-1][1])
-    assert payload["reason"] == "MANUAL_PRIORITY"
+    assert event_types == ["lane_change_request"]
+    payload = json.loads(persistence.events[0][1])
+    assert payload["disposition"] == "UNSUPPORTED_NO_EXECUTOR"
 
 
-def test_new_opposite_request_supersedes_existing_tracker() -> None:
+def test_no_executor_opposite_requests_are_independently_unsupported() -> None:
     vehicle = FakeVehicle()
     persistence = Persistence()
     subject = ResearchLaneChangeInteractionObserver(
@@ -299,6 +294,8 @@ def test_new_opposite_request_supersedes_existing_tracker() -> None:
     subject.update(DriverInput(lane_change_direction=LaneChangeDirection.RIGHT))
     subject.update(DriverInput(lane_change_direction=LaneChangeDirection.LEFT))
 
-    end_payload = json.loads(persistence.events[1][1])
-    assert persistence.events[1][0] == "lane_change_observation_end"
-    assert end_payload["reason"] == "SUPERSEDED_BY_NEW_REQUEST"
+    payloads = [json.loads(payload) for _, payload in persistence.events]
+    assert [payload["disposition"] for payload in payloads] == [
+        "UNSUPPORTED_NO_EXECUTOR",
+        "UNSUPPORTED_NO_EXECUTOR",
+    ]
