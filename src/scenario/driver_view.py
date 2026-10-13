@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Final, Protocol, runtime_checkable
 
@@ -40,6 +40,17 @@ class RuntimeIterationScheduler(Protocol):
 
 class RuntimeDriverInputObserver(Protocol):
     def update(self, driver_input: DriverInput) -> AutomationState: ...
+
+
+class RuntimeFrameContinuation(Protocol):
+    def start(self) -> None: ...
+
+    def after_control_applied(self, driver_input: DriverInput) -> bool: ...
+
+    def finalize(self, reason: str, error: BaseException | None = None) -> None: ...
+
+
+type RuntimeContinuationFactory = Callable[[], RuntimeFrameContinuation | None]
 
 
 @runtime_checkable
@@ -95,6 +106,7 @@ class DriverViewConfig:
     cockpit_fov: float = 105.0
     mirror_fov: float = 100.0
     rear_mirror: RearMirrorConfig = RearMirrorConfig()
+    rear_mirror_enabled: bool = False
     hud_anchor_ratio: tuple[float, float] = (0.62, 0.62)
     hud_toast_y_ratio: float = 0.58
     hud_mode_toast_duration: float = 1.75
@@ -134,7 +146,7 @@ def calculate_layout(config: DriverViewConfig) -> DriverViewLayout:
 
 
 class DriverView:
-    """Attach and compose a forward feed with three rear-facing mirror feeds."""
+    """Attach and compose a forward feed with the configured mirror feeds."""
 
     def __init__(
         self,
@@ -143,12 +155,19 @@ class DriverView:
         config: DriverViewConfig | None = None,
         *,
         performance_observer: DriverViewPerformanceObserver | None = None,
+        read_only: bool = False,
+        training_early_finish: bool = False,
+        traffic_manager_port: int | None = None,
     ) -> None:
         self._world = world
         self._hero = hero
         self._config = config or DriverViewConfig()
-        self._driving_mode_controller = DrivingModeController(
-            hero, self._config.initial_driving_mode
+        self._driving_mode_controller = (
+            None if read_only else DrivingModeController(
+                hero,
+                self._config.initial_driving_mode,
+                traffic_manager_port=traffic_manager_port,
+            )
         )
         self._steer = 0.0
         self._pending_driver_input: DriverInput | None = None
@@ -163,6 +182,8 @@ class DriverView:
         self._turn_signal_audio = TurnSignalAudio()
         self._feeds: list[CameraFeed] = []
         self._performance_observer = performance_observer
+        self._training_early_finish = training_early_finish
+        self._training_completed_early = False
 
     @property
     def feeds(self) -> tuple[CameraFeed, ...]:
@@ -177,6 +198,8 @@ class DriverView:
     @property
     def driving_mode(self) -> DrivingMode:
         """Return the current hero driving mode."""
+        if self._driving_mode_controller is None:
+            raise RuntimeError("read-only view does not own a driving mode")
         return self._driving_mode_controller.mode
 
     @property
@@ -184,16 +207,23 @@ class DriverView:
         """Return whether the cockpit HUD is enabled."""
         return self._hud_enabled
 
+    @property
+    def training_completed_early(self) -> bool:
+        return self._training_completed_early
+
     def attach(self) -> None:
-        """Create and attach the front and three mirror RGB cameras."""
-        mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
-            ("front", self._config.front_transform, self._config.front_resolution, self._config.fov),
+        """Create and attach the active RGB cameras."""
+        rear_mounts = (
             (
                 "rear",
                 self._config.rear_mirror.transform,
                 self._config.rear_mirror.resolution,
                 self._config.rear_mirror.fov,
             ),
+        ) if self._config.rear_mirror_enabled else ()
+        mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
+            ("front", self._config.front_transform, self._config.front_resolution, self._config.fov),
+            *rear_mounts,
             ("left", self._config.left_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
             ("right", self._config.right_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
         )
@@ -217,6 +247,7 @@ class DriverView:
             feed = CameraFeed(role=role, sensor=sensor)
             if self._performance_observer is not None:
                 feed.receipt_clock = self._performance_observer.timestamp
+                feed.performance_observer = self._performance_observer
             self._feeds.append(feed)
             sensor.listen(feed.receive)
 
@@ -225,16 +256,33 @@ class DriverView:
         duration: float,
         scheduler: RuntimeIterationScheduler | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
+        continuation_factory: RuntimeContinuationFactory | None = None,
     ) -> bool:
         """Show the composed view until duration elapses or the user exits it."""
+        if self._driving_mode_controller is None:
+            raise RuntimeError("read-only view cannot run the vehicle-control loop")
         pygame.display.init()
+        self._training_completed_early = False
         try:
             screen = pygame.display.set_mode(self._config.window_size)
             pygame.display.set_caption("CARLA driver view")
             clock = pygame.time.Clock()
             started_at = time.monotonic()
             exited_by_user = False
-            while time.monotonic() - started_at < duration:
+            continuation: RuntimeFrameContinuation | None = None
+            continuation_finalized = False
+            while True:
+                if (
+                    continuation is None
+                    and time.monotonic() - started_at >= duration
+                ):
+                    if continuation_factory is None:
+                        break
+                    continuation = continuation_factory()
+                    continuation_factory = None
+                    if continuation is None:
+                        break
+                    continuation.start()
                 observer = self._performance_observer
                 loop_started_at = observer.timestamp() if observer is not None else 0.0
                 self._begin_iteration()
@@ -243,28 +291,57 @@ class DriverView:
                     self._handle_mode_events(events)
                 if self._exit_requested(events):
                     exited_by_user = True
+                    if continuation is not None:
+                        continuation_finalized = True
+                        continuation.finalize("USER_EXIT")
                     break
-                if input_observer is not None:
-                    input_started_at = self._interaction_timestamp()
-                    self._pending_driver_input = self._collect_driver_input(events)
-                    input_observer.update(self._pending_driver_input)
-                    self._record_interaction_duration("input_observer", input_started_at)
-                scheduler_started_at = (
-                    observer.timestamp() if observer is not None else 0.0
-                )
-                control_applied = scheduler.update() if scheduler is not None else False
-                if observer is not None:
-                    observer.record_duration(
-                        "scheduler", observer.timestamp() - scheduler_started_at
+                if continuation is None and self._training_finish_requested(events):
+                    self._training_completed_early = True
+                    break
+                collected_input: DriverInput | None = None
+                if input_observer is not None or continuation is not None:
+                    collection_started_at = self._interaction_timestamp()
+                    try:
+                        collected_input = self._collect_driver_input(events)
+                        self._pending_driver_input = collected_input
+                    finally:
+                        self._record_interaction_duration(
+                            "input_collection", collection_started_at
+                        )
+                    if input_observer is not None:
+                        input_started_at = self._interaction_timestamp()
+                        try:
+                            input_observer.update(collected_input)
+                        finally:
+                            self._record_interaction_duration(
+                                "input_observer", input_started_at
+                            )
+                scheduler_started_at = self._interaction_timestamp()
+                try:
+                    control_applied = (
+                        scheduler.update() if scheduler is not None else False
                     )
+                finally:
+                    self._record_interaction_duration("scheduler", scheduler_started_at)
                 if not control_applied:
                     self._apply_manual_control()
                 if input_observer is not None:
                     self._handle_mode_events(events)
                 if isinstance(input_observer, ResearchPostControlObserver):
                     post_started_at = self._interaction_timestamp()
-                    input_observer.after_control_applied()
-                    self._record_interaction_duration("post_control", post_started_at)
+                    try:
+                        input_observer.after_control_applied()
+                    finally:
+                        self._record_interaction_duration(
+                            "post_control", post_started_at
+                        )
+                continuation_active = True
+                if continuation is not None:
+                    if collected_input is None:
+                        raise RuntimeError("continuation driver input was not collected")
+                    continuation_active = continuation.after_control_applied(
+                        collected_input
+                    )
                 audio_started_at = observer.timestamp() if observer is not None else 0.0
                 self._update_turn_signal_audio()
                 if observer is not None:
@@ -273,29 +350,52 @@ class DriverView:
                     )
                 self._prepare_frame()
                 draw_started_at = observer.timestamp() if observer is not None else 0.0
-                self._draw(screen)
-                if observer is not None:
-                    observer.record_duration(
-                        "draw", observer.timestamp() - draw_started_at
-                    )
+                try:
+                    self._draw(screen)
+                finally:
+                    if observer is not None:
+                        observer.record_duration(
+                            "draw", observer.timestamp() - draw_started_at
+                        )
                 flip_started_at = observer.timestamp() if observer is not None else 0.0
-                pygame.display.flip()
-                self._after_display_flip()
+                try:
+                    pygame.display.flip()
+                finally:
+                    if observer is not None:
+                        observer.record_duration(
+                            "display_flip", observer.timestamp() - flip_started_at
+                        )
                 if observer is not None:
-                    observer.record_duration(
-                        "display_flip", observer.timestamp() - flip_started_at
-                    )
+                    observer.record_completed_display_flip()
+                self._after_display_flip()
                 limiter_started_at = (
                     observer.timestamp() if observer is not None else 0.0
                 )
-                clock.tick(FRAME_RATE)
+                try:
+                    clock.tick(FRAME_RATE)
+                finally:
+                    if observer is not None:
+                        observer.record_duration(
+                            "fps_limiter", observer.timestamp() - limiter_started_at
+                        )
                 if observer is not None:
-                    observer.record_duration(
-                        "fps_limiter", observer.timestamp() - limiter_started_at
-                    )
                     observer.record_duration(
                         "driver_loop", observer.timestamp() - loop_started_at
                     )
+                self._complete_iteration()
+                if continuation is not None and not continuation_active:
+                    continuation_finalized = True
+                    continuation.finalize("TERMINAL")
+                    break
+        except BaseException as error:
+            if (
+                "continuation" in locals()
+                and continuation is not None
+                and not continuation_finalized
+            ):
+                continuation_finalized = True
+                continuation.finalize("ERROR", error)
+            raise
         finally:
             try:
                 self._turn_signal_audio.close()
@@ -310,6 +410,9 @@ class DriverView:
         return
 
     def _after_display_flip(self) -> None:
+        return
+
+    def _complete_iteration(self) -> None:
         return
 
     def _interaction_timestamp(self) -> float:
@@ -390,10 +493,20 @@ class DriverView:
                     flip_horizontal=True,
                 )
 
+    def draw_preview(self, screen: pygame.Surface) -> None:
+        if self._driving_mode_controller is not None:
+            raise RuntimeError("draw_preview requires a read-only view")
+        self._cockpit_view = True
+        self._draw(screen)
+
     def _hud_mode(self) -> tuple[DrivingMode, str | None]:
+        if self._driving_mode_controller is None:
+            return DrivingMode.MANUAL, None
         return self.driving_mode, None
 
     def _handle_mode_events(self, events: Sequence[pygame.event.Event]) -> None:
+        if self._driving_mode_controller is None:
+            return
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
                 was_manual = self.driving_mode is DrivingMode.MANUAL
@@ -439,6 +552,8 @@ class DriverView:
                 print(f"[driver-view] view={'COCKPIT' if self._cockpit_view else 'DRIVER'}")
 
     def _toggle_turn_signal(self, selected: carla.VehicleLightState) -> None:
+        if self._driving_mode_controller is None:
+            return
         current = self._hero.get_light_state()
         blinkers = (
             carla.VehicleLightState.LeftBlinker
@@ -478,6 +593,8 @@ class DriverView:
             )
 
     def _apply_manual_control(self) -> None:
+        if self._driving_mode_controller is None:
+            return
         if self.driving_mode is not DrivingMode.MANUAL:
             return
         driver_input = self._pending_driver_input or self._collect_driver_input(())
@@ -488,6 +605,9 @@ class DriverView:
             steer=driver_input.steering,
             hand_brake=driver_input.hand_brake,
         )
+        self._send_control(control)
+
+    def _send_control(self, control: carla.VehicleControl) -> None:
         self._hero.apply_control(control)
 
     def _collect_driver_input(
@@ -511,8 +631,10 @@ class DriverView:
         )
 
     def _reset_manual_control(self) -> None:
+        if self._driving_mode_controller is None:
+            return
         self._steer = 0.0
-        self._hero.apply_control(carla.VehicleControl())
+        self._send_control(carla.VehicleControl())
 
     def _blit_image(
         self,
@@ -571,5 +693,13 @@ class DriverView:
         return any(
             event.type == pygame.QUIT
             or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE)
+            for event in events
+        )
+
+    def _training_finish_requested(
+        self, events: Sequence[pygame.event.Event]
+    ) -> bool:
+        return self._training_early_finish and any(
+            event.type == pygame.KEYDOWN and event.key == pygame.K_F8
             for event in events
         )

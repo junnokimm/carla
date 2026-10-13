@@ -12,7 +12,10 @@ from src.experiment.automation import (
     AutomationState,
     DrivingControlMode,
 )
-from src.experiment.automation_runtime import AutomationRuntimeController
+from src.experiment.automation_runtime import (
+    AutomationControlBackend,
+    AutomationRuntimeController,
+)
 from src.experiment.automation_scheduler import AutomationControlScheduler
 from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
@@ -44,6 +47,24 @@ class _NoAControlBackend(Protocol):
     def enter_noa_control(self) -> None: ...
 
     def step(self) -> NoAControlCommand: ...
+
+    @property
+    def target_speed_kmh(self) -> float | None: ...
+
+    def set_driver_steering(self, steering: float | None) -> None: ...
+
+    def set_target_speed_kmh(self, target_speed_kmh: float) -> None: ...
+
+
+class TrafficManagerControlBackend(Protocol):
+    @property
+    def active(self) -> bool: ...
+
+    def enter_manual_control(self) -> None: ...
+
+    def enter_noa_control(self) -> None: ...
+
+    def ensure_manual_control(self) -> None: ...
 
 
 class CarlaNoARuntimeLocation(
@@ -86,6 +107,12 @@ class CarlaNoARuntimeVehicle(AutopilotVehicle, Protocol):
 
     def apply_control(self, control: carla.VehicleControl) -> None: ...
 
+    def set_autopilot(self, enabled: bool, tm_port: int = 8000) -> None: ...
+
+    def get_control(self) -> carla.VehicleControl: ...
+
+    def get_speed_limit(self) -> float: ...
+
 
 class CarlaNoARuntimeMap(Protocol):
     def get_waypoint(
@@ -94,6 +121,10 @@ class CarlaNoARuntimeMap(Protocol):
         project_to_road: bool,
         lane_type: carla.LaneType,
     ) -> CarlaNoARuntimeWaypoint | None: ...
+
+    def get_topology(
+        self,
+    ) -> list[tuple[CarlaNoARuntimeWaypoint, CarlaNoARuntimeWaypoint]]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,12 +153,15 @@ class SingleControlOwnershipBackend:
 @dataclass(frozen=True, slots=True)
 class NoARuntimeBundle:
     automation_runtime: AutomationRuntimeController
-    scheduler: AutomationControlScheduler
-    control_backend: SimulationTimeCarlaNoAControlBackend
-    ownership_backend: SingleControlOwnershipBackend
+    scheduler: AutomationControlScheduler | None
+    control_backend: AutomationControlBackend
+    ownership_backend: AutomationControlBackend
     lane_geometry: CarlaLaneGeometryAdapter
     adjacent_lanes: CarlaAdjacentLaneAdapter
     control_lane_geometry: DetailedLaneGeometrySource
+    steering_target: SimulationTimeCarlaNoAControlBackend | None
+    custom_control_backend: SimulationTimeCarlaNoAControlBackend | None
+    traffic_manager_backend: TrafficManagerControlBackend | None
 
 
 def build_noa_runtime(
@@ -166,4 +200,7 @@ def build_noa_runtime(
         lane_geometry=lane_geometry,
         adjacent_lanes=adjacent_lanes,
         control_lane_geometry=backend_geometry,
+        steering_target=control_backend,
+        custom_control_backend=control_backend,
+        traffic_manager_backend=None,
     )

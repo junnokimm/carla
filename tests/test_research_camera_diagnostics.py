@@ -27,6 +27,14 @@ class StepClock:
         return next(self._values)
 
 
+class ManualClock:
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    def __call__(self) -> float:
+        return self.value
+
+
 def test_summary_counts_same_frame_redelivery_latest_reuse_and_no_image() -> None:
     clock = StepClock(10.0, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6)
     diagnostics = ResearchCameraDiagnostics(
@@ -225,7 +233,12 @@ def test_summary_reports_requested_rear_camera_configuration() -> None:
     )
     rear = CameraFeed("rear", FakeSensor())
 
-    payload = json.loads(diagnostics.to_json((rear,), DriverViewConfig()))
+    payload = json.loads(
+        diagnostics.to_json(
+            (rear,),
+            DriverViewConfig(rear_mirror_enabled=True),
+        )
+    )
     requested = payload["roles"]["rear"]["sensor"]["requested_configuration"]
 
     assert requested == {
@@ -343,3 +356,98 @@ def test_summary_marks_injected_clock_metadata_unknown() -> None:
 
     assert payload["clocks"]["host_implementation"] == "unknown"
     assert payload["clocks"]["host_resolution_seconds"] == "unknown"
+
+
+def test_active_window_reports_distinct_display_and_sensor_cadences() -> None:
+    clock = ManualClock(100.0)
+    diagnostics = ResearchCameraDiagnostics(
+        clock=clock,
+        composition="front_only_1_rgb",
+    )
+    front = CameraFeed("front", FakeSensor())
+    front.receipt_clock = clock
+    front.performance_observer = diagnostics
+    diagnostics.begin_active_window((front,))
+    front.receive(FakeImage(10, 20.0))
+    clock.value = 100.5
+    front.receive(FakeImage(14, 20.25))
+    diagnostics.record_duration("display_flip", 0.001)
+    diagnostics.record_completed_display_flip()
+    diagnostics.record_duration("display_flip", 0.001)
+    diagnostics.record_completed_display_flip()
+    clock.value = 102.0
+    diagnostics.end_active_window((front,), complete=True)
+
+    payload = json.loads(diagnostics.to_json((front,)))
+    active = payload["active_drive_window"]
+
+    assert active["status"] == "COMPLETE"
+    assert active["host_elapsed_seconds"] == pytest.approx(2.0)
+    assert active["completed_display_flip_count"] == 2
+    assert active["completed_display_flips_per_wall_second"] == pytest.approx(1.0)
+    assert active["roles"]["front"]["callback_count"] == 2
+    assert active["roles"]["front"]["callbacks_per_wall_second"] == pytest.approx(
+        1.0
+    )
+    assert active["roles"]["front"]["sensor_frames_per_sensor_second"] == (
+        pytest.approx(16.0)
+    )
+    assert active["roles"]["front"]["host_arrival_interval"]["count"] == 1
+    assert active["roles"]["front"]["host_arrival_interval"]["mean_ms"] == (
+        pytest.approx(500.0)
+    )
+    assert active["roles"]["front"]["callback_duration"] == {
+        "count": 2,
+        "mean_ms": 0.0,
+        "max_ms": 0.0,
+    }
+
+
+def test_failed_display_flip_duration_is_not_counted_as_completed() -> None:
+    clock = ManualClock(100.0)
+    diagnostics = ResearchCameraDiagnostics(
+        clock=clock,
+        composition="front_only_1_rgb",
+    )
+    diagnostics.begin_active_window(())
+    diagnostics.record_duration("display_flip", 0.250)
+    clock.value = 101.0
+    diagnostics.end_active_window((), complete=False)
+
+    payload = json.loads(diagnostics.to_json(()))
+
+    assert payload["timing"]["display_flip"]["max_ms"] == pytest.approx(250.0)
+    assert payload["active_drive_window"]["completed_display_flip_count"] == 0
+
+
+def test_active_window_rejects_callback_received_before_window_start() -> None:
+    clock = ManualClock(100.0)
+    diagnostics = ResearchCameraDiagnostics(
+        clock=clock,
+        composition="front_only_1_rgb",
+    )
+    front = CameraFeed("front", FakeSensor())
+    diagnostics.begin_active_window((front,))
+
+    diagnostics.record_camera_callback("front", 9, 19.9, 99.9, 0.001)
+    diagnostics.record_camera_callback("front", 10, 20.0, 100.1, 0.001)
+    clock.value = 101.0
+    diagnostics.end_active_window((front,), complete=True)
+
+    active = json.loads(diagnostics.to_json((front,)))["active_drive_window"]
+
+    assert active["roles"]["front"]["callback_count"] == 1
+    assert active["roles"]["front"]["callback_duration"]["count"] == 1
+    assert "host receipt" in active["definition"]
+def test_render_timings_distinguish_manual_and_noa_modes() -> None:
+    from src.experiment.automation import DrivingControlMode
+    from src.scenario.research_camera_diagnostics import ResearchCameraDiagnostics
+
+    mode = DrivingControlMode.MANUAL
+    diagnostics = ResearchCameraDiagnostics(control_mode_source=lambda: mode)
+    diagnostics.record_duration("resize.front", 0.010)
+    mode = DrivingControlMode.NOA_ACTIVE
+    diagnostics.record_duration("resize.front", 0.020)
+    payload = json.loads(diagnostics.to_json([]))
+    assert payload["timing_by_mode"]["MANUAL"]["resize.front"]["mean_ms"] == 10.0
+    assert payload["timing_by_mode"]["NOA_ACTIVE"]["resize.front"]["mean_ms"] == 20.0

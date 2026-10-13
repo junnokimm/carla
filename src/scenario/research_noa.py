@@ -17,6 +17,7 @@ from src.scenario.research_noa_session import (
     ResearchNoASession,
 )
 from src.scenario.research_noa_smoke import ResearchNoAActualSpeedSafetyError
+from src.scenario.research_noa_speed_policy import ResearchSpeedPolicy
 from src.scenario.research_noa_transmission import ResearchNoATransmissionPrimeError
 from src.scenario.research_noa_view import (
     ResearchDriverView,
@@ -39,6 +40,7 @@ __all__ = [
     "ResearchNoASession",
     "ResearchNoATransmissionPrimeError",
     "ResearchSmokeReport",
+    "ResearchSpeedPolicy",
     "main",
     "parse_arguments",
 ]

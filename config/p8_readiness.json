@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "required": {
+    "eye_tracker_required": true,
+    "eye_tracker_available": false,
+    "eye_tracker_calibrated": false,
+    "screen_aoi_ready": false,
+    "tablet_ready": false,
+    "tablet_aoi_ready": false,
+    "clock_sync_ready": false,
+    "p7_live_validated": false,
+    "p1_p5_matrix_ready": false,
+    "rescue_owner_ready": false,
+    "final_parameters_ready": false,
+    "final_video_ready": false
+  },
+  "reported_history": {
+    "tobii_pro_nano": "USER_REPORTED_DISCOVERY_AND_REAL_GAZE_SUCCESS",
+    "screen_aoi": "USER_REPORTED_FIRST_PHYSICAL_VALIDATION_SUCCESS_NOT_FINAL_APPROVAL",
+    "p6_clock": "RAW_COLLECTION_DRAINED_1197_SAMPLES_AND_AOI_RUN_DRAINED_1856_SAMPLES_TIMING_NOT_VALIDATED",
+    "tablet": "HARDWARE_NOT_DELIVERED_MODEL_OS_UNDECIDED",
+    "tablet_aoi": "NOT_TESTED",
+    "p5": "CONFIRM_EXIT_SUCCEEDED_REMAINING_MATRIX_PENDING",
+    "p7": "DEV_STATIC_OBSERVER_COMPLETED_HAZARD_NOT_VALIDATED_LIVE_NOT_APPROVED_BBOX_TELEMETRY_26_21_HZ_NOT_DISPLAY_FPS",
+    "p8_preflight": "USER_REPORTED_TOWN04_CONNECTIVITY_AND_REQUIRED_ASSETS_PRESENT_SYNCHRONOUS_MODE_FALSE_TOBII_PACKAGE_ONLY_NO_DEVICE_DISCOVERY",
+    "current_flags": "FAIL_CLOSED_CURRENT_RUN_GATES_NOT_A_DENIAL_OF_REPORTED_HISTORY"
+  }
+}

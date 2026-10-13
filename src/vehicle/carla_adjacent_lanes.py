@@ -5,7 +5,15 @@ from typing import Protocol
 
 import carla
 
-from src.experiment.lane_change import AdjacentLaneObservation
+from src.experiment.lane_change import (
+    AdjacentLaneObservation,
+    LaneChangeDirection,
+    LaneChangeEligibility,
+)
+from src.vehicle.carla_lane_topology import (
+    CarlaLanePairTopology,
+    capture_lane_pair_topology,
+)
 
 
 class CarlaAdjacentLaneLocation(Protocol):
@@ -35,6 +43,18 @@ class CarlaAdjacentLaneWaypoint(Protocol):
 
     def get_right_lane(self) -> CarlaAdjacentLaneWaypoint | None: ...
 
+    @property
+    def road_id(self) -> int: ...
+
+    @property
+    def section_id(self) -> int: ...
+
+    @property
+    def is_junction(self) -> bool: ...
+
+    @property
+    def lane_change(self) -> carla.LaneChange: ...
+
 
 class CarlaAdjacentLaneVehicle(Protocol):
     def get_transform(self) -> CarlaAdjacentLaneTransform: ...
@@ -47,6 +67,10 @@ class CarlaAdjacentLaneMap(Protocol):
         project_to_road: bool,
         lane_type: carla.LaneType,
     ) -> CarlaAdjacentLaneWaypoint | None: ...
+
+    def get_topology(
+        self,
+    ) -> list[tuple[CarlaAdjacentLaneWaypoint, CarlaAdjacentLaneWaypoint]]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +111,93 @@ class CarlaAdjacentLaneAdapter:
             current_lane_id=waypoint.lane_id,
             left_lane_id=_driving_lane_id(waypoint.get_left_lane()),
             right_lane_id=_driving_lane_id(waypoint.get_right_lane()),
+        )
+
+    def evaluate(
+        self,
+        vehicle: CarlaAdjacentLaneVehicle | None,
+        direction: LaneChangeDirection,
+    ) -> LaneChangeEligibility:
+        if vehicle is None:
+            raise CarlaAdjacentLaneUnavailableError("vehicle")
+        waypoint = self._map.get_waypoint(
+            vehicle.get_transform().location,
+            project_to_road=True,
+            lane_type=carla.LaneType.Driving,
+        )
+        if waypoint is None:
+            raise CarlaAdjacentLaneUnavailableError("driving lane waypoint")
+        target = (
+            waypoint.get_left_lane()
+            if direction is LaneChangeDirection.LEFT
+            else waypoint.get_right_lane()
+        )
+        permission = (
+            carla.LaneChange.Left
+            if direction is LaneChangeDirection.LEFT
+            else carla.LaneChange.Right
+        )
+        marking_permitted = bool(waypoint.lane_change & permission)
+        if target is None:
+            return LaneChangeEligibility(
+                direction,
+                waypoint.road_id,
+                waypoint.section_id,
+                waypoint.lane_id,
+                None,
+                None,
+                None,
+                None,
+                None,
+                marking_permitted,
+                False,
+                "ADJACENT_LANE_MISSING",
+            )
+        driving = bool(target.lane_type & carla.LaneType.Driving)
+        same_direction = waypoint.lane_id * target.lane_id > 0
+        same_segment = (
+            waypoint.road_id == target.road_id
+            and waypoint.section_id == target.section_id
+        )
+        outside_junction = not waypoint.is_junction and not target.is_junction
+        if not outside_junction:
+            reason = "LANE_CHANGE_JUNCTION_UNSUPPORTED"
+        elif not same_segment:
+            reason = "ADJACENT_LANE_DIFFERENT_ROAD_SECTION"
+        elif not driving:
+            reason = "ADJACENT_LANE_NOT_DRIVING"
+        elif not same_direction:
+            reason = "ADJACENT_LANE_OPPOSITE_DIRECTION"
+        elif not marking_permitted:
+            reason = "LANE_CHANGE_MARKING_PROHIBITS_DIRECTION"
+        else:
+            reason = "STATIC_ELIGIBLE"
+        return LaneChangeEligibility(
+            direction,
+            waypoint.road_id,
+            waypoint.section_id,
+            waypoint.lane_id,
+            target.road_id,
+            target.section_id,
+            target.lane_id,
+            driving,
+            same_direction,
+            marking_permitted,
+            reason == "STATIC_ELIGIBLE",
+            reason,
+        )
+
+    def capture_topology(
+        self,
+        vehicle: CarlaAdjacentLaneVehicle | None,
+        direction: LaneChangeDirection,
+    ) -> CarlaLanePairTopology | None:
+        if vehicle is None:
+            raise CarlaAdjacentLaneUnavailableError("vehicle")
+        return capture_lane_pair_topology(
+            self._map,
+            vehicle.get_transform(),
+            direction,
         )
 
 

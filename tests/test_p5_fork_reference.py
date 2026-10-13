@@ -43,7 +43,7 @@ def confirmed_exit47():
 def through_observation(route, x: float, y: float, frame: int) -> ExitObservation:
     transform = carla.Transform(carla.Location(x=x, y=y), carla.Rotation(yaw=-90.224854))
     sample = ResearchSnapshotSample(stamp(frame), transform, 774, 0, -4, 3.5,
-                                    transform, None, None, None, carla.VehicleControl(), "off")
+                                    transform, None, None, None, carla.VehicleControl(), "off", 0.0)
     observation = ResearchExitObservationSource(route, SnapshotHolder(sample)).observe()
     return replace(observation, carla_frame=frame)
 

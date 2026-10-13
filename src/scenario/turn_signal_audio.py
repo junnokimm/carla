@@ -25,6 +25,11 @@ class TurnSignalAudio:
             return
         if not active:
             self._next_click_at = None
+            if self._sound is not None:
+                try:
+                    self._sound.stop()
+                except pygame.error:
+                    self._available = False
             return
         if self._next_click_at is not None and now < self._next_click_at:
             return

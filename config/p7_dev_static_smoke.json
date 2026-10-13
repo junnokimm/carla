@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "parameter_status": "DEV_ONLY",
+  "corridor_length_m": 90.0,
+  "protected_zones": [],
+  "traffic": {
+    "enabled": true,
+    "seed": 7,
+    "vehicle_count": 2,
+    "speed_mps": 2.0,
+    "exclusion_m": 25.0,
+    "vehicle_blueprint": "vehicle.audi.a2"
+  },
+  "hazard": {
+    "enabled": true,
+    "trigger_source": "DEV_LEAD_ROUTE_STATION",
+    "trigger_station_m": 22.0,
+    "lead_initial_gap_m": 12.0,
+    "obstacle_station_m": 45.0,
+    "lead_speed_mps": 3.0,
+    "lane_change_duration_s": 3.0,
+    "lateral_onset_m": 0.05,
+    "observation_duration_s": 5.0,
+    "brake_candidate": 0.1,
+    "steer_candidate": 0.05,
+    "lead_blueprint": "vehicle.mercedes.coupe_2020",
+    "obstacle_blueprint": "static.prop.box01"
+  }
+}

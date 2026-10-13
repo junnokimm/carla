@@ -7,7 +7,7 @@ from typing import Protocol, assert_never
 class AutopilotVehicle(Protocol):
     """Expose the CARLA autopilot control used by the driving-mode controller."""
 
-    def set_autopilot(self, enabled: bool) -> None: ...
+    def set_autopilot(self, enabled: bool, tm_port: int = 8000) -> None: ...
 
 
 class DrivingMode(StrEnum):
@@ -22,14 +22,17 @@ class DrivingModeController:
         self,
         vehicle: AutopilotVehicle,
         initial_mode: DrivingMode = DrivingMode.AUTONOMOUS,
+        *,
+        traffic_manager_port: int | None = None,
     ) -> None:
         self._vehicle = vehicle
         self._mode = initial_mode
+        self._traffic_manager_port = traffic_manager_port
         match initial_mode:
             case DrivingMode.MANUAL:
-                self._vehicle.set_autopilot(False)
+                self._set_autopilot(False)
             case DrivingMode.AUTONOMOUS:
-                self._vehicle.set_autopilot(True)
+                self._set_autopilot(True)
             case unreachable:
                 assert_never(unreachable)
 
@@ -38,15 +41,21 @@ class DrivingModeController:
         """Return the active driving mode."""
         return self._mode
 
+    def _set_autopilot(self, enabled: bool) -> None:
+        if self._traffic_manager_port is None:
+            self._vehicle.set_autopilot(enabled)
+        else:
+            self._vehicle.set_autopilot(enabled, self._traffic_manager_port)
+
     def toggle(self) -> DrivingMode:
         """Switch mode and apply the matching CARLA autopilot setting."""
         match self._mode:
             case DrivingMode.MANUAL:
                 self._mode = DrivingMode.AUTONOMOUS
-                self._vehicle.set_autopilot(True)
+                self._set_autopilot(True)
             case DrivingMode.AUTONOMOUS:
                 self._mode = DrivingMode.MANUAL
-                self._vehicle.set_autopilot(False)
+                self._set_autopilot(False)
             case unreachable:
                 assert_never(unreachable)
         return self._mode

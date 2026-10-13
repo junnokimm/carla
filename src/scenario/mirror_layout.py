@@ -83,7 +83,7 @@ def calculate_mirror_layout(spec: MirrorLayoutSpec) -> MirrorLayout:
     return MirrorLayout(
         front_position=(0, 0),
         rear_mirror=ScreenRect(
-            x=(window_width - rear_width) // 2 + 500,
+            x=(window_width - rear_width) // 2 + 480, # 사이드미러뷰 위치 조정
             y=rear_y,
             width=rear_width,
             height=rear_height,

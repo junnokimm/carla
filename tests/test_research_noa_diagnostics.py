@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.experiment.automation import DrivingControlMode
 from src.experiment.noa_control import NoAControlCommand
 
 
@@ -77,6 +78,14 @@ def test_zero_or_nonfinite_elapsed_produces_no_cadence_rate() -> None:
     assert summary.scheduler_updates_per_sim_second is None
     assert summary.world_frames_per_wall_second is None
 
+    negative_count = diagnostics.summarize(
+        ResearchWorldTiming(5, 6, 1.0, 2.0),
+        wall_elapsed_seconds=1.0,
+        scheduler_updates=-1,
+    )
+    assert negative_count.scheduler_updates_per_wall_second is None
+    assert negative_count.scheduler_updates_per_sim_second is None
+
 
 def test_active_vehicle_aggregates_are_bounded_and_exact() -> None:
     from src.scenario.research_noa_diagnostics import (
@@ -111,3 +120,102 @@ def test_active_vehicle_aggregates_are_bounded_and_exact() -> None:
     assert summary.min_commanded_brake == 0.0
     assert summary.max_commanded_brake == 0.0
     assert summary.mean_commanded_brake == 0.0
+
+
+def test_operation_summary_separates_canonical_control_modes_and_absent_data() -> None:
+    from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+
+    diagnostics = ResearchNoADiagnostics()
+    diagnostics.set_control_mode(DrivingControlMode.MANUAL)
+    diagnostics.record_operation_duration("scheduler", 0.010)
+    diagnostics.set_control_mode(DrivingControlMode.NOA_ACTIVE)
+    diagnostics.record_operation_duration("scheduler", 0.030)
+
+    payload = diagnostics.performance_payload()
+
+    assert payload["operations"]["scheduler"] == {
+        "count": 2,
+        "mean_ms": pytest.approx(20.0),
+        "max_ms": pytest.approx(30.0),
+    }
+    assert payload["operations_by_mode"]["MANUAL"]["scheduler"]["count"] == 1
+    assert payload["operations_by_mode"]["NOA_ACTIVE"]["scheduler"][
+        "mean_ms"
+    ] == pytest.approx(30.0)
+    assert payload["operations"]["traffic_light_actor_lookup"] == {
+        "count": 0,
+        "mean_ms": None,
+        "max_ms": None,
+    }
+    assert payload["mode_definition"] == (
+        "canonical automation control mode at operation completion"
+    )
+
+
+def test_operation_measurement_window_excludes_before_and_after_samples() -> None:
+    from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+
+    diagnostics = ResearchNoADiagnostics()
+    diagnostics.record_operation_duration("scheduler", 0.100)
+    diagnostics.begin_operation_measurement_window()
+    diagnostics.record_operation_duration("scheduler", 0.020)
+    diagnostics.end_operation_measurement_window()
+    diagnostics.record_operation_duration("scheduler", 0.300)
+
+    payload = diagnostics.performance_payload()
+
+    assert diagnostics.operation_timing("scheduler").count == 3
+    assert diagnostics.operation_timing("scheduler").maximum_ms == pytest.approx(300.0)
+    assert payload["operations"]["scheduler"] == {
+        "count": 1,
+        "mean_ms": pytest.approx(20.0),
+        "max_ms": pytest.approx(20.0),
+    }
+
+
+def test_empty_operation_stats_are_reported_as_unmeasured() -> None:
+    from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+
+    diagnostics = ResearchNoADiagnostics()
+    diagnostics.operation_timing("snapshot_getter")
+
+    payload = diagnostics.performance_payload()
+
+    assert payload["operations"]["snapshot_getter"] == {
+        "count": 0,
+        "mean_ms": None,
+        "max_ms": None,
+    }
+
+
+def test_freeze_measurement_window_rejects_continuation_samples() -> None:
+    from src.scenario.research_noa_diagnostics import (
+        ResearchNoADiagnostics,
+        ResearchWorldTiming,
+    )
+
+    diagnostics = ResearchNoADiagnostics()
+    diagnostics.begin_operation_measurement_window()
+    diagnostics.record_driver_loop_duration(0.010)
+    diagnostics.record_scheduler_duration(0.020)
+    diagnostics.record_render_duration(0.030)
+    diagnostics.record_operation_duration("scheduler", 0.040)
+    diagnostics.record_speed(50.0)
+    diagnostics.freeze_measurement_window()
+
+    diagnostics.record_driver_loop_duration(1.0)
+    diagnostics.record_scheduler_duration(1.0)
+    diagnostics.record_render_duration(1.0)
+    diagnostics.record_operation_duration("scheduler", 1.0)
+    diagnostics.record_speed(100.0)
+    summary = diagnostics.summarize(
+        ResearchWorldTiming(0, 1, 0.0, 1.0),
+        wall_elapsed_seconds=1.0,
+        scheduler_updates=1,
+    )
+
+    assert summary.driver_loop_iterations == 1
+    assert summary.scheduler_max_ms == pytest.approx(20.0)
+    assert summary.render_max_ms == pytest.approx(30.0)
+    assert summary.maximum_active_speed_kmh == pytest.approx(50.0)
+    assert diagnostics.performance_payload()["operations"]["scheduler"]["count"] == 1

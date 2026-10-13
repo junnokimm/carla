@@ -115,6 +115,33 @@ def test_opt_in_research_manual_control_clamps_and_prioritizes_brake() -> None:
     assert control.steer == pytest.approx(0.15)
 
 
+def test_p8_runtime_separates_full_manual_throttle_from_noa_cap(
+    tmp_path,
+) -> None:
+    from src.p8.live_drive import LiveDriveOptions, build_live_drive_config
+    from tests.test_p8_live_drive import _services
+
+    services = _services(tmp_path, "manual-noa-caps")
+    viewer_factory = FakeDriverViewFactory()
+    runner = ResearchNoARunner(
+        build_live_drive_config(
+            services,
+            LiveDriveOptions(duration=1.0, spawn_index=0),
+        ),
+        client=FakeClient(FakeResearchWorld(FakeResearchVehicle())),
+        viewer_factory=viewer_factory,
+        borrowed_log=services.borrowed_research_log(),
+    )
+
+    with runner.session():
+        limits = viewer_factory.created[0].config.manual_control_limits
+        assert limits == ResearchManualControlLimits(1.0, 0.5, 0.15)
+        assert runner.config.control_config.longitudinal.max_throttle == pytest.approx(
+            0.4
+        )
+    services.close()
+
+
 def test_legacy_driver_view_manual_control_remains_full_scale(monkeypatch) -> None:
     keys: defaultdict[int, bool] = defaultdict(bool)
     keys[pygame.K_w] = True

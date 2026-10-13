@@ -18,6 +18,7 @@ from src.scenario.research_noa import (
 )
 from src.scenario.research_noa_smoke import ResearchNoAPiTracePrinter
 from src.vehicle.carla_noa_simulation_control import (
+    CarlaNoACachedControlReadback,
     CarlaNoAControlStep,
     CarlaNoAControlTimelineError,
     SimulationTimeCarlaNoAControlBackend,
@@ -273,6 +274,16 @@ def test_pi_trace_prints_exact_step_state(capsys) -> None:
         integral_effort=0.123,
         lane_geometry=make_geometry_context(),
         command=NoAControlCommand(0.2, 0.0, -0.1),
+        throttle_saturated=False,
+        brake_saturated=False,
+        steering_saturated=False,
+        cached_readback=CarlaNoACachedControlReadback(
+            throttle=0.19,
+            brake=0.0,
+            steering=-0.09,
+            gear=1,
+            manual_gear_shift=False,
+        ),
     )
 
     printer(step)
@@ -281,9 +292,16 @@ def test_pi_trace_prints_exact_step_state(capsys) -> None:
         (
             "pi_trace,frame,simulation_time_seconds,actual_pi_dt_seconds,"
             "target_speed_kmh,measured_speed_kmh,integral_effort,"
-            "commanded_throttle,commanded_brake"
+            "throttle_saturated,brake_saturated,steering_saturated,"
+            "commanded_throttle,commanded_brake,commanded_steering,"
+            "cached_readback_throttle,cached_readback_brake,"
+            "cached_readback_steering,cached_readback_gear,"
+            "cached_readback_manual_gear_shift"
         ),
-        "pi_trace,321,12.5,0.05,10.0,9.0,0.123,0.2,0.0",
+        (
+            "pi_trace,321,12.5,0.05,10.0,9.0,0.123,False,False,False,"
+            "0.2,0.0,-0.1,0.19,0.0,-0.09,1,False"
+        ),
     ]
 
 

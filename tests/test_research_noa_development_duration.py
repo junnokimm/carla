@@ -47,11 +47,11 @@ def test_development_duration_rejects_invalid_or_over_limit(tmp_path: Path, dura
         replace(p5_config(tmp_path), duration=duration, development_validation=True)
 
 
-def test_default_p5_live_smoke_still_has_twenty_second_cap(tmp_path: Path) -> None:
-    config = replace(p5_config(tmp_path), duration=20.0)
+def test_default_live_smoke_has_sixty_second_cap(tmp_path: Path) -> None:
+    config = replace(p5_config(tmp_path), duration=60.0)
     assert config.development_validation is False
-    with pytest.raises(ResearchNoAConfigError, match="20.0"):
-        replace(config, duration=20.001)
+    with pytest.raises(ResearchNoAConfigError, match="60.0"):
+        replace(config, duration=60.001)
 
 
 @pytest.mark.parametrize("mode", [ResearchNoARunMode.DRY_RUN, ResearchNoARunMode.LIVE_SMOKE])
@@ -89,7 +89,7 @@ def test_cli_accepts_explicit_development_override(tmp_path: Path, duration: str
 
 @pytest.mark.parametrize(
     ("extra", "message"),
-    [(["--duration", "21"], "20.0"),
+    [(["--duration", "61"], "60.0"),
      (["--development-validation", "--duration", "120.001"], "120.0")],
 )
 def test_cli_rejects_duration_outside_selected_cap(tmp_path: Path, capsys, extra: list[str], message: str) -> None:

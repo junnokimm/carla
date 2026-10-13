@@ -37,6 +37,22 @@ class LaneChangeRecommendation:
     target_lane_id: int
 
 
+@dataclass(frozen=True, slots=True)
+class LaneChangeEligibility:
+    direction: LaneChangeDirection
+    current_road_id: int
+    current_section_id: int
+    current_lane_id: int
+    target_road_id: int | None
+    target_section_id: int | None
+    target_lane_id: int | None
+    target_is_driving: bool | None
+    target_same_direction: bool | None
+    marking_permitted: bool
+    eligible: bool
+    reason: str
+
+
 def recommend_lane_change(
     requirement: LaneChangeRequirement,
     observation: AdjacentLaneObservation,

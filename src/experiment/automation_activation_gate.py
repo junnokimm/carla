@@ -7,11 +7,15 @@ from src.experiment.automation_interaction_types import (
     ActivationFailureReason,
     ActivationGeometry,
     ActivationVehicle,
+    ActivationVehicleBoundingBox,
     AutomationInteractionConfig,
     DriverInput,
 )
 from src.experiment.lane_geometry import LaneGeometryValidationError
-from src.vehicle.carla_lane_geometry import CarlaLaneGeometryUnavailableError
+from src.vehicle.carla_lane_geometry import (
+    CarlaLaneGeometryContext,
+    CarlaLaneGeometryUnavailableError,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,40 +35,51 @@ class AutomationActivationGate:
             return ActivationFailureReason.GEOMETRY_UNAVAILABLE
         except LaneGeometryValidationError:
             return ActivationFailureReason.INVALID_GEOMETRY
-        geometry = context.geometry
-        bounding_box = self.vehicle.bounding_box
-        extent = bounding_box.extent
-        location = bounding_box.location
-        rotation = bounding_box.rotation
-        values = (
-            context.lane_width_m,
-            geometry.lateral_error_m,
-            geometry.heading_error_rad,
-            extent.x,
-            extent.y,
-            location.x,
-            location.y,
-            rotation.yaw,
+        return lane_alignment_failure(
+            context,
+            self.vehicle.bounding_box,
+            self.config,
         )
-        if not all(isfinite(value) for value in values):
-            return ActivationFailureReason.INVALID_GEOMETRY
-        if context.lane_width_m <= 0.0 or extent.x < 0.0 or extent.y < 0.0:
-            return ActivationFailureReason.INVALID_GEOMETRY
-        heading = geometry.heading_error_rad
-        bounding_box_heading = heading + radians(rotation.yaw)
-        bounding_box_lateral = (
-            geometry.lateral_error_m
-            + location.x * sin(heading)
-            + location.y * cos(heading)
-        )
-        lateral_half_extent = (
-            abs(sin(bounding_box_heading)) * extent.x
-            + abs(cos(bounding_box_heading)) * extent.y
-        )
-        if abs(bounding_box_lateral) + lateral_half_extent > context.lane_width_m / 2.0:
-            return ActivationFailureReason.VEHICLE_STRADDLING
-        if abs(geometry.lateral_error_m) > self.config.center_tolerance_m:
-            return ActivationFailureReason.NOT_CENTERED
-        if abs(heading) > self.config.heading_tolerance_rad:
-            return ActivationFailureReason.HEADING_MISALIGNED
-        return None
+
+
+def lane_alignment_failure(
+    context: CarlaLaneGeometryContext,
+    bounding_box: ActivationVehicleBoundingBox,
+    config: AutomationInteractionConfig,
+) -> ActivationFailureReason | None:
+    geometry = context.geometry
+    extent = bounding_box.extent
+    location = bounding_box.location
+    rotation = bounding_box.rotation
+    values = (
+        context.lane_width_m,
+        geometry.lateral_error_m,
+        geometry.heading_error_rad,
+        extent.x,
+        extent.y,
+        location.x,
+        location.y,
+        rotation.yaw,
+    )
+    if not all(isfinite(value) for value in values):
+        return ActivationFailureReason.INVALID_GEOMETRY
+    if context.lane_width_m <= 0.0 or extent.x < 0.0 or extent.y < 0.0:
+        return ActivationFailureReason.INVALID_GEOMETRY
+    heading = geometry.heading_error_rad
+    bounding_box_heading = heading + radians(rotation.yaw)
+    bounding_box_lateral = (
+        geometry.lateral_error_m
+        + location.x * sin(heading)
+        + location.y * cos(heading)
+    )
+    lateral_half_extent = (
+        abs(sin(bounding_box_heading)) * extent.x
+        + abs(cos(bounding_box_heading)) * extent.y
+    )
+    if abs(bounding_box_lateral) + lateral_half_extent > context.lane_width_m / 2.0:
+        return ActivationFailureReason.VEHICLE_STRADDLING
+    if abs(geometry.lateral_error_m) > config.center_tolerance_m:
+        return ActivationFailureReason.NOT_CENTERED
+    if abs(heading) > config.heading_tolerance_rad:
+        return ActivationFailureReason.HEADING_MISALIGNED
+    return None

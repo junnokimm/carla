@@ -178,7 +178,12 @@ def test_live_report_uses_precontrol_speed_samples_and_selected_spawn() -> None:
         assert report.diagnostics.active_manual_gear_shift_seen is False
         assert fixture.world.get_snapshot_count == 5
         assert fixture.world.wait_for_tick_calls == []
-        assert fixture.vehicle.events[-3:] == ["speed", "control:0.5", "snapshot"]
+        assert fixture.vehicle.events[-4:] == [
+            "snapshot",
+            "speed",
+            "autopilot:False",
+            "control:0.5",
+        ]
         assert len(fixture.vehicle.applied_controls) == 4
         assert fixture.vehicle.applied_controls[-1].brake == pytest.approx(0.5)
         assert "target_speed_kmh=20.0" in report.format()
@@ -215,6 +220,7 @@ def test_live_overspeed_aborts_before_unsafe_backend_step() -> None:
 
     assert caught.value.actual_speed_kmh == pytest.approx(21.0)
     assert caught.value.hard_limit_kmh == pytest.approx(20.0)
+    assert caught.value.source == "NOA_ACTIVE"
     assert session.live_scheduler is not None
     assert len(session.live_scheduler.commands) == 1
     assert len(fixture.vehicle.applied_controls) == 2

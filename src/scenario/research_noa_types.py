@@ -10,6 +10,7 @@ from src.experiment.noa_runtime import (
 )
 from src.scenario.driver_view import (
     ResearchPostControlObserver,
+    RuntimeContinuationFactory,
     RuntimeDriverInputObserver,
     RuntimeIterationScheduler,
 )
@@ -21,10 +22,14 @@ if TYPE_CHECKING:
     from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
     from src.scenario.research_exit_view import ExitViewBinding
     from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+    from src.scenario.research_noa_traffic_manager import TrafficManager
     from src.scenario.research_noa_view import ResearchDriverViewConfig
 
 
 class ResearchNoAViewer(Protocol):
+    @property
+    def training_completed_early(self) -> bool: ...
+
     def set_exit_view_binding(self, binding: ExitViewBinding | None) -> None: ...
 
     def attach(self) -> None: ...
@@ -39,12 +44,15 @@ class ResearchNoAViewer(Protocol):
         measurements: ResearchCameraRunMeasurements | None = None,
     ) -> str | None: ...
 
+    def freeze_performance_measurement_window(self) -> None: ...
+
     def run(
         self,
         duration: float,
         scheduler: RuntimeIterationScheduler | None = None,
         diagnostics: ResearchNoADiagnostics | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
+        continuation_factory: RuntimeContinuationFactory | None = None,
     ) -> bool: ...
 
     def close(self) -> None: ...
@@ -81,6 +89,10 @@ class ResearchNoAVehicle(CarlaNoARuntimeVehicle, Protocol):
 
     def get_light_state(self) -> carla.VehicleLightState: ...
 
+    def is_at_traffic_light(self) -> bool: ...
+
+    def get_traffic_light(self) -> carla.TrafficLight | None: ...
+
     def get_physics_control(self) -> ResearchNoAVehiclePhysicsControl: ...
 
     def destroy(self) -> bool: ...
@@ -112,6 +124,8 @@ class ResearchNoAWorldTimestamp(Protocol):
 
 
 class ResearchNoAWorld(Protocol):
+    def get_settings(self) -> ResearchNoAWorldSettings: ...
+
     def get_snapshot(self) -> ResearchNoAWorldSnapshot: ...
 
     def get_map(self) -> ResearchNoAMap: ...
@@ -129,6 +143,29 @@ class ResearchNoAWorld(Protocol):
 
 class ResearchNoAClient(Protocol):
     def get_world(self) -> ResearchNoAWorld: ...
+
+    def get_trafficmanager(self, port: int) -> TrafficManager: ...
+
+    def get_client_version(self) -> str: ...
+
+    def get_server_version(self) -> str: ...
+
+    def apply_batch_sync(
+        self,
+        commands: list[carla.command.ApplyVehicleControl],
+        do_tick: bool = False,
+    ) -> list[ResearchNoACommandResponse]: ...
+
+
+class ResearchNoACommandResponse(Protocol):
+    actor_id: int
+    error: str
+
+    def has_error(self) -> bool: ...
+
+
+class ResearchNoAWorldSettings(Protocol):
+    synchronous_mode: bool
 
 
 class ResearchNoAViewerFactory(Protocol):

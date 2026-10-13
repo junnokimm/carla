@@ -27,6 +27,8 @@ class DriverViewPerformanceObserver(Protocol):
 
     def record_duration(self, segment: str, duration_seconds: float) -> None: ...
 
+    def record_completed_display_flip(self) -> None: ...
+
     def record_turn_signal_audio_duration(
         self,
         operation: str,
@@ -38,6 +40,15 @@ class DriverViewPerformanceObserver(Protocol):
         role: str,
         snapshot: CameraFeedSnapshot,
         prepared_at_seconds: float,
+    ) -> None: ...
+
+    def record_camera_callback(
+        self,
+        role: str,
+        sensor_frame: int,
+        sensor_timestamp_seconds: float,
+        host_receipt_seconds: float,
+        duration_seconds: float,
     ) -> None: ...
 
 
@@ -53,6 +64,7 @@ class CameraFeed:
         "_last_sensor_timestamp_seconds",
         "_lock",
         "latest_image",
+        "performance_observer",
         "receipt_clock",
         "role",
         "sensor",
@@ -68,6 +80,7 @@ class CameraFeed:
         self.sensor = sensor
         self.latest_image = latest_image
         self.receipt_clock: Callable[[], float] = perf_counter
+        self.performance_observer: DriverViewPerformanceObserver | None = None
         self._lock = Lock()
         self._generation = 0
         self._callback_count = 0
@@ -93,6 +106,15 @@ class CameraFeed:
             self._last_sensor_frame = sensor_frame
             self._last_sensor_timestamp_seconds = sensor_timestamp
             self._last_host_receipt_seconds = received_at
+        observer = self.performance_observer
+        if observer is not None:
+            observer.record_camera_callback(
+                self.role,
+                sensor_frame,
+                sensor_timestamp,
+                received_at,
+                observer.timestamp() - received_at,
+            )
 
     def snapshot(self) -> CameraFeedSnapshot:
         with self._lock:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from src.experiment.context import StudyRunContext
 from src.experiment.session_clock import SessionClock
 from src.experiment.timestamp import HostClockTimestamp, TimestampEnvelope
 from src.logging.csv_logger import ResearchCsvLogger, ResearchEvent
@@ -19,6 +20,8 @@ from src.scenario.research_noa_persistence_config import ResearchPersistenceConf
 class OpenResearchLog:
     logger: ResearchCsvLogger
     paths: ResearchLogPaths
+    session_clock: SessionClock
+    study_run: StudyRunContext
 
 
 def open_research_log(
@@ -27,10 +30,12 @@ def open_research_log(
     utc_ns: Callable[[], int],
 ) -> OpenResearchLog:
     baseline = HostClockTimestamp(monotonic_ns(), utc_ns())
+    session_clock = SessionClock(baseline)
+    study_run = build_study_run(config)
     logger = ResearchCsvLogger(
-        build_study_run(config),
+        study_run,
         config.output_dir,
-        session_clock=SessionClock(baseline),
+        session_clock=session_clock,
     )
     logger.write_event(
         build_segment(config),
@@ -40,4 +45,6 @@ def open_research_log(
     return OpenResearchLog(
         logger,
         ResearchLogPaths(logger.telemetry_path, logger.event_path),
+        session_clock,
+        study_run,
     )

@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+import carla
 import pygame
 import pytest
 
@@ -12,6 +13,7 @@ from src.experiment.context import ExperimentModule, Module1Condition
 from src.experiment.exit_assistance import (
     ExitAssistanceStatus,
 )
+from src.experiment.lane_change import LaneChangeDirection
 from src.experiment.timestamp import HostClockTimestamp, TimestampEnvelope
 from src.scenario.driver_view import CameraFeed
 from src.scenario.research_exit_config import ResearchExitAssistanceConfig
@@ -218,3 +220,71 @@ def test_rebinding_resets_presentation_and_key_latches() -> None:
 
     assert second.coordinator.status is ExitAssistanceStatus.PRESENTED
     assert collected.exit_confirm_requested is True
+
+
+def test_indicator_confirmation_requires_real_off_to_on_edge() -> None:
+    harness = BindingHarness(ACTIVE)
+    harness.binding = ResearchExitViewBinding(
+        harness.observer,
+        harness.persistence,
+        ResearchExitAssistanceConfig(
+            Path("unused.json"),
+            harness.coordinator.config.route.route_id,
+            harness.coordinator.config.lc_event_id,
+            confirm_key="x",
+            reject_key="r",
+            assisted_execution_enabled=False,
+            indicator_confirmation=True,
+        ),
+    )
+    vehicle = FakeResearchVehicle()
+    viewer = ResearchDriverView(FakeWorld(), vehicle)
+    viewer._feeds = [CameraFeed("front", FakeSensor())]
+    viewer.set_exit_view_binding(harness.binding)
+    present_frame(viewer)
+
+    first = viewer._collect_driver_input(
+        [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_x, repeat=0)]
+    )
+    vehicle.current_light_state = carla.VehicleLightState.RightBlinker
+    viewer._collect_driver_input([pygame.event.Event(pygame.KEYUP, key=pygame.K_x)])
+    toggle_off = viewer._collect_driver_input(
+        [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_x, repeat=0)]
+    )
+
+    assert first.exit_confirm_requested is True
+    assert toggle_off.exit_confirm_requested is False
+
+
+def test_indicator_confirmation_uses_z_for_left_and_r_for_optional_reject() -> None:
+    harness = BindingHarness(ACTIVE)
+    harness.binding = ResearchExitViewBinding(
+        harness.observer,
+        harness.persistence,
+        ResearchExitAssistanceConfig(
+            Path("unused.json"),
+            harness.coordinator.config.route.route_id,
+            harness.coordinator.config.lc_event_id,
+            confirm_key="x",
+            reject_key="r",
+            assisted_execution_enabled=False,
+            indicator_confirmation=True,
+        ),
+    )
+    viewer = make_view(harness.binding)
+    present_frame(viewer)
+
+    left = viewer._collect_driver_input(
+        [
+            pygame.event.Event(pygame.KEYDOWN, key=pygame.K_x),
+            pygame.event.Event(pygame.KEYDOWN, key=pygame.K_z),
+        ]
+    )
+    reject = viewer._collect_driver_input(
+        [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_r)]
+    )
+
+    assert left.lane_change_direction is LaneChangeDirection.LEFT
+    assert left.exit_confirm_requested is False
+    assert left.exit_reject_requested is False
+    assert reject.exit_reject_requested is True

@@ -1,0 +1,15 @@
+{
+  "version": "p6-candidate-unvalidated-2",
+  "desktop_rect": [0, 0, 1280, 720],
+  "display_rect": [0, 0, 1280, 720],
+  "client_rect": [0, 0, 1280, 720],
+  "display_mapping_verified": false,
+  "client_mapping_verified": false,
+  "forward_polygon": [[0, 0], [940, 0], [940, 500], [340, 500], [340, 516], [0, 516]],
+  "rear_rect": [960, 100, 320, 90],
+  "left_rect": [24, 561, 240, 135],
+  "right_rect": [1016, 561, 240, 135],
+  "tablet_rect": null,
+  "tablet_mapping_verified": false,
+  "other_polygons": []
+}

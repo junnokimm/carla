@@ -8,7 +8,6 @@ from src.experiment.automation import DrivingControlMode
 from src.experiment.noa_control import NoAControlCommand
 from src.scenario.research_noa_config import ResearchNoARunConfig, ResearchNoARunMode
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnosticsSummary
-from src.scenario.research_noa_smoke import ResearchAutomationScheduler
 from src.scenario.research_noa_transmission import ResearchTransmissionPrimeTelemetry
 from src.scenario.research_noa_types import ResearchNoAMap, ResearchNoAVehicle
 
@@ -25,7 +24,7 @@ class ResearchSmokeReport:
     vehicle_type: str
     initial_lane_id: int
     final_lane_id: int | None
-    target_speed_kmh: float
+    target_speed_kmh: float | None
     initial_speed_kmh: float
     final_speed_kmh: float
     maximum_observed_speed_kmh: float
@@ -42,6 +41,10 @@ class ResearchSmokeReport:
     user_exited: bool
     final_control_mode: DrivingControlMode
     camera_diagnostics_json: str | None
+    provider: str
+    control_sample_semantics: str
+    training_completed_early: bool = False
+    active_drive_seconds: float = 0.0
 
     @property
     def control_frames(self) -> int:
@@ -54,13 +57,35 @@ class ResearchSmokeReport:
         return self.initial_lane_id != self.final_lane_id
 
     def format(self) -> str:
-        steering = max(
-            (abs(command.steering) for command in self.commands),
-            default=0.0,
+        has_control_samples = self.provider != "CARLA_TRAFFIC_MANAGER"
+        steering = (
+            max((abs(command.steering) for command in self.commands), default=0.0)
+            if has_control_samples
+            else None
+        )
+        max_throttle = (
+            self.diagnostics.max_commanded_throttle if has_control_samples else None
+        )
+        mean_throttle = (
+            self.diagnostics.mean_commanded_throttle if has_control_samples else None
+        )
+        min_throttle = (
+            self.diagnostics.min_commanded_throttle if has_control_samples else None
+        )
+        max_brake = (
+            self.diagnostics.max_commanded_brake if has_control_samples else None
+        )
+        mean_brake = (
+            self.diagnostics.mean_commanded_brake if has_control_samples else None
+        )
+        min_brake = (
+            self.diagnostics.min_commanded_brake if has_control_samples else None
         )
         fields = (
             ("mode", ResearchNoARunMode.LIVE_SMOKE.value),
             ("preflight", "passed"),
+            ("provider", self.provider),
+            ("control_sample_semantics", self.control_sample_semantics),
             ("map_name", self.map_name),
             ("spawn_index", self.spawn_index),
             ("spawn_x", self.spawn_x),
@@ -81,6 +106,7 @@ class ResearchSmokeReport:
             ("post_prime_gear", self.post_prime_gear),
             ("requested_duration_seconds", self.duration),
             ("elapsed_seconds", round(self.elapsed_seconds, 3)),
+            ("active_drive_seconds", round(self.active_drive_seconds, 3)),
             (
                 "simulation_elapsed_seconds",
                 round(self.diagnostics.simulation_elapsed_seconds, 3),
@@ -121,13 +147,13 @@ class ResearchSmokeReport:
             ("mean_observed_speed_kmh", self.diagnostics.mean_observed_speed_kmh),
             (
                 "max_observed_throttle",
-                self.diagnostics.max_commanded_throttle or 0.0,
+                max_throttle,
             ),
-            ("mean_commanded_throttle", self.diagnostics.mean_commanded_throttle),
-            ("min_commanded_throttle", self.diagnostics.min_commanded_throttle),
-            ("max_observed_brake", self.diagnostics.max_commanded_brake or 0.0),
-            ("mean_commanded_brake", self.diagnostics.mean_commanded_brake),
-            ("min_commanded_brake", self.diagnostics.min_commanded_brake),
+            ("mean_commanded_throttle", mean_throttle),
+            ("min_commanded_throttle", min_throttle),
+            ("max_observed_brake", max_brake),
+            ("mean_commanded_brake", mean_brake),
+            ("min_commanded_brake", min_brake),
             ("mean_applied_throttle", self.diagnostics.mean_applied_throttle),
             ("max_applied_brake", self.diagnostics.max_applied_brake),
             ("active_hand_brake_seen", self.diagnostics.active_hand_brake_seen),
@@ -139,6 +165,7 @@ class ResearchSmokeReport:
             ("max_observed_abs_steering", steering),
             ("lane_changed", self.lane_changed),
             ("user_exited", self.user_exited),
+            ("training_completed_early", self.training_completed_early),
             ("final_control_mode", self.final_control_mode.value.lower()),
         )
         formatted = "\n".join(f"{name}={value}" for name, value in fields)
@@ -160,14 +187,21 @@ def build_research_smoke_report(
     final_speed_kmh: float,
     transmission_prime: ResearchTransmissionPrimeTelemetry,
     elapsed_seconds: float,
+    active_drive_seconds: float,
     diagnostics: ResearchNoADiagnosticsSummary,
     user_exited: bool,
-    scheduler: ResearchAutomationScheduler,
+    scheduler_updates: int,
+    commands: tuple[NoAControlCommand, ...],
+    maximum_manual_speed_kmh: float | None,
+    final_control_mode: DrivingControlMode,
     camera_diagnostics_json: str | None,
+    training_completed_early: bool = False,
+    applied_target_speed_kmh: float | None = None,
 ) -> ResearchSmokeReport:
     location = spawn_transform.location
     rotation = spawn_transform.rotation
     active_maximum_speed = diagnostics.maximum_active_speed_kmh
+    manual_maximum_speed = maximum_manual_speed_kmh
     return ResearchSmokeReport(
         map_name=str(world_map.name),
         spawn_index=spawn_index,
@@ -179,12 +213,13 @@ def build_research_smoke_report(
         vehicle_type=str(hero.type_id),
         initial_lane_id=initial_lane_id,
         final_lane_id=final_lane_id,
-        target_speed_kmh=config.control_config.longitudinal.target_speed_kmh,
+        target_speed_kmh=applied_target_speed_kmh,
         initial_speed_kmh=initial_speed_kmh,
         final_speed_kmh=final_speed_kmh,
         maximum_observed_speed_kmh=max(
             initial_speed_kmh,
             initial_speed_kmh if active_maximum_speed is None else active_maximum_speed,
+            initial_speed_kmh if manual_maximum_speed is None else manual_maximum_speed,
             final_speed_kmh,
         ),
         initial_gear=transmission_prime.initial_gear,
@@ -193,11 +228,23 @@ def build_research_smoke_report(
         post_prime_gear=transmission_prime.post_prime_gear,
         duration=config.duration,
         elapsed_seconds=elapsed_seconds,
+        active_drive_seconds=active_drive_seconds,
         diagnostics=diagnostics,
         shutdown_brake=config.control_config.longitudinal.max_brake,
-        scheduler_updates=scheduler.update_count,
-        commands=scheduler.commands,
+        scheduler_updates=scheduler_updates,
+        commands=commands,
         user_exited=user_exited,
-        final_control_mode=scheduler.runtime.state.control_mode,
+        final_control_mode=final_control_mode,
         camera_diagnostics_json=camera_diagnostics_json,
+        provider=(
+            "CUSTOM_NOA_CONTROLLER"
+            if config.traffic_manager_port is None
+            else "CARLA_TRAFFIC_MANAGER"
+        ),
+        control_sample_semantics=(
+            "CUSTOM_CONTROLLER_COMMANDS"
+            if config.traffic_manager_port is None
+            else "NO_CUSTOM_COMMAND_SAMPLES"
+        ),
+        training_completed_early=training_completed_early,
     )

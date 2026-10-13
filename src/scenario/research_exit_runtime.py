@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from typing import Protocol, runtime_checkable
 
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction_types import (
@@ -20,13 +21,32 @@ from src.experiment.exit_route import (
     RouteProjection,
     project_route,
 )
+from src.experiment.lane_change import LaneChangeDirection
 from src.experiment.lane_geometry import PlanarPose, compute_lane_relative_geometry
+from src.experiment.timestamp import TimestampEnvelope
 from src.scenario.research_exit_config import ResearchExitAssistanceConfig
+from src.scenario.research_lane_change import LaneChangeInteraction
 from src.scenario.research_noa_persistence import (
-    PersistedInteractionObserver,
     ResearchNoAObservationSource,
     ResearchNoAPersistence,
 )
+
+
+@runtime_checkable
+class LaneChangeObservationFinisher(Protocol):
+    def finish_lane_change_observation(
+        self,
+        reason: str,
+        timestamp: TimestampEnvelope,
+    ) -> None: ...
+
+
+@runtime_checkable
+class AssistedLaneChangeInteraction(LaneChangeInteraction, Protocol):
+    @property
+    def lane_change_in_progress(self) -> bool: ...
+
+    def submit_confirmed_p5(self) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,10 +76,8 @@ class ResearchExitObservationSource:
         except ExitRouteError:
             geometric_projection = None
         projection = geometric_projection
-        if (
-            projection is not None
-            and projection.distance_from_route_m
-            > max(point.lane_width_m * 1.5 for point in self.route.points)
+        if projection is not None and projection.distance_from_route_m > max(
+            point.lane_width_m * 1.5 for point in self.route.points
         ):
             projection = None
         matched = projection is not None
@@ -111,25 +129,36 @@ class ResearchExitObservationSource:
             route_point_index=0 if projection is None else projection.point_index,
             target_boundary_valid=boundary_valid,
             route_reference_distance_m=(
-                None if geometric_projection is None
+                None
+                if geometric_projection is None
                 else geometric_projection.distance_from_route_m
             ),
             route_reference_half_width_m=(
-                None if geometric_projection is None
-                else self.route.points[geometric_projection.point_index].lane_width_m / 2.0
+                None
+                if geometric_projection is None
+                else self.route.points[geometric_projection.point_index].lane_width_m
+                / 2.0
             ),
         )
+
+    def reset_cursor(self) -> None:
+        object.__setattr__(self, "cursor", None)
 
 
 class ResearchExitInteractionObserver:
     def __init__(
         self,
-        interaction: PersistedInteractionObserver,
+        interaction: LaneChangeInteraction,
         coordinator: ExitAssistanceCoordinator,
         observations: ResearchExitObservationSource,
         persistence: ResearchNoAPersistence,
     ) -> None:
         self._interaction = interaction
+        self._assisted_interaction = (
+            interaction
+            if isinstance(interaction, AssistedLaneChangeInteraction)
+            else None
+        )
         self.coordinator = coordinator
         self._observations = observations
         self._persistence = persistence
@@ -163,11 +192,24 @@ class ResearchExitInteractionObserver:
 
     def update(self, driver_input: DriverInput) -> AutomationState:
         receipt_timestamp = self._persistence.source.get_host_timestamp()
+        assisted = self._assisted_interaction
+        p5_candidate = (
+            assisted is not None
+            and driver_input.exit_confirm_requested
+            and driver_input.lane_change_direction is LaneChangeDirection.RIGHT
+        )
         effective_input = replace(
             driver_input,
             lane_change_in_progress=(
                 driver_input.lane_change_in_progress
-                or self.coordinator.lane_change_in_progress
+                or (
+                    assisted.lane_change_in_progress
+                    if assisted is not None
+                    else self.coordinator.lane_change_in_progress
+                )
+            ),
+            lane_change_direction=(
+                None if p5_candidate else driver_input.lane_change_direction
             ),
         )
         state = self._interaction.update(effective_input)
@@ -182,7 +224,18 @@ class ResearchExitInteractionObserver:
 
     def after_control_applied(self) -> None:
         self._interaction.after_control_applied()
-        self.coordinator.observe(self._observations.observe())
+        observation = self._observations.observe()
+        self.coordinator.observe(observation)
+        if self.coordinator.status is ExitAssistanceStatus.WAITING:
+            self._observations.reset_cursor()
+
+    def finish_lane_change_observation(
+        self,
+        reason: str,
+        timestamp: TimestampEnvelope,
+    ) -> None:
+        if isinstance(self._interaction, LaneChangeObservationFinisher):
+            self._interaction.finish_lane_change_observation(reason, timestamp)
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +247,14 @@ class ResearchExitViewBinding:
     def prepare_presentation(self) -> ExitPresentation | None:
         if self.observer.presentation is None:
             return None
+        if (
+            self.observer.coordinator.status is ExitAssistanceStatus.DRAFT
+            and self.observer.coordinator.config.eligibility_close_s is not None
+        ):
+            timestamp = self.persistence.source.get_host_timestamp()
+            if self.observer.coordinator.is_time_closed(timestamp):
+                self.observer.coordinator.mark_not_presented(timestamp)
+                return None
         presentation = self.observer.coordinator.prepare_presentation(
             self.observer.state
         )

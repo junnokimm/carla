@@ -57,6 +57,8 @@ class FakeWaypoint:
         self.section_id = 0
         self.lane_width = 3.5
         self.lane_type = carla.LaneType.Driving
+        self.lane_change = carla.LaneChange.Both
+        self.is_junction = False
         self.transform = transform
         self.left = left
         self.right = right
@@ -81,6 +83,9 @@ class FakeMap:
         assert project_to_road is True
         assert lane_type == carla.LaneType.Driving
         return self.waypoint
+
+    def get_topology(self) -> list[tuple[FakeWaypoint, FakeWaypoint]]:
+        return []
 
 
 class FakeVehicle:
@@ -135,7 +140,10 @@ def make_control_config() -> NoAControlConfig:
 def make_map(vehicle: FakeVehicle) -> FakeMap:
     left = FakeWaypoint(-2, vehicle.transform)
     right = FakeWaypoint(-4, vehicle.transform)
-    return FakeMap(FakeWaypoint(-3, vehicle.transform, left=left, right=right))
+    current = FakeWaypoint(-3, vehicle.transform, left=left, right=right)
+    left.right = current
+    right.left = current
+    return FakeMap(current)
 
 
 def test_build_composes_explicit_inactive_manual_runtime() -> None:
