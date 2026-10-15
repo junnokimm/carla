@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import isfinite
 from typing import assert_never
 
 from src.experiment.automation import DrivingControlMode
@@ -13,12 +14,25 @@ from src.experiment.exit_assistance_types import (
 from src.experiment.timestamp import TimestampEnvelope
 
 
+def navigation_distance_m(
+    config: ExitAssistanceConfig, observation: ExitObservation
+) -> float | None:
+    station = observation.route_distance_m
+    if (
+        not observation.route_matched
+        or not isfinite(station)
+        or not 0.0 <= station <= config.route.fork_distance_m
+    ):
+        return None
+    return config.route.fork_distance_m - station
+
+
 def is_navigation_observation(
     config: ExitAssistanceConfig, observation: ExitObservation
 ) -> bool:
     route = config.route
     return (
-        observation.route_matched
+        navigation_distance_m(config, observation) is not None
         and observation.lane_id == route.source_lane_id
         and route.navigation_start
         <= observation.route_distance_m

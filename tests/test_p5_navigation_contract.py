@@ -124,8 +124,13 @@ def test_actual_manifest_rejects_first_confirmation_after_blend_starts() -> None
     )
     subject.observe(observation(route, late_station, 1))
 
-    assert subject.status is ExitAssistanceStatus.WAITING
-    assert subject.presentation is None
+    # The manifest navigation envelope continues past confirmation eligibility.
+    assert subject.status is ExitAssistanceStatus.DRAFT
+    rendered = subject.prepare_presentation(ACTIVE)
+    assert rendered.recommendation is False
+    subject.mark_presented(rendered, ACTIVE, timestamp(20))
+    subject.update(DriverInput(exit_confirm_requested=True), ACTIVE, timestamp(30))
+    assert subject.status is ExitAssistanceStatus.PRESENTED
     assert reference.armed == []
 
 

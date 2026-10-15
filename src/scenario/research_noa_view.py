@@ -39,6 +39,9 @@ from src.scenario.research_exit_view import (
 from src.scenario.research_lane_change_input import LaneChangeRequestInput
 from src.scenario.research_noa_control_delivery import ControlSender
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
+from src.scenario.vehicle_audio_model import VehicleAudioState
+from src.scenario.vehicle_audio_playback import VehicleAudioPlayback
+from src.scenario.vehicle_audio_runtime import VehicleAudioRuntime
 from src.vehicle.driving_mode import DrivingMode
 
 
@@ -58,6 +61,8 @@ class ResearchDriverViewConfig(DriverViewConfig):
     control_sender: ControlSender | None = None
     tsxw_config: TsxwConfig | None = None
     tsxw_event_sink: Callable[[TsxwLogEvent], None] | None = None
+    vehicle_audio_source: Callable[[], VehicleAudioState | None] | None = None
+    vehicle_audio_status_sink: Callable[[str], None] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +111,14 @@ class ResearchDriverView(DriverView):
         self._tsxw_input: TsxwInput | None = None
         self._tsxw_commands = TsxwCommandState()
         self._tsxw_mode_events: list[KeyEvent] | None = None
+        self._vehicle_audio = (
+            None
+            if self._research_config.vehicle_audio_source is None
+            else VehicleAudioRuntime(
+                self._research_config.vehicle_audio_source,
+                VehicleAudioPlayback(pygame.mixer),
+            )
+        )
         super().__init__(
             world,
             hero,
@@ -151,9 +164,27 @@ class ResearchDriverView(DriverView):
             self._tsxw_mode_events = None
 
     def _close_input(self) -> None:
-        if self._tsxw_input is not None:
-            self._tsxw_input.close()
-            self._tsxw_input = None
+        try:
+            if self._tsxw_input is not None:
+                self._tsxw_input.close()
+                self._tsxw_input = None
+        finally:
+            if self._vehicle_audio is not None:
+                self._vehicle_audio.close(fade=sys.exception() is None)
+
+    def _update_turn_signal_audio(self) -> None:
+        super()._update_turn_signal_audio()
+        if self._vehicle_audio is not None:
+            started_at = self._interaction_timestamp()
+            try:
+                self._vehicle_audio.update()
+            finally:
+                self._record_interaction_duration("vehicle_audio_update", started_at)
+
+    def close(self) -> None:
+        if self._vehicle_audio is not None:
+            self._vehicle_audio.close(fade=False)
+        super().close()
 
     def _events_for_mode_handling(
         self,
@@ -166,6 +197,8 @@ class ResearchDriverView(DriverView):
         return combined
 
     def attach(self) -> None:
+        if self._vehicle_audio is not None:
+            self._vehicle_audio.prepare()
         if not self._research_config.front_camera_only:
             super().attach()
             return
@@ -230,6 +263,14 @@ class ResearchDriverView(DriverView):
                 continuation_factory,
             )
         finally:
+            if self._vehicle_audio is not None:
+                self._vehicle_audio.close(fade=False)
+                sink = self._research_config.vehicle_audio_status_sink
+                if sink is not None:
+                    try:
+                        sink(json.dumps(self._vehicle_audio.status(), allow_nan=False))
+                    except Exception as error:  # noqa: BLE001 -- optional summary cannot mask shutdown
+                        self._vehicle_audio.error = f"summary unavailable: {error}"
             if self._camera_diagnostics is not None:
                 self._camera_diagnostics.end_active_window(
                     self.feeds,
@@ -240,6 +281,8 @@ class ResearchDriverView(DriverView):
             self._diagnostics = None
 
     def _begin_iteration(self) -> None:
+        if self._camera_diagnostics is not None:
+            self._camera_diagnostics.begin_driver_loop()
         if self._diagnostics is not None:
             source = self._research_config.automation_state_source
             if source is not None:
@@ -351,7 +394,13 @@ class ResearchDriverView(DriverView):
             and event.key in (pygame.K_z, pygame.K_x)
             for event in combined_events
         )
-        lights = self._hero.get_light_state() if has_indicator_event else None
+        lights = None
+        if has_indicator_event:
+            started = self._interaction_timestamp()
+            try:
+                lights = self._hero.get_light_state()
+            finally:
+                self._record_interaction_duration("indicator_input_light_rpc", started)
         lane_change_direction = None
         self._accepted_signal_event_ids = frozenset()
         if lights is not None:
@@ -364,9 +413,9 @@ class ResearchDriverView(DriverView):
             for event in combined_events
         )
         active_indicator_keys: frozenset[int] = frozenset()
-        if self._exit_view.indicator_confirmation:
-            if lights is None:
-                lights = self._hero.get_light_state()
+        # Only Z/X key events can consume the indicator-state guard. Their fresh
+        # query above is shared with GENERAL; idle/other-key frames need no RPC.
+        if self._exit_view.indicator_confirmation and lights is not None:
             active_indicator_keys = frozenset(
                 key
                 for key, indicator in (
@@ -465,24 +514,32 @@ class ResearchLiveDriverView(ResearchDriverView):
             return
         if self.driving_mode is not DrivingMode.MANUAL:
             return
-        driver_input = self._pending_driver_input or self._collect_driver_input(())
-        self._pending_driver_input = None
-        brake = min(driver_input.brake, limits.max_brake)
-        throttle_suppressed = brake > 0.0
-        control = carla.VehicleControl(
-            throttle=(
-                0.0
-                if throttle_suppressed
-                else min(driver_input.throttle, limits.max_throttle)
-            ),
-            brake=brake,
-            steer=min(
-                max(driver_input.steering, -limits.max_steering),
-                limits.max_steering,
-            ),
-            hand_brake=driver_input.hand_brake,
-        )
-        self._send_control(control)
+        started = self._interaction_timestamp()
+        try:
+            driver_input = self._pending_driver_input or self._collect_driver_input(())
+            self._pending_driver_input = None
+            brake = min(driver_input.brake, limits.max_brake)
+            throttle_suppressed = brake > 0.0
+            control = carla.VehicleControl(
+                throttle=(
+                    0.0
+                    if throttle_suppressed
+                    else min(driver_input.throttle, limits.max_throttle)
+                ),
+                brake=brake,
+                steer=min(
+                    max(driver_input.steering, -limits.max_steering),
+                    limits.max_steering,
+                ),
+                hand_brake=driver_input.hand_brake,
+            )
+        finally:
+            self._record_interaction_duration("manual_control_preparation", started)
+        started = self._interaction_timestamp()
+        try:
+            self._send_control(control)
+        finally:
+            self._record_interaction_duration("manual_control_delivery", started)
         sink = self._research_config.tsxw_event_sink
         if self._tsxw_input is not None and sink is not None:
             sink(

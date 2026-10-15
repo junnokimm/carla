@@ -17,7 +17,14 @@ PERFORMANCE_OPERATIONS = (
     "input_observer",
     "scheduler",
     "manual_batch_rpc_wait",
+    "manual_control_preparation",
+    "manual_control_delivery",
+    "manual_availability_refresh",
+    "activation_geometry_query",
+    "activation_bounding_box_getter",
+    "indicator_input_light_rpc",
     "post_control",
+    "vehicle_audio_update",
     "snapshot_getter",
     "snapshot_actor_getters",
     "control_getter",
@@ -99,19 +106,21 @@ class ResearchNoADiagnosticsSummary:
 
 
 class _RunningStats:
-    __slots__ = ("count", "maximum", "minimum", "total")
+    __slots__ = ("at_least_100_ms_count", "count", "maximum", "minimum", "total")
 
     def __init__(self) -> None:
         self.count = 0
         self.total = 0.0
         self.minimum: float | None = None
         self.maximum: float | None = None
+        self.at_least_100_ms_count = 0
 
     def record(self, value: float) -> None:
         self.count += 1
         self.total += value
         self.minimum = value if self.minimum is None else min(self.minimum, value)
         self.maximum = value if self.maximum is None else max(self.maximum, value)
+        self.at_least_100_ms_count += int(value >= 0.100)
 
     @property
     def mean(self) -> float | None:
@@ -289,6 +298,17 @@ class ResearchNoADiagnostics:
                 }
                 for mode, mode_operations in modes_source.items()
             },
+            "operation_accumulation": {
+                operation: _accumulation_payload(operations_source.get(operation))
+                for operation in operations
+            },
+            "operation_accumulation_by_mode": {
+                mode.value: {
+                    operation: _accumulation_payload(stats)
+                    for operation, stats in sorted(mode_operations.items())
+                }
+                for mode, mode_operations in modes_source.items()
+            },
         }
 
     def operation_timing(self, operation: str) -> OperationTimingSummary:
@@ -417,4 +437,11 @@ def _optional_timing_payload(
         "max_ms": (
             _milliseconds(stats.maximum) if measured and stats is not None else None
         ),
+    }
+
+
+def _accumulation_payload(stats: _RunningStats | None) -> dict[str, DiagnosticsValue]:
+    return {
+        "total_ms": None if stats is None or stats.count == 0 else stats.total * 1000.0,
+        "at_least_100_ms_count": 0 if stats is None else stats.at_least_100_ms_count,
     }

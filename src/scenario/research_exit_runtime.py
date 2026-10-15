@@ -83,8 +83,12 @@ class ResearchExitObservationSource:
         matched = projection is not None
         if projection is not None:
             object.__setattr__(self, "cursor", projection)
-        target_transform = sample.lane_transform
-        target_width = sample.lane_width_m
+        # A source-lane centre is not a substitute for an unobserved target.
+        target_transform = None
+        target_width = None
+        if sample.lane_id == self.route.target_lane_id:
+            target_transform = sample.lane_transform
+            target_width = sample.lane_width_m
         if (
             sample.lane_id == self.route.source_lane_id
             and sample.right_lane_id == self.route.target_lane_id
@@ -106,6 +110,8 @@ class ResearchExitObservationSource:
         boundary_valid = (
             projection is not None
             and target_transform is not None
+            and target_width is not None
+            and target_width > 0.0
             and sample.road_id == self.route.points[projection.point_index].road_id
             and sample.section_id
             == self.route.points[projection.point_index].section_id

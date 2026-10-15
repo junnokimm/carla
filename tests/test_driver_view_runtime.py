@@ -174,10 +174,14 @@ def test_opt_in_observer_records_each_host_loop_segment(monkeypatch) -> None:
     viewer.run(1.0)
 
     assert observer.segments == [
+        "event_poll_and_presentation",
+        "mode_events",
         "scheduler",
         "audio",
+        "frame_prepare",
         "draw",
         "display_flip",
+        "after_display_flip",
         "fps_limiter",
         "driver_loop",
     ]

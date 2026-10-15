@@ -115,23 +115,19 @@ class DriverViewConfig:
     initial_cockpit_view: bool = False
     front_transform: CameraTransform = CameraTransform(x=1.4, y=0.0, z=1.3, pitch=-2.0)
 
-# 콕핏 뷰 카메라 위치 조정
-    # cockpit_transform: CameraTransform = CameraTransform(x=0.2, y=-0.35, z=1.30, pitch=-1.5) 
-    # cockpit_transform: CameraTransform = CameraTransform(x=0.10, y=-0.35, z=1.20, pitch=-1.5) 
-    
+    # 콕핏 뷰 카메라 위치 조정
+    # cockpit_transform: CameraTransform = CameraTransform(x=0.2, y=-0.35, z=1.30, pitch=-1.5)
+    # cockpit_transform: CameraTransform = CameraTransform(x=0.10, y=-0.35, z=1.20, pitch=-1.5)
+
     # 각 변수의 의미:
     #  x: 차량 전방으로부터의 거리, x값이 커질수록 차량 전방으로 카메라가 이동
     # y: 차량 좌우로부터의 거리,  y값이 음수이면 왼쪽, 양수이면 오른쪽으로 카메라가 이동
     # z: 차량 바닥으로부터의 높이, z값이 커질수록 카메라가 위로 올라감
     # pitch: 카메라의 상하 각도, 음수로 갈 수록 아래를 바라보게 됨
     cockpit_transform: CameraTransform = CameraTransform(
-    x=0.25,
-    y=-0.35,
-    z=1.20,
-    pitch=1
-)
+        x=0.25, y=-0.35, z=1.20, pitch=1
+    )
 
-    
     left_mirror_transform: CameraTransform = CameraTransform(
         x=0.3, y=-1.0, z=1.2, yaw=-150.0
     )
@@ -179,7 +175,9 @@ class DriverView:
         self._hero = hero
         self._config = config or DriverViewConfig()
         self._driving_mode_controller = (
-            None if read_only else DrivingModeController(
+            None
+            if read_only
+            else DrivingModeController(
                 hero,
                 self._config.initial_driving_mode,
                 traffic_manager_port=traffic_manager_port,
@@ -232,17 +230,31 @@ class DriverView:
         front_transform, front_fov = self._front_camera_settings()
         rear_mounts = (
             (
-                "rear",
-                self._config.rear_mirror.transform,
-                self._config.rear_mirror.resolution,
-                self._config.rear_mirror.fov,
-            ),
-        ) if self._config.rear_mirror_enabled else ()
+                (
+                    "rear",
+                    self._config.rear_mirror.transform,
+                    self._config.rear_mirror.resolution,
+                    self._config.rear_mirror.fov,
+                ),
+            )
+            if self._config.rear_mirror_enabled
+            else ()
+        )
         mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
             ("front", front_transform, self._config.front_resolution, front_fov),
             *rear_mounts,
-            ("left", self._config.left_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
-            ("right", self._config.right_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
+            (
+                "left",
+                self._config.left_mirror_transform,
+                self._config.mirror_resolution,
+                self._config.mirror_fov,
+            ),
+            (
+                "right",
+                self._config.right_mirror_transform,
+                self._config.mirror_resolution,
+                self._config.mirror_fov,
+            ),
         )
         blueprint = self._world.get_blueprint_library().find(CAMERA_BLUEPRINT_ID)
         for role, transform, resolution, fov in mounts:
@@ -251,7 +263,9 @@ class DriverView:
             blueprint.set_attribute("image_size_y", str(height))
             blueprint.set_attribute("fov", str(fov))
 
-            if role == "front": # 새로 추가한 부분, front 카메라의 exposure를 살짝 올려보기
+            if (
+                role == "front"
+            ):  # 새로 추가한 부분, front 카메라의 exposure를 살짝 올려보기
                 blueprint.set_attribute("exposure_compensation", "0.5")
             else:
                 blueprint.set_attribute("exposure_compensation", "0.0")
@@ -291,10 +305,7 @@ class DriverView:
             continuation: RuntimeFrameContinuation | None = None
             continuation_finalized = False
             while True:
-                if (
-                    continuation is None
-                    and time.monotonic() - started_at >= duration
-                ):
+                if continuation is None and time.monotonic() - started_at >= duration:
                     if continuation_factory is None:
                         break
                     continuation = continuation_factory()
@@ -305,10 +316,20 @@ class DriverView:
                 observer = self._performance_observer
                 loop_started_at = observer.timestamp() if observer is not None else 0.0
                 self._begin_iteration()
-                events = pygame.event.get()
-                presentation.handle_events(events)
+                events_started_at = (
+                    observer.timestamp() if observer is not None else 0.0
+                )
+                try:
+                    events = pygame.event.get()
+                    presentation.handle_events(events)
+                finally:
+                    if observer is not None:
+                        observer.record_duration(
+                            "event_poll_and_presentation",
+                            observer.timestamp() - events_started_at,
+                        )
                 if input_observer is None:
-                    self._handle_mode_events(events)
+                    self._timed_mode_events(events)
                 if self._exit_requested(events):
                     exited_by_user = True
                     if continuation is not None:
@@ -346,7 +367,7 @@ class DriverView:
                 if not control_applied:
                     self._apply_manual_control()
                 if input_observer is not None:
-                    self._handle_mode_events(self._events_for_mode_handling(events))
+                    self._timed_mode_events(self._events_for_mode_handling(events))
                 if isinstance(input_observer, ResearchPostControlObserver):
                     post_started_at = self._interaction_timestamp()
                     try:
@@ -358,7 +379,9 @@ class DriverView:
                 continuation_active = True
                 if continuation is not None:
                     if collected_input is None:
-                        raise RuntimeError("continuation driver input was not collected")
+                        raise RuntimeError(
+                            "continuation driver input was not collected"
+                        )
                     continuation_active = continuation.after_control_applied(
                         collected_input
                     )
@@ -368,7 +391,16 @@ class DriverView:
                     observer.record_duration(
                         "audio", observer.timestamp() - audio_started_at
                     )
-                self._prepare_frame()
+                prepare_started_at = (
+                    observer.timestamp() if observer is not None else 0.0
+                )
+                try:
+                    self._prepare_frame()
+                finally:
+                    if observer is not None:
+                        observer.record_duration(
+                            "frame_prepare", observer.timestamp() - prepare_started_at
+                        )
                 draw_started_at = observer.timestamp() if observer is not None else 0.0
                 try:
                     self._draw(presentation.canvas)
@@ -388,7 +420,17 @@ class DriverView:
                         )
                 if observer is not None:
                     observer.record_completed_display_flip()
-                self._after_display_flip()
+                after_flip_started_at = (
+                    observer.timestamp() if observer is not None else 0.0
+                )
+                try:
+                    self._after_display_flip()
+                finally:
+                    if observer is not None:
+                        observer.record_duration(
+                            "after_display_flip",
+                            observer.timestamp() - after_flip_started_at,
+                        )
                 limiter_started_at = (
                     observer.timestamp() if observer is not None else 0.0
                 )
@@ -429,6 +471,17 @@ class DriverView:
 
     def _begin_iteration(self) -> None:
         return
+
+    def _timed_mode_events(self, events: Sequence[pygame.event.Event]) -> None:
+        observer = self._performance_observer
+        started_at = observer.timestamp() if observer is not None else 0.0
+        try:
+            self._handle_mode_events(events)
+        finally:
+            if observer is not None:
+                observer.record_duration(
+                    "mode_events", observer.timestamp() - started_at
+                )
 
     def _initialize_input(self) -> None:
         return
@@ -499,7 +552,8 @@ class DriverView:
                     fade_duration = self._config.hud_mode_toast_duration * 0.35
                     fade_elapsed = max(
                         0.0,
-                        elapsed - (self._config.hud_mode_toast_duration - fade_duration),
+                        elapsed
+                        - (self._config.hud_mode_toast_duration - fade_duration),
                     )
                     toast_alpha = round(255 * (1.0 - fade_elapsed / fade_duration))
                 else:
@@ -507,12 +561,8 @@ class DriverView:
             self._hud_renderer.draw(
                 screen,
                 HudState(
-                    speed_kmh=calculate_speed_kmh(
-                        velocity.x, velocity.y, velocity.z
-                    ),
-                    gear=gear_from_control(
-                        reverse=control.reverse, gear=control.gear
-                    ),
+                    speed_kmh=calculate_speed_kmh(velocity.x, velocity.y, velocity.z),
+                    gear=gear_from_control(reverse=control.reverse, gear=control.gear),
                     driving_mode=hud_driving_mode,
                     mode_toast_alpha=toast_alpha,
                     mode_label=hud_mode_label,
@@ -573,18 +623,29 @@ class DriverView:
                 front = self._feeds[0]
                 front.sensor.stop()
                 front.sensor.destroy()
-                blueprint = self._world.get_blueprint_library().find(CAMERA_BLUEPRINT_ID)
-                blueprint.set_attribute("image_size_x", str(self._config.front_resolution[0]))
-                blueprint.set_attribute("image_size_y", str(self._config.front_resolution[1]))
+                blueprint = self._world.get_blueprint_library().find(
+                    CAMERA_BLUEPRINT_ID
+                )
+                blueprint.set_attribute(
+                    "image_size_x", str(self._config.front_resolution[0])
+                )
+                blueprint.set_attribute(
+                    "image_size_y", str(self._config.front_resolution[1])
+                )
                 blueprint.set_attribute("fov", str(fov))
-                blueprint.set_attribute("exposure_compensation", "0.5") # 새롭게 추가한 부분
+                blueprint.set_attribute(
+                    "exposure_compensation", "0.5"
+                )  # 새롭게 추가한 부분
                 # 현재 v를 누르면 front camera를 삭제하고 다시 만들기 때문
                 # 0.5로 했는데도 어두우면 0.8, 1.0 등으로 올려서 테스트해보기
 
-
-                front.sensor = self._world.spawn_actor(blueprint, transform.to_carla(), attach_to=self._hero)
+                front.sensor = self._world.spawn_actor(
+                    blueprint, transform.to_carla(), attach_to=self._hero
+                )
                 front.sensor.listen(front.receive)
-                print(f"[driver-view] view={'COCKPIT' if self._cockpit_view else 'DRIVER'}")
+                print(
+                    f"[driver-view] view={'COCKPIT' if self._cockpit_view else 'DRIVER'}"
+                )
 
     def _front_camera_settings(self) -> tuple[CameraTransform, float]:
         if self._cockpit_view:
@@ -596,29 +657,27 @@ class DriverView:
             return
         current = self._hero.get_light_state()
         blinkers = (
-            carla.VehicleLightState.LeftBlinker
-            | carla.VehicleLightState.RightBlinker
+            carla.VehicleLightState.LeftBlinker | carla.VehicleLightState.RightBlinker
         )
         without_blinkers = current & ~blinkers
         updated = (
-            without_blinkers
-            if current & selected
-            else without_blinkers | selected
+            without_blinkers if current & selected else without_blinkers | selected
         )
         self._hero.set_light_state(carla.VehicleLightState(updated))
 
     def _update_turn_signal_audio(self) -> None:
         observer = self._performance_observer
         light_state_started_at = observer.timestamp() if observer is not None else 0.0
-        lights = self._hero.get_light_state()
-        if observer is not None:
-            observer.record_turn_signal_audio_duration(
-                "light_state_rpc",
-                observer.timestamp() - light_state_started_at,
-            )
+        try:
+            lights = self._hero.get_light_state()
+        finally:
+            if observer is not None:
+                observer.record_turn_signal_audio_duration(
+                    "light_state_rpc",
+                    observer.timestamp() - light_state_started_at,
+                )
         blinkers = (
-            carla.VehicleLightState.LeftBlinker
-            | carla.VehicleLightState.RightBlinker
+            carla.VehicleLightState.LeftBlinker | carla.VehicleLightState.RightBlinker
         )
         audio_now = time.monotonic()
         audio_update_started_at = observer.timestamp() if observer is not None else 0.0
@@ -655,10 +714,12 @@ class DriverView:
     ) -> DriverInput:
         keys = pygame.key.get_pressed()
         target_steer = float(keys[pygame.K_d]) - float(keys[pygame.K_a])
-        self._steer = max(self._steer - STEER_INCREMENT, min(self._steer + STEER_INCREMENT, target_steer))
+        self._steer = max(
+            self._steer - STEER_INCREMENT,
+            min(self._steer + STEER_INCREMENT, target_steer),
+        )
         noa_button_pressed = any(
-            event.type == pygame.KEYDOWN and event.key == pygame.K_n
-            for event in events
+            event.type == pygame.KEYDOWN and event.key == pygame.K_n for event in events
         )
         return DriverInput(
             throttle=1.0 if keys[pygame.K_w] else 0.0,
@@ -724,9 +785,7 @@ class DriverView:
             )
         started_at = observer.timestamp()
         screen.blit(scaled_surface, position)
-        observer.record_duration(
-            f"blit.{feed.role}", observer.timestamp() - started_at
-        )
+        observer.record_duration(f"blit.{feed.role}", observer.timestamp() - started_at)
 
     @staticmethod
     def _exit_requested(events: Sequence[pygame.event.Event]) -> bool:
@@ -736,9 +795,7 @@ class DriverView:
             for event in events
         )
 
-    def _training_finish_requested(
-        self, events: Sequence[pygame.event.Event]
-    ) -> bool:
+    def _training_finish_requested(self, events: Sequence[pygame.event.Event]) -> bool:
         return self._training_early_finish and any(
             event.type == pygame.KEYDOWN and event.key == pygame.K_F8
             for event in events

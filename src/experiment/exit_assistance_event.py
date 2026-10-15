@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from math import isfinite
 
 from src.experiment.automation import DrivingControlMode
+from src.experiment.exit_assistance_policy import navigation_distance_m
 from src.experiment.exit_assistance_types import (
     ExitAssistanceConfig,
     ExitAssistanceEvent,
@@ -40,9 +42,15 @@ class ExitEventData:
     eligibility_elapsed_s: float | None
     presentation_window_status: str | None
     highway_rejoin_status: str | None
+    recommendation_at_t0: bool | None = None
 
 
 def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
+    distance = (
+        None
+        if data.observation is None
+        else navigation_distance_m(data.config, data.observation)
+    )
     payload = {
         "lc_event_id": data.config.lc_event_id,
         "module": None
@@ -60,6 +68,16 @@ def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
         "presentation_window_status": data.presentation_window_status,
         "t0_host_monotonic_ns": None if data.t0 is None else data.t0.host.monotonic_ns,
         "noa_state_t0": None if data.frozen_mode is None else data.frozen_mode.value,
+        "recommendation_at_t0": data.recommendation_at_t0,
+        "navigation_distance_to_exit_m": distance,
+        "navigation_start_offset_m": (
+            None
+            if distance is None or data.observation is None
+            else data.observation.route_distance_m - data.config.route.navigation_start
+        ),
+        "route_matched": None
+        if data.observation is None
+        else data.observation.route_matched,
         "actual_noa_state": None
         if data.actual_mode is None
         else data.actual_mode.value,
@@ -111,8 +129,17 @@ def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
         if data.observation is None
         else data.observation.lane_id,
         "route_progress_m": None
-        if data.observation is None
+        if data.observation is None or not isfinite(data.observation.route_distance_m)
         else data.observation.route_distance_m,
+        "target_lateral_offset_m": None
+        if data.observation is None
+        else data.observation.lateral_offset_m,
+        "target_boundary_valid": None
+        if data.observation is None
+        else data.observation.target_boundary_valid,
+        "target_lane_width_m": None
+        if data.observation is None or not data.observation.target_boundary_valid
+        else data.observation.lane_width_m,
         "route_reference_distance_m": None
         if data.observation is None
         else data.observation.route_reference_distance_m,

@@ -114,6 +114,7 @@ class ResearchNoARunConfig:
     traffic_manager_port: int | None = None
     native_tm_diagnostics: NativeTrafficManagerDiagnosticsConfig | None = None
     tsxw_config: TsxwConfig | None = None
+    vehicle_audio: bool = False
 
     def __post_init__(self) -> None:
         if not isfinite(self.duration) or self.duration <= 0.0:
@@ -361,9 +362,7 @@ class ResearchNoARunConfig:
         valid_exit = exit_config is None or (
             exit_config.context is ExitContext.MODULE
             and exit_config.route_id == persistence.assignment.route_id
-            and (
-                self.traffic_manager_port is not None or self.activation_speed_hold
-            )
+            and (self.traffic_manager_port is not None or self.activation_speed_hold)
         )
         excludes_other_protocols = (
             not self.operator_training

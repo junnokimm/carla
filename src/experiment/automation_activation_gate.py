@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import cos, isfinite, radians, sin
+from typing import Protocol
 
+from src.experiment.automation import DrivingControlMode
 from src.experiment.automation_interaction_types import (
     ActivationFailureReason,
     ActivationGeometry,
@@ -18,26 +20,52 @@ from src.vehicle.carla_lane_geometry import (
 )
 
 
+class ActivationDiagnostics(Protocol):
+    def timestamp(self) -> float: ...
+
+    def record_operation_duration(
+        self, operation: str, duration_seconds: float
+    ) -> None: ...
+
+    def set_control_mode(self, mode: DrivingControlMode) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class AutomationActivationGate:
     geometry: ActivationGeometry
     vehicle: ActivationVehicle
     config: AutomationInteractionConfig
+    diagnostics: ActivationDiagnostics | None = None
 
     def failure(self, driver_input: DriverInput) -> ActivationFailureReason | None:
         if driver_input.brake >= self.config.driver_brake_threshold:
             return ActivationFailureReason.DRIVER_BRAKE_ACTIVE
         if driver_input.lane_change_in_progress:
             return ActivationFailureReason.LANE_CHANGE_IN_PROGRESS
+        diagnostics = self.diagnostics
+        started = 0.0 if diagnostics is None else diagnostics.timestamp()
         try:
             context = self.geometry.observe_with_context(self.vehicle)
         except CarlaLaneGeometryUnavailableError:
             return ActivationFailureReason.GEOMETRY_UNAVAILABLE
         except LaneGeometryValidationError:
             return ActivationFailureReason.INVALID_GEOMETRY
+        finally:
+            if diagnostics is not None:
+                diagnostics.record_operation_duration(
+                    "activation_geometry_query", diagnostics.timestamp() - started
+                )
+        started = 0.0 if diagnostics is None else diagnostics.timestamp()
+        try:
+            bounding_box = self.vehicle.bounding_box
+        finally:
+            if diagnostics is not None:
+                diagnostics.record_operation_duration(
+                    "activation_bounding_box_getter", diagnostics.timestamp() - started
+                )
         return lane_alignment_failure(
             context,
-            self.vehicle.bounding_box,
+            bounding_box,
             self.config,
         )
 
@@ -68,9 +96,7 @@ def lane_alignment_failure(
     heading = geometry.heading_error_rad
     bounding_box_heading = heading + radians(rotation.yaw)
     bounding_box_lateral = (
-        geometry.lateral_error_m
-        + location.x * sin(heading)
-        + location.y * cos(heading)
+        geometry.lateral_error_m + location.x * sin(heading) + location.y * cos(heading)
     )
     lateral_half_extent = (
         abs(sin(bounding_box_heading)) * extent.x

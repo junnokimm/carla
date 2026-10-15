@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction_types import DriverInput
@@ -11,6 +12,7 @@ from src.experiment.exit_assistance_policy import (
     has_timed_out,
     is_automated_branch,
     is_confirmation_observation,
+    is_navigation_observation,
     lane_change_is_in_progress,
 )
 from src.experiment.exit_assistance_types import (
@@ -65,6 +67,8 @@ class ExitAssistanceCoordinator:
         self._frozen_mode: DrivingControlMode | None = None
         self._actual_mode: DrivingControlMode | None = None
         self._automated = False
+        self._recommendation_presented = False
+        self._finished = False
         self._decision: str | None = None
         self._input_timestamp: TimestampEnvelope | None = None
         self._decision_commit_timestamp: TimestampEnvelope | None = None
@@ -82,6 +86,7 @@ class ExitAssistanceCoordinator:
         self._previous_lateral_m: float | None = None
         self._maneuver_in_progress = False
         self._path_outcome: str | None = None
+        self._unpresented_path_identity: tuple[int, int, int] | None = None
         self._route_was_armed = False
         self._session_clock = session_clock
         self._assisted_submission = assisted_submission
@@ -154,12 +159,20 @@ class ExitAssistanceCoordinator:
         if observation is None or self.presentation is None:
             raise ExitPresentationError("exit presentation is not ready")
         if self.status is not ExitAssistanceStatus.DRAFT:
-            return self.presentation
+            return replace(
+                self.presentation,
+                recommendation=(
+                    self.presentation.recommendation
+                    and self._lateral_timestamp is None
+                    and is_confirmation_observation(self.config, observation)
+                ),
+            )
         remaining = self.config.route.fork_distance_m - observation.route_distance_m
         self.presentation = draft_presentation(
             self.config,
             remaining,
-            is_automated_branch(self.config, state.control_mode),
+            is_automated_branch(self.config, state.control_mode)
+            and is_confirmation_observation(self.config, observation),
             observation.carla_frame,
             observation.route_point_index,
         )
@@ -185,21 +198,28 @@ class ExitAssistanceCoordinator:
             or rendered.route_point_index != observation.route_point_index
         ):
             raise ExitPresentationError("rendered exit presentation is stale")
-        if not is_confirmation_observation(self.config, observation):
+        if not is_navigation_observation(self.config, observation) or (
+            rendered.recommendation
+            and not is_confirmation_observation(self.config, observation)
+        ):
             raise ExitPresentationError("vehicle is outside exit presentation envelope")
         self.status = ExitAssistanceStatus.PRESENTED
         self._t0 = timestamp
         self._frozen_mode = state.control_mode
         self._actual_mode = state.control_mode
         self._automated = is_automated_branch(self.config, state.control_mode)
-        self._baseline_lateral_m = observation.lateral_offset_m
+        self._recommendation_presented = rendered.recommendation
+        self._baseline_lateral_m = (
+            observation.lateral_offset_m if observation.target_boundary_valid else None
+        )
         self._baseline_indicator = observation.indicator
         self._previous_indicator = observation.indicator
-        self._previous_lateral_m = observation.lateral_offset_m
+        self._previous_lateral_m = self._baseline_lateral_m
         self.presentation = rendered
         self._emit(
             "lc_presented",
             timestamp,
+            observation=observation,
             presentation_window_status=presentation_window_status,
         )
         if presentation_window_status == "OUTSIDE_WINDOW_AFTER_VISIBLE_FRAME":
@@ -217,6 +237,8 @@ class ExitAssistanceCoordinator:
         commit_timestamp: TimestampEnvelope | None = None,
     ) -> None:
         commit = receipt_timestamp if commit_timestamp is None else commit_timestamp
+        if self._finished:
+            return
         previous_mode = self._actual_mode
         self._actual_mode = state.control_mode
         requested = (
@@ -238,6 +260,7 @@ class ExitAssistanceCoordinator:
         if (
             self.status is ExitAssistanceStatus.PRESENTED
             and self._automated
+            and self._recommendation_presented
             and has_timed_out(self._t0, commit, self.config.response_timeout_s)
         ):
             self.status = ExitAssistanceStatus.NORESPONSE
@@ -281,6 +304,8 @@ class ExitAssistanceCoordinator:
             self._interrupt(commit, "DRIVER_PRIORITY_OR_MOVEMENT")
             return
         if not fresh_request or self.status is not ExitAssistanceStatus.PRESENTED:
+            return
+        if not self._recommendation_presented or not self._automated:
             return
         if driver_input.exit_reject_requested:
             self.status = ExitAssistanceStatus.REJECTED
@@ -358,6 +383,8 @@ class ExitAssistanceCoordinator:
     def finish(
         self, reason: ExitTerminationReason, timestamp: TimestampEnvelope
     ) -> None:
+        self._finished = True
+        self.presentation = None
         if self.status in (
             ExitAssistanceStatus.COMPLETED,
             ExitAssistanceStatus.INTERRUPTED,
@@ -428,6 +455,9 @@ class ExitAssistanceCoordinator:
                 eligibility_elapsed_s=self.eligibility_elapsed_seconds(timestamp),
                 presentation_window_status=presentation_window_status,
                 highway_rejoin_status=highway_rejoin_status,
+                recommendation_at_t0=(
+                    None if self._t0 is None else self._recommendation_presented
+                ),
             )
         )
         self.events.append(event)

@@ -23,6 +23,27 @@ from src.scenario.research_camera_metadata import (
 )
 from src.scenario.research_turn_signal_audio_diagnostics import TurnSignalAudioTiming
 
+# Fixed-size correlation of existing spans plus previously unmeasured loop hooks.
+# Nested camera/audio timings are deliberately not summed as separate loop costs.
+LOOP_CORRELATION_SEGMENTS = frozenset(
+    {
+        "event_poll_and_presentation",
+        "mode_events",
+        "input_collection",
+        "input_observer",
+        "scheduler",
+        "manual_control_preparation",
+        "manual_control_delivery",
+        "post_control",
+        "audio",
+        "frame_prepare",
+        "draw",
+        "display_flip",
+        "after_display_flip",
+        "fps_limiter",
+    }
+)
+
 
 class _RunningStats:
     __slots__ = ("count", "maximum", "total")
@@ -134,6 +155,10 @@ class ResearchCameraDiagnostics:
         self._completed_display_flips = 0
         self._active_completed_display_flip_baseline = 0
         self._measurement_frozen = False
+        self._loop_segments: dict[str, _RunningStats] | None = None
+        self._correlated_loop_count = 0
+        self._slowest_loop_seconds = -1.0
+        self._slowest_loop: dict[str, JsonValue] | None = None
         self._frozen_feed_snapshots: dict[str, CameraFeedSnapshot] | None = None
         self._window_start: float | None = None
         self._window_end: float | None = None
@@ -160,6 +185,34 @@ class ResearchCameraDiagnostics:
                 self._timing_by_mode.setdefault(mode.value, {}).setdefault(
                     segment, _RunningStats()
                 ).record(duration_seconds)
+            if self._loop_segments is not None:
+                if segment in LOOP_CORRELATION_SEGMENTS:
+                    self._loop_segments.setdefault(segment, _RunningStats()).record(
+                        duration_seconds
+                    )
+                elif segment == "driver_loop":
+                    self._correlated_loop_count += 1
+                    if duration_seconds > self._slowest_loop_seconds:
+                        self._slowest_loop_seconds = duration_seconds
+                        self._slowest_loop = {
+                            "completed_loop_index": self._correlated_loop_count,
+                            "duration_ms": duration_seconds * 1000.0,
+                            "mode_at_completion": None if mode is None else mode.value,
+                            "segments": {
+                                name: stats.payload()
+                                for name, stats in self._loop_segments.items()
+                            },
+                        }
+                    self._loop_segments = None
+
+    def begin_driver_loop(self) -> None:
+        with self._lock:
+            if (
+                not self._measurement_frozen
+                and self._active_start is not None
+                and self._active_end is None
+            ):
+                self._loop_segments = {}
 
     def begin_active_window(self, feeds: Sequence[CameraFeed]) -> None:
         del feeds
@@ -168,6 +221,10 @@ class ResearchCameraDiagnostics:
             self._active_start = self._clock()
             self._active_end = None
             self._active_complete = None
+            self._loop_segments = None
+            self._correlated_loop_count = 0
+            self._slowest_loop_seconds = -1.0
+            self._slowest_loop = None
             self._active_completed_display_flip_baseline = self._completed_display_flips
 
     def end_active_window(
@@ -182,6 +239,7 @@ class ResearchCameraDiagnostics:
                 return
             self._active_end = self._clock()
             self._active_complete = complete
+            self._loop_segments = None
 
     def freeze_measurement_window(self, feeds: Sequence[CameraFeed]) -> None:
         with self._lock:
@@ -189,6 +247,7 @@ class ResearchCameraDiagnostics:
             self._active_complete = True
             self._frozen_feed_snapshots = {feed.role: feed.snapshot() for feed in feeds}
             self._measurement_frozen = True
+            self._loop_segments = None
 
     def record_camera_callback(
         self,
@@ -230,6 +289,8 @@ class ResearchCameraDiagnostics:
             return
         with self._lock:
             self._turn_signal_audio_timing.record(operation, duration_seconds)
+        if operation == "light_state_rpc":
+            self.record_duration("turn_signal_audio_light_rpc", duration_seconds)
 
     def record_camera_preparation(
         self,
@@ -336,13 +397,29 @@ class ResearchCameraDiagnostics:
                 for mode, timings in self._timing_by_mode.items()
             },
             "timing_mode_definition": "canonical mode at operation completion",
+            "slowest_completed_loop": self._slowest_loop,
+            "loop_correlation": {
+                "completed_loop_count": self._correlated_loop_count,
+                "scope": "active viewer window; incomplete/aborted loops excluded",
+                "storage": "one slowest loop and one pending loop; fixed segment names",
+                "interpretation": (
+                    "same-loop spans, not independent maxima; absent spans are unmeasured; "
+                    "mode at completion may follow a transition within the loop; "
+                    "not exhaustive or a mode-specific Display FPS measurement; "
+                    "fallback input_collection may nest in manual_control_preparation"
+                ),
+            },
             "turn_signal_audio_timing": self._turn_signal_audio_timing.payload(),
             "turn_signal_audio_timing_definitions": (
                 self._turn_signal_audio_timing.definitions()
             ),
             "timing_definitions": {
                 "scheduler": "scheduler.update only",
-                "audio": "turn-signal audio update only",
+                "audio": "turn-signal audio including fresh light RPC; optional vehicle audio when enabled",
+                "event_poll_and_presentation": "pygame event.get and presentation.handle_events",
+                "mode_events": "mode/view/indicator event handling, including toggle light RPCs",
+                "frame_prepare": "pre-draw hook, including P5 preparation",
+                "after_display_flip": "post-flip hook, including P5 presentation marking",
                 "draw": "complete draw including camera composition and HUD",
                 "conversion.<role>": "CARLA BGRA buffer to pygame surface",
                 "resize.<role>": "pygame smoothscale",
