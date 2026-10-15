@@ -14,11 +14,17 @@ from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
 from src.p8.model import Mode, P8Error
+from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsConfig
 from src.p8.operator_controller import OperatorController
 from src.p8.operator_model import OperatorRuntimeConfig, RegistrationRequest
 from src.p8.operator_ui_runtime import run_operator_ui
 from src.p8.operator_ui_types import OperatorUiConfig
 from src.p8.readiness import load_readiness
+from src.p8.tm_runtime_attestation import (
+    TrafficManagerBinaryProfile,
+    TrafficManagerRuntimeAttestor,
+)
+from src.p8.tsxw_policy import TsxwConfig
 from src.scenario.research_exit_config import (
     ExitEligibilityWindow,
     ResearchExitAssistanceConfig,
@@ -58,9 +64,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ack-dev-live", action="store_true")
     parser.add_argument("--spawn-index", type=int)
     parser.add_argument("--traffic-manager-port", type=int, default=8000)
+    parser.add_argument("--native-tm-diagnostics", action="store_true")
+    parser.add_argument("--native-tm-diagnostics-capacity", type=int)
+    parser.add_argument("--native-tm-diagnostics-interval", type=float)
     parser.add_argument("--drive-duration", type=float)
     parser.add_argument("--training-duration", type=float, default=600.0)
     parser.add_argument("--rear-mirror", action="store_true")
+    parser.add_argument("--tsxw", action="store_true")
+    parser.add_argument("--tsxw-index", type=int)
+    parser.add_argument("--tsxw-name")
+    parser.add_argument("--tsxw-steering-deadzone", type=float)
+    parser.add_argument("--tsxw-steering-left-axis", type=float)
+    parser.add_argument("--tsxw-steering-center-axis", type=float)
+    parser.add_argument("--tsxw-steering-right-axis", type=float)
+    parser.add_argument("--tsxw-brake-pressed-axis", type=float)
     parser.add_argument("--exit-route-manifest", type=Path)
     parser.add_argument("--exit-route-id")
     parser.add_argument("--training-exit-route-manifest", type=Path)
@@ -86,6 +103,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     mode = Mode(args.mode)
+    diagnostic_tuning = (
+        args.native_tm_diagnostics_capacity is not None
+        or args.native_tm_diagnostics_interval is not None
+    )
+    if diagnostic_tuning and not args.native_tm_diagnostics:
+        parser.error("native TM diagnostic tuning requires --native-tm-diagnostics")
+    if args.native_tm_diagnostics and mode is not Mode.DEV_REHEARSAL:
+        parser.error("--native-tm-diagnostics is DEV_REHEARSAL-only")
     if mode is Mode.DEV_REHEARSAL:
         if not args.ack_dev_live:
             parser.error("--ack-dev-live is required before bounded Runner use")
@@ -95,6 +120,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--training-duration must be in 1..600 seconds")
     if args.drive_duration is not None and not 1.0 <= args.drive_duration <= 60.0:
         parser.error("--drive-duration must be in 1..60 seconds")
+    tsxw_options = (
+        args.tsxw_index,
+        args.tsxw_name,
+        args.tsxw_steering_deadzone,
+        args.tsxw_steering_left_axis,
+        args.tsxw_steering_center_axis,
+        args.tsxw_steering_right_axis,
+        args.tsxw_brake_pressed_axis,
+    )
+    if args.tsxw and (args.tsxw_index is None and args.tsxw_name is None):
+        parser.error("--tsxw requires --tsxw-index and/or --tsxw-name")
+    if args.tsxw and args.tsxw_steering_deadzone is None:
+        parser.error("--tsxw requires explicit --tsxw-steering-deadzone")
+    if not args.tsxw and any(value is not None for value in tsxw_options):
+        parser.error("TS-XW options require --tsxw")
     if (
         not args.host.strip()
         or not 1 <= args.port <= 65535
@@ -206,8 +246,18 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
         lateral=LateralControlConfig(0.2, 0.5, 0.1, 0.05, 0.15),
     )
 
+    profile = (
+        TrafficManagerBinaryProfile.NATIVE_DIAGNOSTIC_DEV
+        if args.native_tm_diagnostics
+        else TrafficManagerBinaryProfile.DEFAULT
+    )
+
     def build(config, borrowed_log):
-        return ResearchNoARunner(config, borrowed_log=borrowed_log)
+        return ResearchNoARunner(
+            config,
+            borrowed_log=borrowed_log,
+            tm_runtime_attestor=TrafficManagerRuntimeAttestor.for_profile(profile),
+        )
 
     training_selection = (
         None
@@ -272,6 +322,51 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
             else ExitEligibilityWindow(
                 args.m2_exit_open_s,
                 args.m2_exit_close_s,
+            )
+        ),
+        native_tm_diagnostics=(
+            None
+            if not args.native_tm_diagnostics
+            else NativeTrafficManagerDiagnosticsConfig(
+                capacity=(
+                    1024
+                    if args.native_tm_diagnostics_capacity is None
+                    else args.native_tm_diagnostics_capacity
+                ),
+                interval_seconds=(
+                    0.5
+                    if args.native_tm_diagnostics_interval is None
+                    else args.native_tm_diagnostics_interval
+                ),
+            )
+        ),
+        tsxw_config=(
+            None
+            if not args.tsxw
+            else TsxwConfig(
+                index=args.tsxw_index,
+                name=args.tsxw_name,
+                steering_deadzone=args.tsxw_steering_deadzone,
+                steering_left_axis=(
+                    -1.0
+                    if args.tsxw_steering_left_axis is None
+                    else args.tsxw_steering_left_axis
+                ),
+                steering_center_axis=(
+                    0.0
+                    if args.tsxw_steering_center_axis is None
+                    else args.tsxw_steering_center_axis
+                ),
+                steering_right_axis=(
+                    1.0
+                    if args.tsxw_steering_right_axis is None
+                    else args.tsxw_steering_right_axis
+                ),
+                brake_pressed_axis=(
+                    -1.0
+                    if args.tsxw_brake_pressed_axis is None
+                    else args.tsxw_brake_pressed_axis
+                ),
             )
         ),
     )

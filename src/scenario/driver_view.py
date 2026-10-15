@@ -21,6 +21,7 @@ from src.scenario.driver_hud import (
     calculate_speed_kmh,
     gear_from_control,
 )
+from src.scenario.driver_view_presentation import DriverViewPresentation
 from src.scenario.mirror_layout import MirrorLayout as DriverViewLayout
 from src.scenario.mirror_layout import MirrorLayoutSpec, calculate_mirror_layout
 from src.scenario.turn_signal_audio import TurnSignalAudio
@@ -111,11 +112,26 @@ class DriverViewConfig:
     hud_toast_y_ratio: float = 0.58
     hud_mode_toast_duration: float = 1.75
     initial_driving_mode: DrivingMode = DrivingMode.AUTONOMOUS
+    initial_cockpit_view: bool = False
     front_transform: CameraTransform = CameraTransform(x=1.4, y=0.0, z=1.3, pitch=-2.0)
 
 # 콕핏 뷰 카메라 위치 조정
     # cockpit_transform: CameraTransform = CameraTransform(x=0.2, y=-0.35, z=1.30, pitch=-1.5) 
-    cockpit_transform: CameraTransform = CameraTransform(x=0.10, y=-0.35, z=1.20, pitch=-1.5) 
+    # cockpit_transform: CameraTransform = CameraTransform(x=0.10, y=-0.35, z=1.20, pitch=-1.5) 
+    
+    # 각 변수의 의미:
+    #  x: 차량 전방으로부터의 거리, x값이 커질수록 차량 전방으로 카메라가 이동
+    # y: 차량 좌우로부터의 거리,  y값이 음수이면 왼쪽, 양수이면 오른쪽으로 카메라가 이동
+    # z: 차량 바닥으로부터의 높이, z값이 커질수록 카메라가 위로 올라감
+    # pitch: 카메라의 상하 각도, 음수로 갈 수록 아래를 바라보게 됨
+    cockpit_transform: CameraTransform = CameraTransform(
+    x=0.25,
+    y=-0.35,
+    z=1.20,
+    pitch=1
+)
+
+    
     left_mirror_transform: CameraTransform = CameraTransform(
         x=0.3, y=-1.0, z=1.2, yaw=-150.0
     )
@@ -171,7 +187,7 @@ class DriverView:
         )
         self._steer = 0.0
         self._pending_driver_input: DriverInput | None = None
-        self._cockpit_view = False
+        self._cockpit_view = self._config.initial_cockpit_view
         self._hud_enabled = True
         self._mode_toast_started_at: float | None = None
         self._hud_renderer: HudRenderer = DriverHudRenderer(
@@ -213,6 +229,7 @@ class DriverView:
 
     def attach(self) -> None:
         """Create and attach the active RGB cameras."""
+        front_transform, front_fov = self._front_camera_settings()
         rear_mounts = (
             (
                 "rear",
@@ -222,7 +239,7 @@ class DriverView:
             ),
         ) if self._config.rear_mirror_enabled else ()
         mounts: Sequence[tuple[str, CameraTransform, tuple[int, int], float]] = (
-            ("front", self._config.front_transform, self._config.front_resolution, self._config.fov),
+            ("front", front_transform, self._config.front_resolution, front_fov),
             *rear_mounts,
             ("left", self._config.left_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
             ("right", self._config.right_mirror_transform, self._config.mirror_resolution, self._config.mirror_fov),
@@ -264,7 +281,9 @@ class DriverView:
         pygame.display.init()
         self._training_completed_early = False
         try:
+            self._initialize_input()
             screen = pygame.display.set_mode(self._config.window_size)
+            presentation = DriverViewPresentation(self._config.window_size, screen)
             pygame.display.set_caption("CARLA driver view")
             clock = pygame.time.Clock()
             started_at = time.monotonic()
@@ -287,6 +306,7 @@ class DriverView:
                 loop_started_at = observer.timestamp() if observer is not None else 0.0
                 self._begin_iteration()
                 events = pygame.event.get()
+                presentation.handle_events(events)
                 if input_observer is None:
                     self._handle_mode_events(events)
                 if self._exit_requested(events):
@@ -326,7 +346,7 @@ class DriverView:
                 if not control_applied:
                     self._apply_manual_control()
                 if input_observer is not None:
-                    self._handle_mode_events(events)
+                    self._handle_mode_events(self._events_for_mode_handling(events))
                 if isinstance(input_observer, ResearchPostControlObserver):
                     post_started_at = self._interaction_timestamp()
                     try:
@@ -351,7 +371,8 @@ class DriverView:
                 self._prepare_frame()
                 draw_started_at = observer.timestamp() if observer is not None else 0.0
                 try:
-                    self._draw(screen)
+                    self._draw(presentation.canvas)
+                    presentation.present()
                 finally:
                     if observer is not None:
                         observer.record_duration(
@@ -398,13 +419,28 @@ class DriverView:
             raise
         finally:
             try:
-                self._turn_signal_audio.close()
+                try:
+                    self._turn_signal_audio.close()
+                finally:
+                    self._close_input()
             finally:
                 pygame.quit()
         return exited_by_user
 
     def _begin_iteration(self) -> None:
         return
+
+    def _initialize_input(self) -> None:
+        return
+
+    def _close_input(self) -> None:
+        return
+
+    def _events_for_mode_handling(
+        self,
+        events: Sequence[pygame.event.Event],
+    ) -> Sequence[pygame.event.Event]:
+        return events
 
     def _prepare_frame(self) -> None:
         return
@@ -533,8 +569,7 @@ class DriverView:
                     self._toggle_turn_signal(selected)
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_v:
                 self._cockpit_view = not self._cockpit_view
-                transform = self._config.cockpit_transform if self._cockpit_view else self._config.front_transform
-                fov = self._config.cockpit_fov if self._cockpit_view else self._config.fov
+                transform, fov = self._front_camera_settings()
                 front = self._feeds[0]
                 front.sensor.stop()
                 front.sensor.destroy()
@@ -550,6 +585,11 @@ class DriverView:
                 front.sensor = self._world.spawn_actor(blueprint, transform.to_carla(), attach_to=self._hero)
                 front.sensor.listen(front.receive)
                 print(f"[driver-view] view={'COCKPIT' if self._cockpit_view else 'DRIVER'}")
+
+    def _front_camera_settings(self) -> tuple[CameraTransform, float]:
+        if self._cockpit_view:
+            return self._config.cockpit_transform, self._config.cockpit_fov
+        return self._config.front_transform, self._config.fov
 
     def _toggle_turn_signal(self, selected: carla.VehicleLightState) -> None:
         if self._driving_mode_controller is None:

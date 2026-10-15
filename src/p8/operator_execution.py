@@ -4,6 +4,7 @@ import csv
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
+from src.error_notes import append_error_note
 from src.p8.model import Mode, P8Error, Stage
 from src.p8.operator_continuity import OperatorRuntimeContinuity
 from src.p8.operator_exit_ledger_view import LiveCoordinatorEvidence
@@ -51,6 +52,7 @@ class OperatorRunExecutor:
         runtime_started_session_s = self.services.elapsed
         live: LiveCoordinatorEvidence | None = None
         actual = None
+        runner: ResearchNoARunner | None = None
         primary_error: BaseException | None = None
         secondary_errors: list[BaseException] = []
         try:
@@ -84,8 +86,11 @@ class OperatorRunExecutor:
                                 else None
                             )
                         )
+                    except KeyboardInterrupt as error:
+                        primary_error = error
+                        if actual.native_tm_collector is not None:
+                            actual.native_tm_collector.mark_interrupted(error)
                     except (
-                        KeyboardInterrupt,
                         OSError,
                         RuntimeError,
                         TypeError,
@@ -105,20 +110,43 @@ class OperatorRunExecutor:
             ) as error:
                 if primary_error is None:
                     primary_error = error
-                else:
+                elif error is not primary_error:
                     secondary_errors.append(error)
             if actual is not None:
                 try:
                     live = after_cleanup_evidence(live, actual.exit_assistance)
                 except (OSError, TypeError, ValueError, KeyError) as error:
                     secondary_errors.append(error)
+            diagnostic_status = (
+                actual.native_tm_collector.status
+                if actual is not None and actual.native_tm_collector is not None
+                else None
+                if runner is None
+                else runner.native_tm_diagnostics_status
+            )
+            if diagnostic_status is not None:
+                try:
+                    self.services.emit(
+                        "p8_native_tm_diagnostics_status",
+                        diagnostic_status.payload(),
+                        stage=request.stage,
+                    )
+                except (
+                    OSError,
+                    RuntimeError,
+                    TypeError,
+                    ValueError,
+                    KeyError,
+                ) as error:
+                    secondary_errors.append(error)
             if primary_error is None and secondary_errors:
                 primary_error = secondary_errors.pop(0)
             if primary_error is not None:
                 for secondary_error in secondary_errors:
-                    primary_error.add_note(
+                    append_error_note(
+                        primary_error,
                         "Secondary evidence/cleanup failure: "
-                        f"{type(secondary_error).__name__}:{secondary_error}"
+                        f"{type(secondary_error).__name__}:{secondary_error}",
                     )
                 raise primary_error
             if report is None:
@@ -185,9 +213,10 @@ class OperatorRunExecutor:
                     AttributeError,
                     csv.Error,
                 ) as reduction_error:
-                    error.add_note(
+                    append_error_note(
+                        error,
                         "Secondary evidence reduction failure: "
-                        f"{type(reduction_error).__name__}:{reduction_error}"
+                        f"{type(reduction_error).__name__}:{reduction_error}",
                     )
                     exit_result = technical_exit_result(
                         exit_config,

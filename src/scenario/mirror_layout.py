@@ -73,12 +73,12 @@ class MirrorLayout:
             None,
         )
 
-
+# 사이드미러 뷰 위치조정
 def calculate_mirror_layout(spec: MirrorLayoutSpec) -> MirrorLayout:
     window_width, window_height = spec.window_size
     side_width, side_height = spec.side_size
     rear_width, rear_height = spec.rear_size
-    side_y = window_height - spec.edge_margin - side_height
+    side_y = window_height - spec.edge_margin - 1.8 * side_height # 사이드미러뷰 위치 조정(높이)
     rear_y = round(window_height * spec.rear_top_ratio)
     return MirrorLayout(
         front_position=(0, 0),

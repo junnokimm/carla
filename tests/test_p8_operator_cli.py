@@ -41,6 +41,191 @@ def test_cli_surface_uses_traffic_manager_default_speed_without_custom_throttle(
     assert "--traffic-manager-port" in option_strings
     assert "--dev-speed-limit-kmh" not in option_strings
     assert "--ack-high-speed-dev" not in option_strings
+    assert "--native-tm-diagnostics" in option_strings
+    assert "--tsxw" in option_strings
+    assert "--tsxw-index" in option_strings
+    assert "--tsxw-name" in option_strings
+    assert "--tsxw-steering-deadzone" in option_strings
+    assert "--tsxw-brake-pressed-axis" in option_strings
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("--tsxw", "--tsxw-steering-deadzone", "0.02"),
+        ("--tsxw", "--tsxw-index", "0"),
+    ],
+)
+def test_cli_requires_explicit_tsxw_selector_and_deadzone(
+    extra: tuple[str, ...],
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(SystemExit) as caught:
+        main(
+            [
+                "--participant-id",
+                "R-1",
+                "--run-id",
+                "run-1",
+                "--m1",
+                "NO_SURT",
+                "--m2",
+                "MANUAL",
+                "--ack-dev-live",
+                "--spawn-index",
+                "0",
+                *extra,
+                "--output-root",
+                str(tmp_path),
+            ]
+        )
+
+    assert caught.value.code == 2
+    assert not any(tmp_path.iterdir())
+
+
+def test_cli_builds_opt_in_tsxw_with_provisional_nominal_brake_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed = []
+
+    def fake_ui(controller, config):
+        observed.append(controller.runtime.tsxw_config)
+        return 0
+
+    monkeypatch.setattr("src.p8.operator_cli.run_operator_ui", fake_ui)
+
+    result = main(
+        [
+            "--participant-id",
+            "R-1",
+            "--run-id",
+            "run-1",
+            "--m1",
+            "NO_SURT",
+            "--m2",
+            "MANUAL",
+            "--ack-dev-live",
+            "--spawn-index",
+            "0",
+            "--tsxw",
+            "--tsxw-index",
+            "0",
+            "--tsxw-name",
+            "TS-XW Racer",
+            "--tsxw-steering-deadzone",
+            "0.02",
+            "--output-root",
+            str(tmp_path),
+        ]
+    )
+
+    assert result == 0
+    assert observed[0].index == 0
+    assert observed[0].name == "TS-XW Racer"
+    assert observed[0].steering_deadzone == pytest.approx(0.02)
+    assert observed[0].brake_pressed_axis == -1.0
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("--native-tm-diagnostics-capacity", "64"),
+        ("--native-tm-diagnostics-interval", "0.25"),
+    ],
+)
+def test_cli_rejects_diagnostic_tuning_without_enable(
+    extra: tuple[str, str],
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(SystemExit) as caught:
+        main(
+            [
+                "--participant-id",
+                "R-1",
+                "--run-id",
+                "run-1",
+                "--m1",
+                "NO_SURT",
+                "--m2",
+                "MANUAL",
+                "--ack-dev-live",
+                "--spawn-index",
+                "0",
+                *extra,
+                "--output-root",
+                str(tmp_path),
+            ]
+        )
+
+    assert caught.value.code == 2
+    assert not any(tmp_path.iterdir())
+
+
+def test_cli_rejects_native_diagnostics_in_participant_mode(tmp_path: Path) -> None:
+    assignment = tmp_path / "assignment.csv"
+    assignment.write_text(
+        "participant_id,m1_condition,m2_condition\nR-1,NO_SURT,MANUAL\n"
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        main(
+            [
+                "--mode",
+                "participant",
+                "--participant-id",
+                "R-1",
+                "--run-id",
+                "run-1",
+                "--assignment-file",
+                str(assignment),
+                "--native-tm-diagnostics",
+                "--output-root",
+                str(tmp_path / "output"),
+            ]
+        )
+
+    assert caught.value.code == 2
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [
+        ("--native-tm-diagnostics-capacity", "0"),
+        ("--native-tm-diagnostics-interval", "0"),
+    ],
+)
+def test_cli_rejects_zero_native_diagnostic_tuning(
+    option: str,
+    value: str,
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(SystemExit) as caught:
+        main(
+            [
+                "--participant-id",
+                "R-1",
+                "--run-id",
+                "run-1",
+                "--m1",
+                "NO_SURT",
+                "--m2",
+                "MANUAL",
+                "--ack-dev-live",
+                "--spawn-index",
+                "0",
+                "--native-tm-diagnostics",
+                option,
+                value,
+                "--output-root",
+                str(tmp_path),
+            ]
+        )
+
+    assert caught.value.code == 2
+    assert not any(tmp_path.iterdir())
 
 
 def test_dev_cli_requires_ack_and_spawn_before_ui_or_artifacts(tmp_path: Path) -> None:
@@ -104,6 +289,47 @@ def test_cli_defaults_rear_off_training_600_and_nominal_module_duration(
 
     assert result == 2
     assert observed == [(False, 600.0, None)]
+
+
+def test_dev_cli_builds_explicit_native_diagnostic_tuning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed = []
+
+    def fake_ui(controller, config):
+        observed.append(controller.runtime.native_tm_diagnostics)
+        return 0
+
+    monkeypatch.setattr("src.p8.operator_cli.run_operator_ui", fake_ui)
+
+    result = main(
+        [
+            "--participant-id",
+            "R-1",
+            "--run-id",
+            "run-1",
+            "--m1",
+            "NO_SURT",
+            "--m2",
+            "MANUAL",
+            "--ack-dev-live",
+            "--spawn-index",
+            "0",
+            "--native-tm-diagnostics",
+            "--native-tm-diagnostics-capacity",
+            "64",
+            "--native-tm-diagnostics-interval",
+            "0.25",
+            "--output-root",
+            str(tmp_path),
+        ]
+    )
+
+    assert result == 0
+    assert observed[0] is not None
+    assert observed[0].capacity == 64
+    assert observed[0].interval_seconds == 0.25
 
 
 def test_cli_builds_explicit_module_and_training_exit_templates(

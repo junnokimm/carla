@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 
+from src.error_notes import append_error_note
 from src.experiment.session_clock import SessionClockError
 from src.logging.research_csv_error import ResearchCsvError
 from src.scenario.research_noa_persistence import ResearchNoAPersistence
@@ -15,6 +16,7 @@ def retain_first_error(
     try:
         action()
     except (
+        KeyboardInterrupt,
         OSError,
         RuntimeError,
         TypeError,
@@ -25,11 +27,7 @@ def retain_first_error(
         if primary_error is None:
             return error
         note = f"Secondary cleanup failure: {type(error).__name__}:{error}"
-        notes = getattr(primary_error, "__notes__", None)
-        if notes is None:
-            object.__setattr__(primary_error, "__notes__", [])
-            notes = primary_error.__notes__
-        notes.append(note)
+        append_error_note(primary_error, note)
     return primary_error
 
 

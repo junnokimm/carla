@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import assert_never
@@ -12,6 +13,13 @@ import pygame
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction import DriverInput
 from src.experiment.lane_change import LaneChangeDirection
+from src.p8.tsxw_input import TsxwInput, TsxwLogEvent
+from src.p8.tsxw_policy import (
+    TsxwCommandState,
+    TsxwConfig,
+    coalesce_command_events,
+    merge_driver_input,
+)
 from src.scenario.driver_view import (
     CAMERA_BLUEPRINT_ID,
     CameraFeed,
@@ -37,6 +45,7 @@ from src.vehicle.driving_mode import DrivingMode
 @dataclass(frozen=True, slots=True)
 class ResearchDriverViewConfig(DriverViewConfig):
     initial_driving_mode: DrivingMode = DrivingMode.MANUAL
+    initial_cockpit_view: bool = True
     front_camera_only: bool = False
     camera_diagnostics: bool = False
     run_id: str | None = None
@@ -47,6 +56,8 @@ class ResearchDriverViewConfig(DriverViewConfig):
     training_early_finish: bool = False
     traffic_manager_port: int | None = None
     control_sender: ControlSender | None = None
+    tsxw_config: TsxwConfig | None = None
+    tsxw_event_sink: Callable[[TsxwLogEvent], None] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +103,9 @@ class ResearchDriverView(DriverView):
         self._exit_view = ResearchExitViewController(self._research_config.window_size)
         self._lane_change_input = LaneChangeRequestInput()
         self._accepted_signal_event_ids: frozenset[int] | None = None
+        self._tsxw_input: TsxwInput | None = None
+        self._tsxw_commands = TsxwCommandState()
+        self._tsxw_mode_events: list[KeyEvent] | None = None
         super().__init__(
             world,
             hero,
@@ -126,19 +140,45 @@ class ResearchDriverView(DriverView):
     def _prepare_frame(self) -> None:
         self._exit_view.prepare()
 
+    def _initialize_input(self) -> None:
+        config = self._research_config.tsxw_config
+        if config is not None:
+            self._tsxw_input = TsxwInput.open(
+                config,
+                event_sink=self._research_config.tsxw_event_sink,
+            )
+            self._tsxw_commands = TsxwCommandState()
+            self._tsxw_mode_events = None
+
+    def _close_input(self) -> None:
+        if self._tsxw_input is not None:
+            self._tsxw_input.close()
+            self._tsxw_input = None
+
+    def _events_for_mode_handling(
+        self,
+        events: Sequence[KeyEvent],
+    ) -> Sequence[KeyEvent]:
+        if self._tsxw_mode_events is None:
+            return events
+        combined = self._tsxw_mode_events
+        self._tsxw_mode_events = None
+        return combined
+
     def attach(self) -> None:
         if not self._research_config.front_camera_only:
             super().attach()
             return
         blueprint = self._world.get_blueprint_library().find(CAMERA_BLUEPRINT_ID)
         width, height = self._research_config.front_resolution
+        transform, fov = self._front_camera_settings()
         blueprint.set_attribute("image_size_x", str(width))
         blueprint.set_attribute("image_size_y", str(height))
-        blueprint.set_attribute("fov", str(self._research_config.fov))
+        blueprint.set_attribute("fov", str(fov))
         blueprint.set_attribute("exposure_compensation", "0.5")
         sensor = self._world.spawn_actor(
             blueprint,
-            self._research_config.front_transform.to_carla(),
+            transform.to_carla(),
             attach_to=self._hero,
         )
         feed = CameraFeed(role="front", sensor=sensor)
@@ -279,23 +319,49 @@ class ResearchDriverView(DriverView):
         source = self._research_config.driver_input_source
         if source is not None:
             return source()
-        driver_input = super()._collect_driver_input(events)
+        wheel = self._tsxw_input
+        sample = None if wheel is None else wheel.poll(events)
+        combined_events = (
+            events
+            if sample is None
+            else coalesce_command_events(
+                self._tsxw_commands,
+                events,
+                sample,
+                noa_key=self._research_config.noa_toggle_key,
+            )
+        )
+        self._tsxw_mode_events = None if sample is None else combined_events
+        driver_input = super()._collect_driver_input(combined_events)
+        throttle_override = brake_override = steering_override = False
+        if sample is not None:
+            keys = pygame.key.get_pressed()
+            throttle_override = bool(keys[pygame.K_w])
+            brake_override = bool(keys[pygame.K_s])
+            steering_override = bool(keys[pygame.K_a] or keys[pygame.K_d])
+            driver_input = merge_driver_input(
+                driver_input,
+                sample,
+                throttle_override=throttle_override,
+                brake_override=brake_override,
+                steering_override=steering_override,
+            )
         has_indicator_event = any(
             event.type in (pygame.KEYDOWN, pygame.KEYUP)
             and event.key in (pygame.K_z, pygame.K_x)
-            for event in events
+            for event in combined_events
         )
         lights = self._hero.get_light_state() if has_indicator_event else None
         lane_change_direction = None
         self._accepted_signal_event_ids = frozenset()
         if lights is not None:
-            accepted_signal = self._lane_change_input.accept(events, lights)
+            accepted_signal = self._lane_change_input.accept(combined_events, lights)
             lane_change_direction = accepted_signal.direction
             self._accepted_signal_event_ids = accepted_signal.event_ids
         toggle_requested = any(
             event.type == pygame.KEYDOWN
             and event.key == self._research_config.noa_toggle_key
-            for event in events
+            for event in combined_events
         )
         active_indicator_keys: frozenset[int] = frozenset()
         if self._exit_view.indicator_confirmation:
@@ -309,7 +375,7 @@ class ResearchDriverView(DriverView):
                 if lights & indicator
             )
         confirm_requested, reject_requested = self._exit_view.requests(
-            events,
+            combined_events,
             active_indicator_keys,
         )
         if (
@@ -331,12 +397,12 @@ class ResearchDriverView(DriverView):
             self._handle_mode_events(
                 [
                     event
-                    for event in events
+                    for event in combined_events
                     if id(event) in self._accepted_signal_event_ids
                 ]
             )
             self._accepted_signal_event_ids = frozenset()
-        return replace(
+        collected = replace(
             driver_input,
             activation_requested=toggle_requested,
             deactivation_requested=toggle_requested,
@@ -344,6 +410,49 @@ class ResearchDriverView(DriverView):
             exit_reject_requested=reject_requested,
             lane_change_direction=lane_change_direction,
         )
+        sink = self._research_config.tsxw_event_sink
+        if sample is not None and sink is not None:
+            sink(
+                TsxwLogEvent(
+                    "tsxw_input_sample",
+                    json.dumps(
+                        {
+                            "raw": {
+                                "steering": sample.raw_steering,
+                                "brake": sample.raw_brake,
+                                "throttle": sample.raw_throttle,
+                            },
+                            "normalized": {
+                                "steering": sample.steering,
+                                "brake": sample.brake,
+                                "throttle": sample.throttle,
+                            },
+                            "effective": {
+                                "steering": collected.steering,
+                                "brake": collected.brake,
+                                "throttle": collected.throttle,
+                                "hand_brake": collected.hand_brake,
+                            },
+                            "keyboard_override": {
+                                "steering": steering_override,
+                                "brake": brake_override,
+                                "throttle": throttle_override,
+                            },
+                            "window_input_focus": pygame.key.get_focused(),
+                            "edges": {
+                                "left": sample.left_pressed,
+                                "right": sample.right_pressed,
+                                "noa": sample.noa_pressed,
+                                "reject": sample.reject_pressed,
+                            },
+                        },
+                        allow_nan=False,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                )
+            )
+        return collected
 
 
 class ResearchLiveDriverView(ResearchDriverView):
@@ -359,18 +468,55 @@ class ResearchLiveDriverView(ResearchDriverView):
         driver_input = self._pending_driver_input or self._collect_driver_input(())
         self._pending_driver_input = None
         brake = min(driver_input.brake, limits.max_brake)
-        self._send_control(
-            carla.VehicleControl(
-                throttle=(
-                    0.0
-                    if brake > 0.0
-                    else min(driver_input.throttle, limits.max_throttle)
-                ),
-                brake=brake,
-                steer=min(
-                    max(driver_input.steering, -limits.max_steering),
-                    limits.max_steering,
-                ),
-                hand_brake=driver_input.hand_brake,
-            )
+        throttle_suppressed = brake > 0.0
+        control = carla.VehicleControl(
+            throttle=(
+                0.0
+                if throttle_suppressed
+                else min(driver_input.throttle, limits.max_throttle)
+            ),
+            brake=brake,
+            steer=min(
+                max(driver_input.steering, -limits.max_steering),
+                limits.max_steering,
+            ),
+            hand_brake=driver_input.hand_brake,
         )
+        self._send_control(control)
+        sink = self._research_config.tsxw_event_sink
+        if self._tsxw_input is not None and sink is not None:
+            sink(
+                TsxwLogEvent(
+                    "tsxw_manual_control",
+                    json.dumps(
+                        {
+                            "effective": {
+                                "steering": driver_input.steering,
+                                "brake": driver_input.brake,
+                                "throttle": driver_input.throttle,
+                                "hand_brake": driver_input.hand_brake,
+                            },
+                            "sent": {
+                                "steering": control.steer,
+                                "brake": control.brake,
+                                "throttle": control.throttle,
+                                "hand_brake": control.hand_brake,
+                                "gear": control.gear,
+                                "reverse": control.reverse,
+                                "manual_gear_shift": control.manual_gear_shift,
+                                "transport": (
+                                    "CHECKED_BATCH_SYNC"
+                                    if self._research_config.control_sender is not None
+                                    else "VEHICLE_APPLY_CONTROL"
+                                ),
+                            },
+                            "throttle_suppression": (
+                                "POSITIVE_BRAKE" if throttle_suppressed else None
+                            ),
+                        },
+                        allow_nan=False,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                )
+            )

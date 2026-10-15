@@ -272,7 +272,7 @@ def test_runner_front_camera_only_cleans_one_camera_and_hero(monkeypatch) -> Non
         assert spawn.attributes == {
             "image_size_x": "1280",
             "image_size_y": "720",
-            "fov": "100.0",
+            "fov": "105.0",
             "exposure_compensation": "0.5",
         }
         assert "sensor_tick" not in spawn.attributes
@@ -318,7 +318,7 @@ def test_front_only_camera_diagnostics_tracks_only_owned_front_sensor() -> None:
     assert payload["roles"]["front"]["updated_count"] == 1
     assert payload["roles"]["front"]["callback_count"] == 1
     assert payload["roles"]["front"]["sensor"]["image_size_x"] == "1280"
-    assert payload["roles"]["front"]["sensor"]["fov"] == "100.0"
+    assert payload["roles"]["front"]["sensor"]["fov"] == "105.0"
     assert {"conversion.front", "resize.front", "blit.front"} <= set(payload["timing"])
     viewer.close()
 

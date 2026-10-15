@@ -14,8 +14,10 @@ from src.experiment.exit_assistance import ExitContext
 from src.experiment.noa_runtime import NoAControlConfig
 from src.p7.types import Json
 from src.p8.model import Stage
+from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsConfig
 from src.p8.operator_exit_result import ExitOpportunityResult
 from src.p8.operator_hazard_contracts import HazardExecutionPlan
+from src.p8.tsxw_policy import TsxwConfig
 from src.scenario.research_exit_config import (
     ExitEligibilityWindow,
     ResearchExitAssistanceConfig,
@@ -79,6 +81,8 @@ class OperatorRuntimeConfig:
     module_1_exit_window: ExitEligibilityWindow | None = None
     module_2_exit_window: ExitEligibilityWindow | None = None
     hazard_execution: HazardExecutionPlan | None = None
+    native_tm_diagnostics: NativeTrafficManagerDiagnosticsConfig | None = None
+    tsxw_config: TsxwConfig | None = None
 
     def __post_init__(self) -> None:
         self.validate_safety_contract()

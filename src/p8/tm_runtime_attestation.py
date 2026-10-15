@@ -8,15 +8,27 @@ import socket
 import struct
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Final
+from typing import Final, assert_never
 
 APPROVED_LIBCARLA_SHA256: Final = (
     "636D249A6898FEB4A6A8D166917DDDE04F26B70DAB9E95C1D3D50E9ACF3CA471"
 )
+DIAGNOSTIC_LIBCARLA_SHA256: Final = (
+    "E4B2BAD4D70DF255C1123E7064602B1B010E34F740638B19BC2608478D479721"
+)
+DIAGNOSTIC_LIBCARLA_PATH: Final = Path(
+    r"C:\dev\carla-native-tm-cancel-20261012\.venv-p8-diagnostic\Lib\site-packages\carla\libcarla.cp312-win_amd64.pyd"
+)
 _TCP_TABLE_OWNER_PID_LISTENER: Final = 3
 _ERROR_INSUFFICIENT_BUFFER: Final = 122
 _NO_ERROR: Final = 0
+
+
+class TrafficManagerBinaryProfile(StrEnum):
+    DEFAULT = "DEFAULT"
+    NATIVE_DIAGNOSTIC_DEV = "NATIVE_DIAGNOSTIC_DEV"
 
 
 @dataclass
@@ -29,6 +41,18 @@ class LoadedLibcarlaMismatchError(RuntimeError):
         return (
             f"loaded libcarla hash mismatch at {self.path}: expected "
             f"{self.expected_sha256}, observed {self.actual_sha256}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class LoadedLibcarlaPathMismatchError(RuntimeError):
+    expected_path: Path
+    actual_path: Path
+
+    def __str__(self) -> str:
+        return (
+            f"loaded libcarla path mismatch: expected {self.expected_path}, "
+            f"observed {self.actual_path}"
         )
 
 
@@ -61,24 +85,54 @@ class RuntimeAttestation:
     libcarla_sha256: str
 
 
+@dataclass(frozen=True, slots=True)
+class NativeDiagnosticAttestationError(RuntimeError):
+    attestation: RuntimeAttestation
+
+    def __str__(self) -> str:
+        return "native TM diagnostics require the exact candidate-J path and SHA-256"
+
+
 class TrafficManagerRuntimeAttestor:
     def __init__(
         self,
         *,
         expected_sha256: str = APPROVED_LIBCARLA_SHA256,
+        expected_path: Path | None = None,
         hash_file: Callable[[Path], str] | None = None,
         library_path: Callable[[], Path] | None = None,
         listener_pids: Callable[[int], frozenset[int]] | None = None,
         process_id: Callable[[], int] = os.getpid,
     ) -> None:
         self._expected_sha256 = expected_sha256.upper()
+        self._expected_path = None if expected_path is None else expected_path.resolve()
         self._hash_file = hash_file or _sha256
         self._library_path = library_path or _loaded_libcarla_path
         self._listener_pids = listener_pids or windows_listener_pids
         self._process_id = process_id
 
+    @classmethod
+    def for_profile(
+        cls,
+        profile: TrafficManagerBinaryProfile,
+        **dependencies,
+    ) -> TrafficManagerRuntimeAttestor:
+        match profile:
+            case TrafficManagerBinaryProfile.DEFAULT:
+                return cls(**dependencies)
+            case TrafficManagerBinaryProfile.NATIVE_DIAGNOSTIC_DEV:
+                return cls(
+                    expected_sha256=DIAGNOSTIC_LIBCARLA_SHA256,
+                    expected_path=DIAGNOSTIC_LIBCARLA_PATH,
+                    **dependencies,
+                )
+            case unreachable:
+                assert_never(unreachable)
+
     def verify_before_creation(self, port: int) -> PreparedRuntimeAttestation:
         library = self._library_path().resolve()
+        if self._expected_path is not None and library != self._expected_path:
+            raise LoadedLibcarlaPathMismatchError(self._expected_path, library)
         actual_hash = self._hash_file(library).upper()
         if actual_hash != self._expected_sha256:
             raise LoadedLibcarlaMismatchError(
@@ -125,6 +179,14 @@ class TrafficManagerRuntimeAttestor:
                 "ownership lost",
                 owners,
             )
+
+
+def require_native_diagnostic_attestation(attestation: RuntimeAttestation) -> None:
+    if (
+        attestation.libcarla_path.resolve() != DIAGNOSTIC_LIBCARLA_PATH.resolve()
+        or attestation.libcarla_sha256.upper() != DIAGNOSTIC_LIBCARLA_SHA256
+    ):
+        raise NativeDiagnosticAttestationError(attestation)
 
 
 def windows_listener_pids(port: int) -> frozenset[int]:
