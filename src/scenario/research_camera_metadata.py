@@ -132,7 +132,13 @@ def _requested_sensor_payload(
     if config is None:
         return UNKNOWN
     requests = {
-        "front": (config.front_transform, config.front_resolution, config.fov),
+        "front": (
+            config.cockpit_transform
+            if config.initial_cockpit_view
+            else config.front_transform,
+            config.front_resolution,
+            config.cockpit_fov if config.initial_cockpit_view else config.fov,
+        ),
         "rear": (
             config.rear_mirror.transform,
             config.rear_mirror.resolution,

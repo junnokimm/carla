@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
@@ -25,9 +26,16 @@ from src.experiment.session_clock import SessionClock
 from src.logging.csv_logger import ResearchCsvLogger
 from src.p6.clock import SessionOrigin
 from src.p6.runtime import P6Runtime
+from src.p8.native_tm_diagnostics import (
+    NativeTrafficManagerDiagnosticsCollector,
+    NativeTrafficManagerDiagnosticsContext,
+    NativeTrafficManagerDiagnosticsStatus,
+    native_tm_diagnostic_path,
+)
 from src.p8.tm_runtime_attestation import (
     RuntimeAttestation,
     TrafficManagerRuntimeAttestor,
+    require_native_diagnostic_attestation,
 )
 from src.scenario.research_exit_runtime import (
     ResearchExitInteractionObserver,
@@ -49,6 +57,8 @@ from src.scenario.research_noa_diagnostics import (
     PerformanceClock,
     ResearchNoADiagnostics,
 )
+from src.scenario.research_noa_inventory import RehearsalInventoryPreflight
+from src.scenario.research_noa_lifecycle import retain_first_error
 from src.scenario.research_noa_log_setup import OpenResearchLog, open_research_log
 from src.scenario.research_noa_persistence import (
     PersistedInteractionObserver,
@@ -136,8 +146,13 @@ class ResearchNoARunner:
         self._performance_clock = performance_clock
         self._exit_route_validator = exit_route_validator
         self._borrowed_log = borrowed_log
-        self._tm_runtime_attestor = tm_runtime_attestor or TrafficManagerRuntimeAttestor()
+        self._tm_runtime_attestor = (
+            tm_runtime_attestor or TrafficManagerRuntimeAttestor()
+        )
         self.log_paths: ResearchLogPaths | None = None
+        self.native_tm_diagnostics_status: (
+            NativeTrafficManagerDiagnosticsStatus | None
+        ) = None
 
     @property
     def client_source(self) -> str:
@@ -149,6 +164,8 @@ class ResearchNoARunner:
             return "INJECTED_TEST_DRIVER_INPUT"
         if self._viewer_factory is not None:
             return "INJECTED_TEST_VIEWER"
+        if self._config.tsxw_config is not None:
+            return "REAL_TSXW_WITH_KEYBOARD_AXIS_OVERRIDE"
         return "REAL_KEYBOARD_PATH"
 
     @property
@@ -212,12 +229,14 @@ class ResearchNoARunner:
             ) as session:
                 yield session
         finally:
-            try:
-                if p6 is not None:
-                    p6.close()
-            finally:
-                if owns_logger and logger is not None:
-                    logger.close()
+            inherited_error = sys.exception()
+            primary_error = inherited_error
+            if p6 is not None:
+                primary_error = retain_first_error(p6.close, primary_error)
+            if owns_logger and logger is not None:
+                primary_error = retain_first_error(logger.close, primary_error)
+            if inherited_error is None and primary_error is not None:
+                raise primary_error
 
     def run(self) -> ResearchSmokeReport | None:
         with self.session() as session:
@@ -230,6 +249,12 @@ class ResearchNoARunner:
         session_clock: SessionClock | None = None,
     ) -> ResearchNoASession:
         effective_speed_policy = None
+        traffic_manager_port = self._config.traffic_manager_port
+        prepared_attestation = (
+            None
+            if traffic_manager_port is None
+            else self._tm_runtime_attestor.verify_before_creation(traffic_manager_port)
+        )
         if (client := self._client) is None:
             client = carla.Client(self._config.host, self._config.port)
             client.set_timeout(self._config.timeout)
@@ -247,15 +272,24 @@ class ResearchNoARunner:
             raise ResearchNoAPreflightError(
                 "operator live runtime requires synchronous_mode=false"
             )
-        traffic_manager_port = self._config.traffic_manager_port
         traffic_manager = None
         tm_attestation: RuntimeAttestation | None = None
         if traffic_manager_port is not None:
-            prepared = self._tm_runtime_attestor.verify_before_creation(
+            prepared_attestation = self._tm_runtime_attestor.verify_before_creation(
                 traffic_manager_port
             )
             traffic_manager = client.get_trafficmanager(traffic_manager_port)
-            tm_attestation = self._tm_runtime_attestor.attest_after_creation(prepared)
+            if prepared_attestation is None:
+                raise ResearchNoAPreflightError(
+                    "Traffic Manager attestation is missing"
+                )
+            tm_attestation = self._tm_runtime_attestor.attest_after_creation(
+                prepared_attestation
+            )
+        applied_weather = None
+        if self._config.operator_clear_noon:
+            world.set_weather(carla.WeatherParameters.ClearNoon)
+            applied_weather = world.get_weather()
         world_map = world.get_map()
         spawn_transform, spawn_waypoint = self._select_spawn(world_map)
         exit_config = self._config.exit_assistance
@@ -301,8 +335,142 @@ class ResearchNoARunner:
             )
         )
         viewer = None
+        native_tm_collector = None
         ownership_transferred = False
         try:
+            persistence: ResearchNoAPersistence | None = None
+            persistence_config = self._config.persistence
+            if persistence_config is not None:
+                if logger is None:
+                    raise ResearchNoAPreflightError("research logger is missing")
+                source = ResearchNoAObservationSource(
+                    world,
+                    hero,
+                    monotonic_ns=self._monotonic_ns,
+                    utc_ns=self._utc_ns,
+                    diagnostics=diagnostics,
+                )
+                persistence = ResearchNoAPersistence(
+                    persistence_config,
+                    logger,
+                    source,
+                    study_run=(
+                        None
+                        if self._borrowed_log is None
+                        else self._borrowed_log.study_run
+                    ),
+                    diagnostics=diagnostics,
+                    exit_context=None if exit_config is None else exit_config.context,
+                )
+                if applied_weather is not None:
+                    persistence.record_phase2_event(
+                        "p8_weather_applied",
+                        json.dumps(
+                            {
+                                "preset": "ClearNoon",
+                                "scope": "P8_OPERATOR_STAGE_START",
+                                "observed": {
+                                    name: getattr(applied_weather, name, None)
+                                    for name in (
+                                        "cloudiness",
+                                        "precipitation",
+                                        "precipitation_deposits",
+                                        "wind_intensity",
+                                        "sun_azimuth_angle",
+                                        "sun_altitude_angle",
+                                        "fog_density",
+                                        "fog_distance",
+                                        "wetness",
+                                    )
+                                },
+                            }
+                        ),
+                        source.get_host_timestamp(),
+                    )
+                    persistence.flush_events()
+                if tm_attestation is not None:
+                    persistence.record_phase2_event(
+                        "tm_runtime_attestation",
+                        json.dumps(
+                            {
+                                "port": tm_attestation.port,
+                                "owner_pid": tm_attestation.owner_pid,
+                                "libcarla_path": str(tm_attestation.libcarla_path),
+                                "libcarla_sha256": tm_attestation.libcarla_sha256,
+                                "status": "VERIFIED_LOCAL_PROCESS",
+                                "external_client_exclusion": "OPERATING_PREREQUISITE",
+                                "physical_validation": "UNVERIFIED",
+                            }
+                        ),
+                        source.get_host_timestamp(),
+                    )
+                    persistence.flush_events()
+            if self._config.native_tm_diagnostics is not None:
+                if traffic_manager is None or tm_attestation is None:
+                    raise ResearchNoAPreflightError(
+                        "native TM diagnostics require an attested Traffic Manager"
+                    )
+                if persistence is None or session_clock is None:
+                    raise ResearchNoAPreflightError(
+                        "native TM diagnostics require persistence and a session clock"
+                    )
+                inventory_rejection = RehearsalInventoryPreflight(
+                    persistence, self._config.timeout, self._monotonic_clock
+                ).check(world, hero)
+                if inventory_rejection is not None:
+                    raise ResearchNoAPreflightError(inventory_rejection)
+                require_native_diagnostic_attestation(tm_attestation)
+                self._tm_runtime_attestor.verify_owned(tm_attestation)
+                context = NativeTrafficManagerDiagnosticsContext(
+                    participant_id=str(persistence.study_run.participant_id),
+                    run_id=str(persistence.study_run.study_run_id),
+                    originating_stage=persistence.config.stage_label,
+                    session_clock=session_clock,
+                    measurement_phase=lambda: persistence.segment.phase.value,
+                    host_monotonic_ns=self._monotonic_ns,
+                    host_utc_ns=self._utc_ns,
+                )
+                sidecar_path = native_tm_diagnostic_path(
+                    persistence.config.output_dir,
+                    persistence.config.stage_label,
+                    hero.id,
+                )
+                try:
+                    native_tm_collector = NativeTrafficManagerDiagnosticsCollector.open(
+                        traffic_manager,
+                        actor_id=hero.id,
+                        output_dir=persistence.config.output_dir,
+                        attestation=tm_attestation,
+                        config=self._config.native_tm_diagnostics,
+                        context=context,
+                        monotonic_clock=self._monotonic_clock,
+                    )
+                except (
+                    KeyboardInterrupt,
+                    OSError,
+                    RuntimeError,
+                    TypeError,
+                    ValueError,
+                ) as error:
+                    self.native_tm_diagnostics_status = (
+                        NativeTrafficManagerDiagnosticsStatus(
+                            str(sidecar_path),
+                            hero.id,
+                            persistence.config.stage_label,
+                            persistence.segment.phase.value,
+                            None,
+                            "FAILED_OBSERVER",
+                            False,
+                            0,
+                            0,
+                            0,
+                            0,
+                            f"{type(error).__name__}:{error}",
+                            tuple(getattr(error, "__notes__", ())),
+                        )
+                    )
+                    raise
+                self.native_tm_diagnostics_status = native_tm_collector.status
             route_reference = None
             if exit_config is not None:
                 if exit_route is None:
@@ -335,12 +503,12 @@ class ResearchNoARunner:
                 hero,
                 lambda: bundle.automation_runtime.state,
                 control_sender,
+                persistence,
             )
             viewer.attach()
             if self._config.camera_diagnostics:
                 viewer.capture_camera_diagnostics_environment(world)
             live_scheduler = None
-            persistence: ResearchNoAPersistence | None = None
             interaction_events: list[AutomationInteractionEvent] = []
             interaction: (
                 AutomationInteractionController
@@ -352,44 +520,6 @@ class ResearchNoARunner:
             lane_change_interaction: ResearchLaneChangeInteractionObserver | None = None
             exit_assistance = None
             exit_view_binding = None
-            persistence_config = self._config.persistence
-            if persistence_config is not None:
-                if logger is None:
-                    raise ResearchNoAPreflightError("research logger is missing")
-                source = ResearchNoAObservationSource(
-                    world,
-                    hero,
-                    monotonic_ns=self._monotonic_ns,
-                    utc_ns=self._utc_ns,
-                    diagnostics=diagnostics,
-                )
-                persistence = ResearchNoAPersistence(
-                    persistence_config,
-                    logger,
-                    source,
-                    study_run=(
-                        None
-                        if self._borrowed_log is None
-                        else self._borrowed_log.study_run
-                    ),
-                    diagnostics=diagnostics,
-                    exit_context=None if exit_config is None else exit_config.context,
-                )
-                if tm_attestation is not None:
-                    persistence.record_phase2_event(
-                        "tm_runtime_attestation",
-                        json.dumps({
-                            "port": tm_attestation.port,
-                            "owner_pid": tm_attestation.owner_pid,
-                            "libcarla_path": str(tm_attestation.libcarla_path),
-                            "libcarla_sha256": tm_attestation.libcarla_sha256,
-                            "status": "VERIFIED_LOCAL_PROCESS",
-                            "external_client_exclusion": "OPERATING_PREREQUISITE",
-                            "physical_validation": "UNVERIFIED",
-                        }),
-                        source.get_host_timestamp(),
-                    )
-                    persistence.flush_events()
             if self._config.mode is ResearchNoARunMode.LIVE_SMOKE:
                 custom_control_backend = bundle.custom_control_backend
                 if traffic_manager is None:
@@ -493,7 +623,13 @@ class ResearchNoARunner:
                     event_sink=record_event,
                 )
                 if persistence is not None:
-                    interaction = PersistedInteractionObserver(interaction, persistence)
+                    interaction = PersistedInteractionObserver(
+                        interaction,
+                        persistence,
+                        None
+                        if native_tm_collector is None
+                        else native_tm_collector.poll,
+                    )
                     if traffic_manager is not None:
                         traffic_manager_backend = bundle.traffic_manager_backend
                         if traffic_manager_backend is None:
@@ -601,16 +737,26 @@ class ResearchNoARunner:
                 p6=p6,
                 speed_policy=effective_speed_policy,
                 control_sender=control_sender,
+                native_tm_collector=native_tm_collector,
             )
             ownership_transferred = True
             return session
         finally:
             if not ownership_transferred:
-                try:
-                    if viewer is not None:
-                        viewer.close()
-                finally:
-                    destroy_owned_hero(hero)
+                inherited_error = sys.exception()
+                primary_error = inherited_error
+                if native_tm_collector is not None:
+                    primary_error = retain_first_error(
+                        native_tm_collector.close, primary_error
+                    )
+                    self.native_tm_diagnostics_status = native_tm_collector.status
+                if viewer is not None:
+                    primary_error = retain_first_error(viewer.close, primary_error)
+                primary_error = retain_first_error(
+                    lambda: destroy_owned_hero(hero), primary_error
+                )
+                if inherited_error is None and primary_error is not None:
+                    raise primary_error
 
     def _select_spawn(
         self,
@@ -640,6 +786,7 @@ class ResearchNoARunner:
         hero: ResearchNoAVehicle,
         automation_state_source: Callable[[], AutomationState],
         control_sender: ControlSender | None = None,
+        persistence: ResearchNoAPersistence | None = None,
     ) -> ResearchNoAViewer:
         interaction = self._config.automation_interaction
         manual_control_limits = (
@@ -663,6 +810,16 @@ class ResearchNoARunner:
             training_early_finish=self._config.operator_training,
             traffic_manager_port=self._config.traffic_manager_port,
             control_sender=control_sender,
+            tsxw_config=self._config.tsxw_config,
+            tsxw_event_sink=(
+                None
+                if persistence is None
+                else lambda event: persistence.record_phase2_event(
+                    event.event_type,
+                    event.payload_json,
+                    persistence.source.get_host_timestamp(),
+                )
+            ),
             noa_toggle_key=(
                 ord(interaction.noa_key) if interaction is not None else ord("n")
             ),

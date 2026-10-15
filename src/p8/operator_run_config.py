@@ -122,10 +122,13 @@ def prepare_operator_run(
             rear_mirror_enabled=runtime.rear_mirror_enabled,
             operator_training=request.stage is Stage.TRAINING,
             operator_nominal_module=request.nominal_request,
+            operator_clear_noon=True,
             activation_speed_hold=False,
             exit_assistance=exit_config,
             traffic_manager_port=runtime.traffic_manager_port,
             camera_diagnostics=True,
+            native_tm_diagnostics=runtime.native_tm_diagnostics,
+            tsxw_config=runtime.tsxw_config,
         ),
         exit_config,
     )

@@ -15,6 +15,7 @@ from src.experiment.automation_interaction import (
 from src.experiment.context import Module1Condition, Module2Condition
 from src.experiment.exit_assistance import ExitContext
 from src.p8.model import Mode, P8Error, Stage
+from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsStatus
 from src.p8.operator_controller import OperatorController
 from src.p8.operator_exit_result import ExitOpportunityClassification
 from src.p8.operator_metrics import reduce_module_run
@@ -74,6 +75,7 @@ class RunnerEvidence:
     observed_driver_inputs: list[DriverInput] = field(default_factory=list)
     user_exit: bool = False
     driver_input_action: Callable[[], None] | None = None
+    diagnostic_status: NativeTrafficManagerDiagnosticsStatus | None = None
 
 
 class EvidenceDriverView(FakeDriverView):
@@ -153,7 +155,7 @@ def runtime_config(
             evidence.observed_driver_inputs.append(value)
             return value
 
-        return ResearchNoARunner(
+        runner = ResearchNoARunner(
             config,
             client=FakeClient(world),
             viewer_factory=viewer_factory,
@@ -169,6 +171,8 @@ def runtime_config(
             borrowed_log=borrowed_log,
             tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
         )
+        runner.native_tm_diagnostics_status = evidence.diagnostic_status
+        return runner
 
     runtime = OperatorRuntimeConfig(
         spawn_index=0,
@@ -1027,6 +1031,42 @@ def test_duplicate_run_id_does_not_claim_a_second_participant(tmp_path: Path) ->
         )
 
     assert not (tmp_path / "_registration_claims" / "R-0043.json").exists()
+
+
+def test_native_tm_status_is_emitted_after_real_runner_cleanup(tmp_path: Path) -> None:
+    controller, evidence = register_dev(tmp_path, StrictClock())
+    evidence.diagnostic_status = NativeTrafficManagerDiagnosticsStatus(
+        "native_tm_diagnostics.TRAINING.ego-42.jsonl",
+        42,
+        "TRAINING",
+        "TRAINING",
+        9,
+        "COMPLETE",
+        True,
+        3,
+        0,
+        0,
+        0,
+        None,
+    )
+    advance_to(controller, Stage.TRAINING)
+
+    controller.execute_training(TrainingRun.MANUAL_NOA, 1.0)
+
+    assert evidence.viewers[-1].close_count == 1
+    with controller.session.services.logger.event_path.open(
+        newline="", encoding="utf-8"
+    ) as source:
+        status_rows = [
+            row
+            for row in csv.DictReader(source)
+            if row["event_type"] == "p8_native_tm_diagnostics_status"
+        ]
+    assert len(status_rows) == 1
+    payload = json.loads(status_rows[0]["event_value"])
+    assert payload["sidecar_path"].endswith("ego-42.jsonl")
+    assert payload["coverage_status"] == "COMPLETE"
+    assert payload["trace_session"] == 9
 
 
 def test_actual_runner_error_aborts_and_cleans_owned_resources(tmp_path: Path) -> None:

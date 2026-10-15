@@ -19,6 +19,7 @@ from src.experiment.exit_assistance import (
 from src.experiment.noa_runtime import CarlaNoARuntimeWaypoint, NoARuntimeBundle
 from src.experiment.timestamp import TimestampEnvelope
 from src.p6.runtime import P6Runtime
+from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsCollector
 from src.scenario.driver_view import RuntimeFrameContinuation
 from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
 from src.scenario.research_exit_runtime import (
@@ -105,6 +106,7 @@ class ResearchNoASession:
         p6: P6Runtime | None = None,
         speed_policy: EffectiveResearchSpeedPolicy | None,
         control_sender: ControlSender | None = None,
+        native_tm_collector: NativeTrafficManagerDiagnosticsCollector | None = None,
     ) -> None:
         self.world = world
         self.hero = hero
@@ -126,6 +128,7 @@ class ResearchNoASession:
         self.p6 = p6
         self.speed_policy = speed_policy
         self.control_sender = control_sender
+        self.native_tm_collector = native_tm_collector
         self._closed = False
         self._live_shutdown_completed = False
         self._live_shutdown_timestamp: TimestampEnvelope | None = None
@@ -380,7 +383,13 @@ class ResearchNoASession:
             shutdown_timestamps: list[TimestampEnvelope | None] = []
             try:
                 shutdown_timestamps.append(self._shutdown_live())
-            except (OSError, RuntimeError, TypeError, ValueError) as cleanup_error:
+            except (
+                KeyboardInterrupt,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as cleanup_error:
                 if primary_error is None:
                     primary_error = cleanup_error
                 else:
@@ -709,49 +718,26 @@ class ResearchNoASession:
         if self._closed:
             return
         inherited_primary = sys.exception()
-        repeated_shutdown_phase_failure = False
-        try:
-            try:
-                if self._live_shutdown_completed:
-                    pass
-                elif (
-                    inherited_primary is not None
-                    and self.bundle.traffic_manager_backend is not None
-                ):
-                    try:
-                        self.request_control_mode(DrivingControlMode.MANUAL)
-                    except (
-                        OSError,
-                        RuntimeError,
-                        TypeError,
-                        ValueError,
-                    ) as cleanup_error:
-                        inherited_primary.add_note(
-                            "Traffic Manager final deregistration failure: "
-                            f"{type(cleanup_error).__name__}:{cleanup_error}"
-                        )
-                else:
-                    self.request_control_mode(DrivingControlMode.MANUAL)
-            except (OSError, RuntimeError, TypeError, ValueError) as error:
-                phase_exception = self.shutdown_brake_outcome.shutdown_phase_exception
-                repeated_shutdown_phase_failure = isinstance(
-                    inherited_primary,
-                    ResearchNoAActualSpeedSafetyError,
-                ) and phase_exception == ShutdownExceptionDetails.from_exception(error)
-                if not repeated_shutdown_phase_failure:
-                    raise
-        finally:
-            primary_error = (
-                inherited_primary
-                if repeated_shutdown_phase_failure
-                else sys.exception()
+        primary_error = inherited_primary
+        if not self._live_shutdown_completed:
+            primary_error = retain_first_error(
+                lambda: self.request_control_mode(DrivingControlMode.MANUAL),
+                primary_error,
             )
-            try:
-                if self.p6 is not None:
-                    preserve_primary_error(self.p6.close, primary_error)
-            finally:
-                try:
-                    self.viewer.close()
-                finally:
-                    destroy_owned_hero(self.hero)
-                    self._closed = True
+        if self.native_tm_collector is not None:
+            if isinstance(primary_error, KeyboardInterrupt):
+                self.native_tm_collector.mark_interrupted(primary_error)
+            primary_error = retain_first_error(
+                self.native_tm_collector.close,
+                primary_error,
+            )
+        if self.p6 is not None:
+            primary_error = retain_first_error(self.p6.close, primary_error)
+        primary_error = retain_first_error(self.viewer.close, primary_error)
+        primary_error = retain_first_error(
+            lambda: destroy_owned_hero(self.hero),
+            primary_error,
+        )
+        self._closed = True
+        if inherited_primary is None and primary_error is not None:
+            raise primary_error

@@ -17,6 +17,8 @@ from src.experiment.context import (
 from src.experiment.exit_assistance import ExitContext
 from src.experiment.noa_runtime import NoAControlConfig
 from src.p6.config import P6Config
+from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsConfig
+from src.p8.tsxw_policy import TsxwConfig
 from src.scenario.research_exit_config import ResearchExitAssistanceConfig
 from src.scenario.research_noa_persistence_config import ResearchPersistenceConfig
 from src.scenario.research_noa_speed_policy import (
@@ -107,8 +109,11 @@ class ResearchNoARunConfig:
     speed_policy: ResearchSpeedPolicy | None = None
     operator_training: bool = False
     operator_nominal_module: bool = False
+    operator_clear_noon: bool = False
     activation_speed_hold: bool = False
     traffic_manager_port: int | None = None
+    native_tm_diagnostics: NativeTrafficManagerDiagnosticsConfig | None = None
+    tsxw_config: TsxwConfig | None = None
 
     def __post_init__(self) -> None:
         if not isfinite(self.duration) or self.duration <= 0.0:
@@ -184,6 +189,15 @@ class ResearchNoARunConfig:
                 raise ResearchNoAConfigError(
                     "target_speed_kmh", "must be unset for Traffic Manager control"
                 )
+        if self.native_tm_diagnostics is not None and (
+            self.mode is not ResearchNoARunMode.LIVE_SMOKE
+            or self.traffic_manager_port is None
+            or self.persistence is None
+        ):
+            raise ResearchNoAConfigError(
+                "native_tm_diagnostics",
+                "requires persisted live Traffic Manager operation",
+            )
         if self.exit_assistance is not None:
             if self.automation_interaction is None or self.persistence is None:
                 raise ResearchNoAConfigError(

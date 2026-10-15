@@ -14,6 +14,7 @@ from src.scenario.driver_view import (
     RuntimeDriverInputObserver,
     RuntimeIterationScheduler,
 )
+from src.scenario.traffic_manager_lane_change import LaneChangeActorList
 from src.vehicle.carla_noa_control import CarlaVelocity
 
 __all__ = ["ResearchPostControlObserver"]
@@ -124,6 +125,12 @@ class ResearchNoAWorldTimestamp(Protocol):
 
 
 class ResearchNoAWorld(Protocol):
+    def get_actors(self) -> LaneChangeActorList: ...
+
+    def set_weather(self, weather: carla.WeatherParameters) -> None: ...
+
+    def get_weather(self) -> carla.WeatherParameters: ...
+
     def get_settings(self) -> ResearchNoAWorldSettings: ...
 
     def get_snapshot(self) -> ResearchNoAWorldSnapshot: ...

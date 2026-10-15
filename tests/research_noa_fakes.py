@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Protocol
 
 import carla
@@ -13,7 +12,11 @@ from src.experiment.automation_scheduler import AutomationRuntimeStateSource
 from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
-from src.p8.tm_runtime_attestation import RuntimeAttestation
+from src.p8.tm_runtime_attestation import (
+    DIAGNOSTIC_LIBCARLA_PATH,
+    DIAGNOSTIC_LIBCARLA_SHA256,
+    RuntimeAttestation,
+)
 from src.scenario.driver_view import RuntimeDriverInputObserver
 from src.scenario.research_exit_runtime import ResearchExitViewBinding
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
@@ -227,6 +230,13 @@ class FakeResearchWorld:
         self.frame = 0
         self.simulation_seconds = 0.0
         self.synchronous_mode = synchronous_mode
+        self.weather = carla.WeatherParameters()
+
+    def set_weather(self, weather: carla.WeatherParameters) -> None:
+        self.weather = weather
+
+    def get_weather(self) -> carla.WeatherParameters:
+        return self.weather
 
     def get_settings(self) -> FakeWorldSettings:
         return FakeWorldSettings(self.synchronous_mode)
@@ -332,8 +342,8 @@ class FakeTrafficManagerRuntimeAttestor:
         self.attestation = RuntimeAttestation(
             8000,
             1,
-            Path("fake-libcarla.pyd"),
-            "FAKE",
+            DIAGNOSTIC_LIBCARLA_PATH,
+            DIAGNOSTIC_LIBCARLA_SHA256,
         )
         self.calls: list[tuple[str, int | object]] = []
 

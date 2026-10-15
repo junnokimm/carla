@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
+from pathlib import Path
 
 import carla
 import pytest
 
+from src.experiment.assignment import ParticipantAssignment
 from src.experiment.automation import DrivingControlMode
 from src.experiment.automation_interaction import AutomationInteractionController
 from src.experiment.automation_interaction_types import (
@@ -18,6 +21,12 @@ from src.experiment.context import (
     ExperimentModule,
     Module1Condition,
     Module2Condition,
+    ParticipantId,
+    StudyRunId,
+)
+from src.p8.native_tm_diagnostics import (
+    JsonValue,
+    NativeTrafficManagerDiagnosticsConfig,
 )
 from src.p8.tm_runtime_attestation import RuntimeAttestation
 from src.scenario.research_noa_config import (
@@ -25,6 +34,7 @@ from src.scenario.research_noa_config import (
     ResearchNoARunConfig,
     ResearchNoARunMode,
 )
+from src.scenario.research_noa_persistence_config import ResearchPersistenceConfig
 from src.scenario.research_noa_runtime import ResearchNoARunner
 from src.scenario.research_noa_traffic_manager import (
     LaneChangeSubmissionStatus,
@@ -416,6 +426,134 @@ def test_successful_tm_run_does_not_repeat_shutdown_during_close() -> None:
         (True, 8000),
         (False, 8000),
     ]
+
+
+def test_native_diagnostics_follow_runner_poll_and_shutdown_order(
+    tmp_path: Path,
+) -> None:
+    class OrderedVehicle(FakeResearchVehicle):
+        def destroy(self) -> bool:
+            self.events.append("destroy")
+            return super().destroy()
+
+    class DiagnosticTrafficManager(FakeTrafficManager):
+        def __init__(self, vehicle: OrderedVehicle) -> None:
+            super().__init__()
+            self.vehicle = vehicle
+            self.enabled = False
+            self.records = [
+                {
+                    "actor_id": vehicle.id,
+                    "event": "force_accepted",
+                    "reason": "accepted",
+                    "trace_session": 1,
+                    "event_sequence": 1,
+                    "native_steady_ns": 1,
+                }
+            ]
+
+        def enable_diagnostic_trace(self, actor_id: int, capacity: int) -> None:
+            self.enabled = True
+            self.vehicle.events.append(f"diagnostic:enable:{actor_id}:{capacity}")
+
+        def read_diagnostic_trace(self) -> dict[str, JsonValue]:
+            self.vehicle.events.append(f"diagnostic:read:{self.enabled}")
+            if (
+                self.enabled
+                and "autopilot:False" in self.vehicle.events
+                and len(self.records) == 1
+            ):
+                self.records.append(
+                    {
+                        "actor_id": self.vehicle.id,
+                        "event": "force_cancelled",
+                        "reason": "manual_deregistration",
+                        "trace_session": 1,
+                        "event_sequence": 2,
+                        "native_steady_ns": 2,
+                    }
+                )
+            return {
+                "selected_actor": self.vehicle.id,
+                "enabled": self.enabled,
+                "capacity": 8,
+                "trace_session": 1,
+                "overwritten": 0,
+                "contention_dropped": 0,
+                "internal_dropped": 0,
+                "records": self.records,
+            }
+
+        def disable_diagnostic_trace(self) -> None:
+            self.enabled = False
+            self.vehicle.events.append("diagnostic:disable")
+
+    vehicle = OrderedVehicle()
+    clock = FakeMonotonicClock()
+    world = FakeResearchWorld(vehicle, monotonic_clock=clock)
+    manager = DiagnosticTrafficManager(vehicle)
+    viewer_factory = FakeDriverViewFactory()
+    assignment = ParticipantAssignment(
+        ParticipantId("R-DIAG"),
+        Module1Condition.NO_SURT,
+        Module2Condition.NOA_L2,
+        "route",
+        "scenario",
+        "aoi",
+        "program",
+    )
+    persistence = ResearchPersistenceConfig(
+        assignment,
+        StudyRunId("run-diag"),
+        tmp_path,
+        ExperimentModule.MODULE_2,
+        "MODULE_2_RUNNING",
+    )
+    runner = ResearchNoARunner(
+        ResearchNoARunConfig(
+            duration=1.0,
+            control_config=replace(
+                make_live_control_config(),
+                longitudinal=replace(
+                    make_live_control_config().longitudinal,
+                    target_speed_kmh=None,
+                ),
+            ),
+            mode=ResearchNoARunMode.LIVE_SMOKE,
+            spawn_index=0,
+            run_id="run-diag",
+            automation_interaction=ResearchAutomationInteractionConfig(
+                ExperimentModule.MODULE_2,
+                Module2Condition.NOA_L2,
+                AutomationInteractionConfig(0.2, 0.1, 0.05, True, True),
+            ),
+            persistence=persistence,
+            traffic_manager_port=8000,
+            native_tm_diagnostics=NativeTrafficManagerDiagnosticsConfig(8, 0.5),
+        ),
+        client=FakeClient(world, manager),
+        viewer_factory=viewer_factory,
+        monotonic_clock=clock,
+        tm_runtime_attestor=FakeTrafficManagerRuntimeAttestor(),
+    )
+
+    with runner.session() as session:
+        viewer_factory.created[0].actions = [lambda: clock.advance(0.5)]
+        session.run()
+
+    artifact = tmp_path / "native_tm_diagnostics.MODULE_2_RUNNING.ego-42.jsonl"
+    rows = [json.loads(line) for line in artifact.read_text().splitlines()]
+    records = [row for row in rows if row["kind"] == "native_record"]
+    assert [row["native_payload"]["event_sequence"] for row in records] == [1, 2]
+    assert records[-1]["native_payload"]["event"] == "force_cancelled"
+    assert runner.native_tm_diagnostics_status is not None
+    assert session.native_tm_collector is not None
+    assert session.native_tm_collector.status.coverage_status == "COMPLETE"
+    assert vehicle.events.index("diagnostic:enable:42:8") < vehicle.events.index(
+        "autopilot:False"
+    )
+    assert vehicle.events.index("diagnostic:disable") < vehicle.events.index("destroy")
+    assert rows[-1]["kind"] == "final_summary"
 
 
 def test_failed_tm_shutdown_is_retried_during_close() -> None:

@@ -8,12 +8,55 @@ import pytest
 
 from src.p8.tm_runtime_attestation import (
     APPROVED_LIBCARLA_SHA256,
+    DIAGNOSTIC_LIBCARLA_PATH,
+    DIAGNOSTIC_LIBCARLA_SHA256,
     ListenerOwnershipError,
     LoadedLibcarlaMismatchError,
+    LoadedLibcarlaPathMismatchError,
+    NativeDiagnosticAttestationError,
     RuntimeAttestation,
+    TrafficManagerBinaryProfile,
     TrafficManagerRuntimeAttestor,
+    require_native_diagnostic_attestation,
     windows_listener_pids,
 )
+
+
+def test_diagnostic_profile_requires_exact_candidate_j_path_and_hash() -> None:
+    attestor = TrafficManagerRuntimeAttestor.for_profile(
+        TrafficManagerBinaryProfile.NATIVE_DIAGNOSTIC_DEV,
+        hash_file=lambda path: DIAGNOSTIC_LIBCARLA_SHA256,
+        library_path=lambda: DIAGNOSTIC_LIBCARLA_PATH,
+        listener_pids=lambda port: frozenset(),
+        process_id=lambda: 41,
+    )
+
+    prepared = attestor.verify_before_creation(8123)
+
+    assert prepared.libcarla_path == DIAGNOSTIC_LIBCARLA_PATH
+    assert prepared.libcarla_sha256 == DIAGNOSTIC_LIBCARLA_SHA256
+
+
+def test_diagnostic_profile_rejects_same_hash_from_another_path(tmp_path: Path) -> None:
+    attestor = TrafficManagerRuntimeAttestor.for_profile(
+        TrafficManagerBinaryProfile.NATIVE_DIAGNOSTIC_DEV,
+        hash_file=lambda path: DIAGNOSTIC_LIBCARLA_SHA256,
+        library_path=lambda: tmp_path / DIAGNOSTIC_LIBCARLA_PATH.name,
+        listener_pids=lambda port: frozenset(),
+        process_id=lambda: 41,
+    )
+
+    with pytest.raises(LoadedLibcarlaPathMismatchError):
+        attestor.verify_before_creation(8123)
+
+
+def test_diagnostic_enablement_rejects_default_profile_attestation(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(NativeDiagnosticAttestationError):
+        require_native_diagnostic_attestation(
+            RuntimeAttestation(8123, 41, tmp_path / "libcarla.pyd", "DEFAULT")
+        )
 
 
 def test_attestor_rejects_loaded_libcarla_hash_mismatch(tmp_path: Path) -> None:
@@ -85,9 +128,7 @@ def test_attestor_fails_closed_when_listener_ownership_is_lost(
         listener_pids=lambda port: next(listeners),
         process_id=lambda: 41,
     )
-    attestation = attestor.attest_after_creation(
-        attestor.verify_before_creation(8123)
-    )
+    attestation = attestor.attest_after_creation(attestor.verify_before_creation(8123))
 
     with pytest.raises(ListenerOwnershipError, match="ownership lost"):
         attestor.verify_owned(attestation)
@@ -112,4 +153,6 @@ def test_real_windows_listener_pid_without_carla(family: int, address: str) -> N
     with socket.socket(family, socket.SOCK_STREAM) as listener:
         listener.bind((address, 0))
         listener.listen(1)
-        assert windows_listener_pids(listener.getsockname()[1]) == frozenset({os.getpid()})
+        assert windows_listener_pids(listener.getsockname()[1]) == frozenset(
+            {os.getpid()}
+        )

@@ -868,11 +868,13 @@ class PersistedInteractionObserver:
         self,
         controller: PersistedController,
         persistence: DeferredPersistence,
+        after_control_callback: Callable[[VehicleObservation], None] | None = None,
     ) -> None:
         self._controller = controller
         self._persistence = persistence
         self._pending_driver_input: DriverInput | None = None
         self.last_observation: VehicleObservation | None = None
+        self._after_control_callback = after_control_callback
 
     @property
     def state(self) -> AutomationState:
@@ -926,6 +928,8 @@ class PersistedInteractionObserver:
                 if primary_error is None:
                     raise
         self.last_observation = self._persistence.capture()
+        if self._after_control_callback is not None:
+            self._after_control_callback(self.last_observation)
 
 
 def build_study_run(config: ResearchPersistenceConfig) -> StudyRunContext:

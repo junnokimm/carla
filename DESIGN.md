@@ -60,6 +60,12 @@ The tablet stimulus field fills `100dvh` and uses normalized backend coordinates
 
 ## 6. Motion & Interaction
 
+### Driver-view presentation states
+
+- Compose the complete camera, mirrors, HUD, and exit-navigation frame in the configured logical window coordinate system before display presentation.
+- Windowed and F11 native-desktop fullscreen states aspect-fit that complete frame as one unit. Preserve its aspect ratio and use black letterboxing; never stretch, crop, or independently reposition overlays.
+- F11 responds once per physical key press, ignores keyboard repeat, and restores the actual prior window size on the same display. It does not alter camera sensors, camera settings, driving input routing, or loop continuity.
+
 ### Development AOI validation preparation overlay
 
 - Reuse HUD foreground, secondary and shadow colors; Malgun Gothic for Korean instructions.

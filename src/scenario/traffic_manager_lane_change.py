@@ -23,6 +23,28 @@ class LaneChangeWorld(Protocol):
     def get_actors(self) -> LaneChangeActorList: ...
 
 
+def empty_rehearsal_inventory_rejection(
+    world: LaneChangeWorld | None,
+    actor: LaneChangeActor,
+) -> str | None:
+    if world is None:
+        return "EMPTY_REHEARSAL_INVENTORY_UNAVAILABLE"
+    try:
+        actors = world.get_actors()
+        vehicles = list(actors.filter("vehicle.*"))
+        prohibited = [
+            candidate
+            for pattern in ("vehicle.*", "walker.*", "static.prop.*")
+            for candidate in actors.filter(pattern)
+            if candidate.id != actor.id
+        ]
+    except (AttributeError, RuntimeError):
+        return "EMPTY_REHEARSAL_INVENTORY_FAILED"
+    if len(vehicles) != 1 or vehicles[0].id != actor.id or prohibited:
+        return "EMPTY_REHEARSAL_INVENTORY_REJECTED"
+    return None
+
+
 class LaneChangeTrafficManager(Protocol):
     def force_lane_change(self, actor: LaneChangeActor, direction: bool) -> None: ...
 
@@ -173,22 +195,7 @@ class TrafficManagerLaneChangeExecutor:
         return submission
 
     def _inventory_rejection(self) -> str | None:
-        if self._world is None:
-            return "EMPTY_REHEARSAL_INVENTORY_UNAVAILABLE"
-        try:
-            actors = self._world.get_actors()
-            vehicles = list(actors.filter("vehicle.*"))
-            prohibited = [
-                actor
-                for pattern in ("vehicle.*", "walker.*", "static.prop.*")
-                for actor in actors.filter(pattern)
-                if actor.id != self._actor.id
-            ]
-        except (AttributeError, RuntimeError):
-            return "EMPTY_REHEARSAL_INVENTORY_FAILED"
-        if len(vehicles) != 1 or vehicles[0].id != self._actor.id or prohibited:
-            return "EMPTY_REHEARSAL_INVENTORY_REJECTED"
-        return None
+        return empty_rehearsal_inventory_rejection(self._world, self._actor)
 
     @staticmethod
     def _result(
