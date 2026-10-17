@@ -4,6 +4,7 @@ import csv
 import json
 import os
 from pathlib import Path
+from zipfile import ZipFile
 
 import pygame
 
@@ -102,6 +103,16 @@ def test_real_pygame_event_driver_completes_truthful_dev_flow(tmp_path: Path) ->
     assert len(runner.viewers) == 3
     assert controller.snapshot().stage is Stage.SESSION_COMPLETE
     assert controller.session.cleanup_report["completed"] is True
+    exported = controller.snapshot().result_export
+    assert exported.error is None
+    assert exported.archive.is_file()
+    with ZipFile(exported.archive) as archive:
+        archived_manifest = archive.read(
+            f"{exported.directory.name}/session_manifest.json"
+        )
+    assert (
+        archived_manifest == (exported.directory / "session_manifest.json").read_bytes()
+    )
     records = {record["stage"]: record for record in controller.session.records}
     rest = records[Stage.REST.value]
     assert rest["minimum_s"] == 0

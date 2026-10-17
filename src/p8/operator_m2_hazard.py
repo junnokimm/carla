@@ -1,13 +1,20 @@
 """M2-internal v1 opportunity. Scene status never terminates a normal drive."""
 
+import json
 from dataclasses import asdict
 from random import Random
+from uuid import uuid4
 
+from src.error_notes import append_error_note
 from src.p7.metrics import canonical_hazard_record
 from src.p7.moving_backend import MovingHazardBackend
 from src.p7.moving_config import SCENARIO_VERSION, TARGET_TTC_S, WINDOW
 from src.p7.types import P7Error
 from src.scenario.research_noa_lifecycle import retain_first_error
+
+# Leave room for the scene/services envelope below the default 128 KiB CSV field
+# limit. This is a storage chunk bound, not a sampling or research threshold.
+_RAW_BATCH_JSON_CHAR_LIMIT = 64 * 1024
 
 
 class OperatorM2Hazard:
@@ -28,6 +35,10 @@ class OperatorM2Hazard:
         self.last_reason = None
         self.last_frame = None
         self.raw = []
+        self._raw_pending_batch = None
+        self._raw_confirmed_batches = 0
+        self._raw_confirmed_samples = 0
+        self._raw_write_errors = []
         self.last_flush = 0.0
         self.last_geometry = None
         self.display_frames_checked = 0
@@ -323,18 +334,91 @@ class OperatorM2Hazard:
             )
             raise P7Error("M2_V1_INVALID_DISPLAY_EXPOSURE")
 
+    def _next_raw_batch(self):
+        payload = {
+            "input_time_basis": "EXISTING_POLL_HOST_MONOTONIC_BOUNDS",
+            "batch_id": (
+                f"{self.services.context.study_run_id}:m2:"
+                f"{self.origin_stamp.host.monotonic_ns}:{self._raw_confirmed_batches}"
+            ),
+            "sample_start_index": self._raw_confirmed_samples,
+            # This upper bound reserves enough digits for the actual chunk size.
+            "sample_count": len(self.raw),
+            "write_attempt_id": "0" * 32,
+            "retry_after_write_error": False,
+            "samples": [],
+            "geometry_latest": self.last_geometry,
+        }
+        # Match SessionServices.emit's JSON encoding. Size at flush time so the
+        # per-frame input/control path gains no extra serialization.
+        batch_chars = len(json.dumps(payload, allow_nan=False))
+        for sample in self.raw:
+            sample_chars = len(json.dumps(sample, allow_nan=False))
+            added_chars = sample_chars + (2 if payload["samples"] else 0)
+            if batch_chars + added_chars > _RAW_BATCH_JSON_CHAR_LIMIT:
+                if not payload["samples"]:
+                    raise P7Error("M2_V1_RAW_SAMPLE_EXCEEDS_CSV_CHUNK_LIMIT")
+                break
+            batch_chars += added_chars
+            payload["samples"].append(sample)
+        payload["sample_count"] = len(payload["samples"])
+        return payload
+
     def _flush_raw(self):
-        if self.raw:
-            self.emit(
-                "raw_samples",
-                {
-                    "input_time_basis": "EXISTING_POLL_HOST_MONOTONIC_BOUNDS",
-                    "samples": self.raw,
-                    "geometry_latest": self.last_geometry,
-                },
+        while self.raw:
+            if self._raw_pending_batch is None:
+                self._raw_pending_batch = self._next_raw_batch()
+            # Keep the same samples, geometry and batch ID after an unconfirmed
+            # write. Fixed-width attempt IDs cannot enlarge a retried chunk.
+            payload = {**self._raw_pending_batch, "write_attempt_id": uuid4().hex}
+            if len(json.dumps(payload, allow_nan=False)) > _RAW_BATCH_JSON_CHAR_LIMIT:
+                raise P7Error("M2_V1_RAW_SAMPLE_EXCEEDS_CSV_CHUNK_LIMIT")
+            write_error = retain_first_error(
+                lambda batch=payload: self.emit("raw_samples", batch), None
             )
-            self.raw = []
+            if write_error is not None:
+                self._raw_pending_batch["retry_after_write_error"] = True
+                self._raw_write_errors.append(
+                    {
+                        key: payload[key]
+                        for key in (
+                            "batch_id",
+                            "write_attempt_id",
+                            "sample_start_index",
+                            "sample_count",
+                        )
+                    }
+                    | {
+                        "outcome": "WRITE_UNCONFIRMED",
+                        "error": f"{type(write_error).__name__}:{write_error}",
+                    }
+                )
+                raise write_error
+            # writerow may have succeeded before a failed flush. Only remove a
+            # chunk after acknowledgement; repeated batch IDs identify retries.
+            del self.raw[: payload["sample_count"]]
+            self._raw_confirmed_samples += payload["sample_count"]
+            self._raw_confirmed_batches += 1
+            self._raw_pending_batch = None
         self.last_flush = self.elapsed
+
+    def _raw_storage_record(self):
+        return {
+            "status": "WRITE_UNCONFIRMED"
+            if self.raw
+            else "ACKNOWLEDGED_AFTER_RETRY"
+            if self._raw_write_errors
+            else "ACKNOWLEDGED",
+            "acknowledged_batch_count": self._raw_confirmed_batches,
+            "acknowledged_sample_count": self._raw_confirmed_samples,
+            "pending_sample_count": len(self.raw),
+            "pending_batch_id": None
+            if self._raw_pending_batch is None
+            else self._raw_pending_batch["batch_id"],
+            "possible_duplicate_batches": bool(self._raw_write_errors),
+            "duplicate_detection_key": "batch_id",
+            "write_errors": list(self._raw_write_errors),
+        }
 
     def finalize(self, reason, error=None):
         if self.closed:
@@ -349,6 +433,33 @@ class OperatorM2Hazard:
         late_collision = bool(cleanup.get("pending_collisions"))
         if late_collision:
             self.state, self.last_reason = "ABORTED", "COLLISION_AT_SHUTDOWN"
+        primary_error = error
+        finalization_errors = []
+
+        def retain_failure(step, failure):
+            nonlocal primary_error
+            finalization_errors.append(
+                {"step": step, "error": f"{type(failure).__name__}:{failure}"}
+            )
+            if primary_error is None:
+                primary_error = failure
+            else:
+                append_error_note(
+                    primary_error,
+                    f"Secondary M2 finalization failure ({step}): "
+                    f"{type(failure).__name__}:{failure}",
+                )
+
+        def attempt(step, action):
+            failure = retain_first_error(action, None)
+            if failure is not None:
+                retain_failure(step, failure)
+
+        if cleanup_failed:
+            retain_failure("cleanup", P7Error(f"M2_V1_CLEANUP_INCOMPLETE:{cleanup}"))
+        # Final raw storage must be attempted before declaring a normal scene
+        # end. Cleanup has already run, so a storage error cannot strand actors.
+        attempt("raw_flush", self._flush_raw)
         record = {
             **canonical_hazard_record(None),
             "scenario_version": SCENARIO_VERSION,
@@ -356,7 +467,7 @@ class OperatorM2Hazard:
             "auto_state_at_m2_scene_close": self.session.bundle.automation_runtime.state.control_mode.value,
             "execution_scope": "DEV_M2_INTERNAL",
             "execution_status": "FAILED"
-            if error or late_collision or cleanup_failed
+            if primary_error is not None or late_collision
             else "DEVELOPMENT_RUN_ENDED",
             "seed": self.config.seed,
             "distribution": "UNIFORM_CLOSED_400_600",
@@ -367,7 +478,9 @@ class OperatorM2Hazard:
             "hazard_state": self.state,
             "end_reason": reason,
             "scene_reason": self.last_reason,
-            "error": None if error is None else f"{type(error).__name__}:{error}",
+            "error": None
+            if primary_error is None
+            else f"{type(primary_error).__name__}:{primary_error}",
             "occurrence_reserved": self.claimed,
             "first_geometry": self.first_geometry,
             "display_candidate": self.first_display,
@@ -387,14 +500,22 @@ class OperatorM2Hazard:
                 else "NOT_OCCURRED"
             ),
             "cleanup": cleanup,
+            "raw_storage": self._raw_storage_record(),
+            "finalization_errors": finalization_errors,
             "partial_data": reason != "M2_END"
-            or error is not None
-            or late_collision
-            or cleanup_failed,
+            or primary_error is not None
+            or late_collision,
         }
-        self.sink(record)
-        self._flush_raw()
-        self.emit("end", record)
-        self.session.persistence.flush_events()
-        if cleanup_failed:
-            raise P7Error(f"M2_V1_CLEANUP_INCOMPLETE:{cleanup}")
+        attempt("end_event", lambda: self.emit("end", record))
+        attempt("event_flush", self.session.persistence.flush_events)
+        if primary_error is not None:
+            record.update(
+                execution_status="FAILED",
+                partial_data=True,
+                error=f"{type(primary_error).__name__}:{primary_error}",
+            )
+        # Keep the in-memory record usable for the manifest even if CSV storage
+        # failed; the end-event write itself may also be unconfirmed.
+        attempt("record_sink", lambda: self.sink(record))
+        if error is None and primary_error is not None:
+            raise primary_error

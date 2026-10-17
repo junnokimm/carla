@@ -42,6 +42,11 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
             "--ack-dev-live",
             "--spawn-index",
             "344",
+            "--tsxw",
+            "--tsxw-index",
+            "0",
+            "--tsxw-steering-deadzone",
+            "0.02",
             "--m2-hazard-v1",
             "--m2-hazard-seed",
             "42",
@@ -50,7 +55,7 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
     base = _runtime_config(args)
     assert base.m2_hazard_v1.seed == 42
     host = StrictClock()
-    worlds, views, scenes, attestations = [], [], [], []
+    worlds, views, scenes, attestations, preparations = [], [], [], [], []
 
     def build(config, borrowed):
         clock = FakeMonotonicClock()
@@ -62,6 +67,15 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
             def __init__(self, view_config):
                 super().__init__(view_config)
                 self.feeds = [front_feed(world.vehicle)]
+
+            def prepare_input(self):
+                assert self.config.automation_state_source().control_mode.value == "MANUAL"
+                assert not any(
+                    enabled for enabled, _ in world.vehicle.autopilot_port_calls
+                )
+                preparations.append(config.automation_interaction.initial_stage)
+                clock.advance(17.0)
+                host.advance(17.0)
 
             def run(
                 self,
@@ -196,6 +210,11 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
             controller.execute_current_module()
         assert controller.session.closed
     assert len(scenes) == 1 and scenes[0].closed
+    assert preparations == [
+        Stage.TRAINING.value,
+        Stage.MODULE_1_RUNNING.value,
+        Stage.MODULE_2_RUNNING.value,
+    ]
     record = controller._operator_components().hazard_observation
     assert record["provenance"]["client"] == "INJECTED_TEST_CLIENT"
     assert record["cleanup"] == {"failures": [], "remaining_actor_ids": []}

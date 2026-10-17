@@ -185,6 +185,7 @@ class OperatorController:
         session = self.session
         components = self._operator_components()
         post = components.post
+        hazard = components.hazard_observation
         return OperatorSnapshot(
             stage=session.state,
             participant_id=str(session.services.context.participant_id),
@@ -199,6 +200,13 @@ class OperatorController:
             module_runs=tuple(components.runs),
             analysis_eligible=bool(post["analysis_eligible"]),
             deletion_status=str(post["deletion_status"]),
+            result_export=session.result_export,
+            hazard_status=(
+                None
+                if hazard is None
+                else f"{hazard.get('execution_status', 'NOT_RECORDED')} / "
+                f"{hazard.get('hazard_state', 'NOT_RECORDED')}"
+            ),
         )
 
     def _operator_components(self) -> OperatorComponents:

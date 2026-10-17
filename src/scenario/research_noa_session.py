@@ -263,6 +263,8 @@ class ResearchNoASession:
         final_speed_kmh: float | None = None
         active_scene = None
         try:
+            if self.config.tsxw_config is not None:
+                self.viewer.prepare_input()
             if self.interaction is None:
                 self.request_control_mode(DrivingControlMode.NOA_ACTIVE)
             else:

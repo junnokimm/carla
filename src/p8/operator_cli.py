@@ -239,6 +239,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(json.dumps({"status": "FAILED_CLOSED", "reason": str(error)}))
         return 2
+    finally:
+        _print_result_paths(controller)
+
+
+def _print_result_paths(controller: OperatorController) -> None:
+    try:
+        session = controller.session
+        result = session.result_export
+    except P8Error:
+        return
+    if result is not None:
+        print(
+            json.dumps(
+                {
+                    "status": "RESULTS_EXPORTED"
+                    if result.error is None
+                    else "RESULT_EXPORT_FAILED",
+                    "session_state": session.state.value,
+                    "completion_status": session.result["completion_status"],
+                    "results_directory": str(result.directory),
+                    "results_archive": None
+                    if result.archive is None
+                    else str(result.archive),
+                    "export_error": result.error,
+                }
+            )
+        )
 
 
 def _abort_open_session(controller: OperatorController, reason: str) -> None:

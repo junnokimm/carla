@@ -12,6 +12,7 @@ from src.p8.component_contract import SessionComponents
 from src.p8.components import DevelopmentComponents
 from src.p8.manifest import inspect_outputs
 from src.p8.model import RECEIPTS, SEQUENCE, Mode, P8Error, Stage
+from src.p8.operator_results import OperatorResultExport, export_operator_results
 from src.p8.readiness import Readiness, require_participant_ready
 from src.p8.services import SessionServices
 
@@ -45,6 +46,7 @@ class ExperimentSession:
         }
         self.initial_components: dict[str, Json] = {}
         self.result: dict[str, Json] = {}
+        self.result_export: OperatorResultExport | None = None
         self._lifecycle_errors: list[str] = []
         self._begin_record()
         self._save("RUNNING")
@@ -405,6 +407,7 @@ class ExperimentSession:
                 self.services.context,
                 complete=complete,
                 components=snapshot,
+                provenance=self.services.provenance,
             )
         except (OSError, ValueError, KeyError) as error:
             audit = {
@@ -417,7 +420,14 @@ class ExperimentSession:
                 "OUTPUT_COMPLETENESS_FAILED",
                 Stage.ABORTED,
             )
-        self._save(status, audit=audit)
+        try:
+            self._save(status, audit=audit)
+        finally:
+            if self.services.provenance == "ACTUAL_BOUNDED_OPERATOR":
+                self.result_export = export_operator_results(
+                    self.services.directory,
+                    closed=self.services.closed,
+                )
 
     def _save(self, status: str, *, audit: dict[str, Json] | None = None) -> None:
         self.result = {

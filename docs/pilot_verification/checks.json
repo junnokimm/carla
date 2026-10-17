@@ -1,0 +1,292 @@
+{
+  "release": "P8_PILOT_FIX_20261017",
+  "generated_at_utc": "2026-10-17T07:59:25.241322+00:00",
+  "source_archive": {
+    "name": "carla(20261017-072209).zip",
+    "bytes": 104425436,
+    "sha256": "53d43264c8ab8cd21e85f2923347af8d02cfb9511ac66b0c41fb69b3d32a75de"
+  },
+  "scope": "Overlay for the supplied current project; actual dev-rehearsal operator; Windows hardware verification outstanding",
+  "full_suite": {
+    "command": "PYTHONPATH=<qa-deps> SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -B -m pytest -q --tb=short",
+    "exit_code": 1,
+    "failed": 10,
+    "passed": 2065,
+    "skipped": 1,
+    "seconds": 23.59,
+    "failed_test_ids": [
+      "tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged",
+      "tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps",
+      "tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size",
+      "tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors",
+      "tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform",
+      "tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy",
+      "tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare",
+      "tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash",
+      "tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1]",
+      "tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1]"
+    ],
+    "baseline_comparison": "All 10 failed IDs reproduce on byte-verified original sources; 7 camera/mirror/AOI mismatches and 3 Windows-specific checks on Linux"
+  },
+  "ruff": {
+    "exit_code": 0,
+    "changed_python_files": 23,
+    "result": "All checks passed!",
+    "command_report": "ruff.json"
+  },
+  "focused_checks": {
+    "input_readiness_and_clock_tests": 16,
+    "launcher_tests": 9,
+    "m2_hazard_related_tests": 46,
+    "export_csv_and_ui_cross_review_tests": 13,
+    "counts_overlap_do_not_sum": true
+  },
+  "csv_60hz_regression": {
+    "raw_samples": 452,
+    "batches": 23,
+    "max_batch_json_characters": 65204,
+    "max_csv_raw_event_value_characters": 65617,
+    "csv_field_size_limit": 131072,
+    "normal_sample_order_and_count_preserved": true,
+    "io_retry_duplicate_key": "batch_id"
+  },
+  "packaging_verification": {
+    "overlay_on_original_changed_paths": "passed",
+    "packaged_python_ast_parse": "passed",
+    "existing_data_or_environments_included": false,
+    "manifest_self_hash_excluded": true
+  },
+  "not_verified": [
+    "Windows .cmd execution",
+    "TS-XW physical raw axis state and CARLA vehicle motion",
+    "actual 600/780 second run on the user hardware",
+    "hazard physical visibility/TTC and automatic braking effects",
+    "P6 tablet/Tobii operator integration and AOI validation"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "change": "modified",
+      "bytes": 17272,
+      "sha256": "fe782086c1a250955e7a70a2c1b3f48c801dbdb78df1d50bd1ee8c26a081a229",
+      "original_sha256": "4f41885907d88ef65f988460472f756a170e993efa1f7a62e36c50e28ebc9b10"
+    },
+    {
+      "path": "README_PILOT_FIX.md",
+      "change": "added",
+      "bytes": 1363,
+      "sha256": "eabc4ae126c7feb435feb76a8a0aa4a7d6ded5f2d065329b9c568d23b5b9945e",
+      "original_sha256": null
+    },
+    {
+      "path": "config/p8_pilot.json",
+      "change": "added",
+      "bytes": 146,
+      "sha256": "ac38a88de8fad193283817f4a1d4c46e75fda7b84dc5d8568ea3dae36ef168cc",
+      "original_sha256": null
+    },
+    {
+      "path": "docs/P8_Pilot_Fix_20261017.md",
+      "change": "added",
+      "bytes": 21935,
+      "sha256": "8e306dfea0e9681457f3b58542ec0200ac522b9b92e579e09e2e0ac37577dab5",
+      "original_sha256": null
+    },
+    {
+      "path": "docs/pilot_verification/baseline_confirmed.txt",
+      "change": "added",
+      "bytes": 64338,
+      "sha256": "48bab1f8a9437d85288262fac257ae56ac7e82a7515248b9d0dc08661fe8c5d9",
+      "original_sha256": null
+    },
+    {
+      "path": "docs/pilot_verification/full_suite.txt",
+      "change": "added",
+      "bytes": 9397,
+      "sha256": "fbf6e6338c9c21477a4bf856a9f63bb08864b2b12a01b4ef6adb3574fb5560f7",
+      "original_sha256": null
+    },
+    {
+      "path": "docs/pilot_verification/input_evidence.json",
+      "change": "added",
+      "bytes": 38709,
+      "sha256": "0c2b293a2e82c9243a9d5d99b4c7a6646b45c7663f1f2ab1c8a248ec6009bcd4",
+      "original_sha256": null
+    },
+    {
+      "path": "docs/pilot_verification/ruff.json",
+      "change": "added",
+      "bytes": 1070,
+      "sha256": "e892cbe65fbde25c394f5bc53bf439c452c55a9581a4e13fa6c2764ef1b8e29a",
+      "original_sha256": null
+    },
+    {
+      "path": "run_pilot.cmd",
+      "change": "added",
+      "bytes": 387,
+      "sha256": "2bc96b299912aa7a7d3d207b89fe23679d66217c707cbc1529d52b8f0e95783d",
+      "original_sha256": null
+    },
+    {
+      "path": "src/p8/operator_cli.py",
+      "change": "modified",
+      "bytes": 17659,
+      "sha256": "37f9fbc6ae0fdaf9d63fce07cf728098eeaa1704a9012f8de2a94604a634669b",
+      "original_sha256": "3b5534f28d8579f5737be84a83d037c1c2247cabf6ae8a89e61b3ba8f2b48dd4"
+    },
+    {
+      "path": "src/p8/operator_controller.py",
+      "change": "modified",
+      "bytes": 10036,
+      "sha256": "7dfee74a86f76eca32d40c77e1d350c54de40afebfb49e09a89f9e051707a805",
+      "original_sha256": "05b1c972f9f1c4a447a00f75b5c9d9151d29a3c16f6c30851774df6c2ed8e964"
+    },
+    {
+      "path": "src/p8/operator_m2_hazard.py",
+      "change": "modified",
+      "bytes": 23137,
+      "sha256": "e842acba30104b6e199164c255528c0ad022bacc76b0e58b35e1cff7ded5698d",
+      "original_sha256": "53edc83e220ec33c04e594d0a188ef9bdc91efd52c4e10fdde09a81a4578bd8f"
+    },
+    {
+      "path": "src/p8/operator_model.py",
+      "change": "modified",
+      "bytes": 9656,
+      "sha256": "ac0e25d15719dcec9f9eefacaa21e876067b23dcdaf2100d35038922be538671",
+      "original_sha256": "df66858f378f690223820a7f30c0871ad020b2903e0dfa5f369dd602680b8780"
+    },
+    {
+      "path": "src/p8/operator_pages.py",
+      "change": "modified",
+      "bytes": 4356,
+      "sha256": "9d6e52a748f996f516972e193403a6f1c598abe3983c7c57882d0fd48b1168c6",
+      "original_sha256": "1709a2e3774688df3cb2e516c1cfe355c91e464e127ddb5b2cfefb755b624d30"
+    },
+    {
+      "path": "src/p8/operator_render.py",
+      "change": "modified",
+      "bytes": 4386,
+      "sha256": "eb624f0d5a15732baef2bb1538a87c712bf3412f51c3e4444e91f0b957def815",
+      "original_sha256": "1dd884ed68211774322c92df5141b7c86e0d801d1d2b57352e139cefb1e8ffa1"
+    },
+    {
+      "path": "src/p8/operator_results.py",
+      "change": "added",
+      "bytes": 3473,
+      "sha256": "4cb9d9af0401ab0e4462274d44b4b8c0d0ca2f6101c9d81de475f957b6978ffc",
+      "original_sha256": null
+    },
+    {
+      "path": "src/p8/operator_ui_runtime.py",
+      "change": "modified",
+      "bytes": 1269,
+      "sha256": "92b1fd882d8bdf2995047a269772b63312e31920036b01cb88f6f7a2edb17113",
+      "original_sha256": "5816558731dbcb6420e5ba0d8d90904e20a686348dbb2c37b3055e3fa9e4d3df"
+    },
+    {
+      "path": "src/p8/orchestrator.py",
+      "change": "modified",
+      "bytes": 20162,
+      "sha256": "40a6100513f3c3efa5af881743fcb73be6446195577eea046975c2da9b26c3ac",
+      "original_sha256": "89230d97a581eff0f76cd77f205a504627581eee51bd2f7e9f1aedcf6d8cfe50"
+    },
+    {
+      "path": "src/p8/tsxw_preparation.py",
+      "change": "added",
+      "bytes": 6057,
+      "sha256": "f3e41e7f4694b6f83d45afd84f93f2547f3622f830be9170f3d40d6543af85f4",
+      "original_sha256": null
+    },
+    {
+      "path": "src/scenario/driver_view.py",
+      "change": "modified",
+      "bytes": 36380,
+      "sha256": "f5fe18af98cf4fd9bb90b45ca45cf1a3d28d0b251dd826bb38a955993313e7a2",
+      "original_sha256": "3088e5e9c955508111ea79a223b457a3bf2f54473f49244ff755994315e7e60b"
+    },
+    {
+      "path": "src/scenario/research_noa_session.py",
+      "change": "modified",
+      "bytes": 34251,
+      "sha256": "bd14eef3232b85845a54334388350692efb15ca31cb801de57ad72abc3a3d9cd",
+      "original_sha256": "db9acfaf47f10cfa9dc104bb5346ea0cf884037851621aff77aebb5e590180d6"
+    },
+    {
+      "path": "src/scenario/research_noa_types.py",
+      "change": "modified",
+      "bytes": 5060,
+      "sha256": "a15d44197cbcdc7c9598ca22c74c1363e94380e90171c8de88a636d579400cdc",
+      "original_sha256": "d27ff6fcf0c7a7401d1754e77cdcdaff229c1ffbb3e3ee936cad2630422460f4"
+    },
+    {
+      "path": "src/scenario/research_noa_view.py",
+      "change": "modified",
+      "bytes": 25078,
+      "sha256": "1fb0276f980174be3f888b657200c5c6c418abb9cae01e9e7724f2c54c9f8118",
+      "original_sha256": "1957b0a9bd1d16c217ed42e5006f5ebb98008d24c090013e1d6f7f868c275580"
+    },
+    {
+      "path": "tests/research_noa_fakes.py",
+      "change": "modified",
+      "bytes": 19327,
+      "sha256": "2fc2bb044e620ad60f6b99d44e2287d9db3d9f4684d706202520e5d58b84495c",
+      "original_sha256": "b6b43f71deafcadfdd8f58f73aaeff8f6934e305c46cc86dc9d0f005d3d4c8fa"
+    },
+    {
+      "path": "tests/test_m2_hazard_csv_batches.py",
+      "change": "added",
+      "bytes": 14369,
+      "sha256": "bb74d6f97c69cafbf02680b1fd119366aca2258f61f0c03bf911e5865874df2d",
+      "original_sha256": null
+    },
+    {
+      "path": "tests/test_m2_hazard_operator_integration.py",
+      "change": "modified",
+      "bytes": 9399,
+      "sha256": "a8f2e0ad0da1a68e1009743c8e9a94f7c41a38e4816d86e2f4f5762b483303d5",
+      "original_sha256": "32ff5fb3e7a1f7f0ad96216916356e6a5c90dfa295d04865e9882be8c48d921f"
+    },
+    {
+      "path": "tests/test_p8_input_preparation_timing.py",
+      "change": "added",
+      "bytes": 4107,
+      "sha256": "acc6f6beb830d3b0fdb3a65e5b944a866df414ca8de876275e744e56030dd8d1",
+      "original_sha256": null
+    },
+    {
+      "path": "tests/test_p8_operator_results.py",
+      "change": "added",
+      "bytes": 7278,
+      "sha256": "bac5e34bb707421612a3976f429a905e9a48f279ee09108eaaf4b2f486309540",
+      "original_sha256": null
+    },
+    {
+      "path": "tests/test_p8_operator_ui_e2e.py",
+      "change": "modified",
+      "bytes": 6564,
+      "sha256": "fdb653bf5ca773c9b2a2ba1c24d7ce618d0a751604334cc7d50fcacd2b5696ca",
+      "original_sha256": "68fea639ef29e5fdd27989d3cab90e24d518ffc9f2b90b4fd3784afa3a188b18"
+    },
+    {
+      "path": "tests/test_p8_pilot_launcher.py",
+      "change": "added",
+      "bytes": 4841,
+      "sha256": "15ce230d784b44da757f38cd0466066a7c6d7ab5d54faf54120f150a3267f432",
+      "original_sha256": null
+    },
+    {
+      "path": "tests/test_p8_tsxw_preparation.py",
+      "change": "added",
+      "bytes": 9434,
+      "sha256": "c967ccf37ef389f829df8ec80b8e55b99ed4d7bed489f4ed764a787be63e85ee",
+      "original_sha256": null
+    },
+    {
+      "path": "tools/run_pilot.py",
+      "change": "added",
+      "bytes": 5144,
+      "sha256": "3cbed0dd6dd46800b95ca4a27bc4fdabf3b2ff178e91e7d8eab1942b4005bcf0",
+      "original_sha256": null
+    }
+  ]
+}

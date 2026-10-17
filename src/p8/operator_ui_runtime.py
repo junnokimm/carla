@@ -28,6 +28,13 @@ def run_operator_ui(controller: OperatorControl, config: OperatorUiConfig) -> in
         if not app.registered:
             return 2
         snapshot = controller.snapshot()
-        return 0 if snapshot.stage is Stage.SESSION_COMPLETE and snapshot.closed else 2
+        exported = snapshot.result_export
+        return (
+            0
+            if snapshot.stage is Stage.SESSION_COMPLETE
+            and snapshot.closed
+            and (exported is None or exported.error is None)
+            else 2
+        )
     finally:
         pygame.quit()

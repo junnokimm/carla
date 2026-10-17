@@ -36,6 +36,8 @@ class ResearchNoAViewer(Protocol):
 
     def attach(self) -> None: ...
 
+    def prepare_input(self) -> None: ...
+
     def capture_camera_diagnostics_environment(
         self,
         world: ResearchNoAWorld,

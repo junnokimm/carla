@@ -301,13 +301,11 @@ class DriverView:
         """Show the composed view until duration elapses or the user exits it."""
         if self._driving_mode_controller is None:
             raise RuntimeError("read-only view cannot run the vehicle-control loop")
-        pygame.display.init()
         self._training_completed_early = False
         try:
+            screen = self._open_display()
             self._initialize_input()
-            screen = pygame.display.set_mode(self._config.window_size)
             presentation = DriverViewPresentation(self._config.window_size, screen)
-            pygame.display.set_caption("CARLA driver view")
             clock = pygame.time.Clock()
             started_at = (
                 time.monotonic() if active_scene is None else active_scene.started_at
@@ -555,6 +553,14 @@ class DriverView:
                 observer.record_duration(
                     "mode_events", observer.timestamp() - started_at
                 )
+
+    def _open_display(self) -> pygame.Surface:
+        pygame.display.init()
+        screen = pygame.display.get_surface()
+        if screen is None or screen.get_size() != self._config.window_size:
+            screen = pygame.display.set_mode(self._config.window_size)
+        pygame.display.set_caption("CARLA driver view")
+        return screen
 
     def _initialize_input(self) -> None:
         return

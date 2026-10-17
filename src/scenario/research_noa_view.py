@@ -10,6 +10,7 @@ from typing import assert_never
 import carla
 import pygame
 
+from src.error_notes import append_error_note
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction import DriverInput
 from src.experiment.lane_change import LaneChangeDirection
@@ -20,6 +21,7 @@ from src.p8.tsxw_policy import (
     coalesce_command_events,
     merge_driver_input,
 )
+from src.p8.tsxw_preparation import prepare_tsxw_input
 from src.scenario.active_scene import ActiveDriveScene
 from src.scenario.driver_view import (
     CAMERA_BLUEPRINT_ID,
@@ -110,6 +112,7 @@ class ResearchDriverView(DriverView):
         self._lane_change_input = LaneChangeRequestInput()
         self._accepted_signal_event_ids: frozenset[int] | None = None
         self._tsxw_input: TsxwInput | None = None
+        self._tsxw_input_prepared = False
         self._tsxw_commands = TsxwCommandState()
         self._tsxw_mode_events: list[KeyEvent] | None = None
         self._vehicle_audio = (
@@ -154,9 +157,40 @@ class ResearchDriverView(DriverView):
     def _prepare_frame(self) -> None:
         self._exit_view.prepare()
 
+    def prepare_input(self) -> None:
+        if self._research_config.tsxw_config is None or self._tsxw_input_prepared:
+            return
+        try:
+            screen = self._open_display()
+            self._initialize_input()
+            assert self._tsxw_input is not None
+            limits = self._research_config.manual_control_limits
+            brake = 1.0 if limits is None else limits.max_brake
+            prepare_tsxw_input(
+                self._tsxw_input,
+                screen,
+                hold_brake=lambda: self._send_control(carla.VehicleControl(brake=brake)),
+                noa_key=self._research_config.noa_toggle_key,
+                event_sink=self._research_config.tsxw_event_sink,
+            )
+            self._tsxw_commands = TsxwCommandState()
+            self._tsxw_mode_events = None
+            self._pending_driver_input = None
+            self._steer = 0.0
+            self._tsxw_input_prepared = True
+        except BaseException as error:
+            for cleanup in (self._close_input, pygame.quit):
+                try:
+                    cleanup()
+                except Exception as cleanup_error:  # noqa: BLE001 -- preserve setup failure
+                    append_error_note(
+                        error, f"TS-XW preparation cleanup failure: {cleanup_error}"
+                    )
+            raise
+
     def _initialize_input(self) -> None:
         config = self._research_config.tsxw_config
-        if config is not None:
+        if config is not None and self._tsxw_input is None:
             self._tsxw_input = TsxwInput.open(
                 config,
                 event_sink=self._research_config.tsxw_event_sink,
@@ -165,6 +199,7 @@ class ResearchDriverView(DriverView):
             self._tsxw_mode_events = None
 
     def _close_input(self) -> None:
+        self._tsxw_input_prepared = False
         try:
             if self._tsxw_input is not None:
                 self._tsxw_input.close()
@@ -183,9 +218,16 @@ class ResearchDriverView(DriverView):
                 self._record_interaction_duration("vehicle_audio_update", started_at)
 
     def close(self) -> None:
-        if self._vehicle_audio is not None:
-            self._vehicle_audio.close(fade=False)
-        super().close()
+        try:
+            if self._tsxw_input_prepared:
+                try:
+                    self._close_input()
+                finally:
+                    pygame.quit()
+        finally:
+            if self._vehicle_audio is not None:
+                self._vehicle_audio.close(fade=False)
+            super().close()
 
     def _events_for_mode_handling(
         self,

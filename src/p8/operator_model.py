@@ -18,6 +18,7 @@ from src.p8.model import Stage
 from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsConfig
 from src.p8.operator_exit_result import ExitOpportunityResult
 from src.p8.operator_hazard_contracts import HazardExecutionPlan
+from src.p8.operator_results import OperatorResultExport
 from src.p8.tsxw_policy import TsxwConfig
 from src.scenario.research_exit_config import (
     ExitEligibilityWindow,
@@ -248,6 +249,8 @@ class OperatorSnapshot:
     module_runs: tuple[ModuleRunResult, ...]
     analysis_eligible: bool
     deletion_status: str
+    result_export: OperatorResultExport | None = None
+    hazard_status: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

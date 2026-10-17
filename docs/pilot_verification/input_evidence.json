@@ -1,0 +1,1303 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-10-17T07:53:33.323461+00:00",
+  "run_id": "P8-M2-V1-72b04ff08b9d41249485dbb830a441ca",
+  "project_root_at_analysis": "/workspace/scratch/7ec199e3f2c1/work/current/carla",
+  "source_files": {
+    "events": {
+      "relative_path": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "bytes": 52593466,
+      "sha256": "0753533989f69bdcdbdba532e3bcabf516f1651feeaf45ebe6873e9d1193c1c9"
+    },
+    "telemetry": {
+      "relative_path": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_telemetry_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "bytes": 4218134,
+      "sha256": "4ad3737c7d3695ec254bd58f3592f7599bc2dff83dbd70493bb90be78a0b8328"
+    },
+    "manifest": {
+      "relative_path": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/session_manifest.json",
+      "bytes": 14199,
+      "sha256": "d2db392337e9f1af6cfb3053bc88d177687769d3082ff49552672c11f6ace855"
+    }
+  },
+  "source_files_unchanged_after_analysis": true,
+  "run_manifest": {
+    "origin_utc": "2026-10-17T07:09:19.804488000Z",
+    "origin": {
+      "monotonic_ns": 294644890000000,
+      "utc_ns": 1792220959804488000
+    },
+    "state": "ABORTED",
+    "completion_status": "ABORTED",
+    "abort_reason": "OPERATOR_CLI_INTERRUPTED",
+    "provenance": "ACTUAL_BOUNDED_OPERATOR",
+    "execution_mode": "dev-rehearsal"
+  },
+  "method": {
+    "reader": "Python standard library csv.DictReader, open(encoding='utf-8', newline='')",
+    "event_parser": "json.loads(row[event_value]) for field-level TS-XW aggregation",
+    "csv_field_size_limit": 131072,
+    "line_number_convention": "Physical CSV file lines are 1-based; header is line 1; data_row_number excludes the header; start/end are recorded separately for multiline safety.",
+    "sample_control_pairing": "The next tsxw_manual_control before another tsxw_input_sample; phase and entire effective dictionary must match. This uses ordering because the original input events do not contain a shared poll ID.",
+    "telemetry_pairing": "Telemetry is aggregated independently; no exact same-frame equivalence is claimed for a specific input sample.",
+    "csv_rows_total_excludes_header": true,
+    "rounding": "No intentional numeric rounding; JSON numeric values are parsed with Python float.",
+    "source_mutation": "Sources opened read-only; SHA-256 and sizes compared before/after; only this JSON evidence file is written."
+  },
+  "counts": {
+    "events_csv_data_rows": 43461,
+    "events_by_type": {
+      "activation_failure": 7,
+      "assignment": 1,
+      "auto_request": 7,
+      "availability": 2,
+      "calibration_boundary_status": 1,
+      "control_authority": 2,
+      "execution_policy_stage_outcome": 3,
+      "initial_state": 2,
+      "lc_active_drive_started": 2,
+      "lc_finished": 2,
+      "lc_observation_gap": 8675,
+      "p5_exit_manifest": 2,
+      "p8_actual_bounded_run": 2,
+      "p8_cleanup_end": 1,
+      "p8_logs_flushed_before_cleanup": 1,
+      "p8_weather_applied": 2,
+      "performance_summary": 2,
+      "stage_abort": 2,
+      "stage_end": 9,
+      "stage_start": 11,
+      "stage_start_attempt": 9,
+      "telemetry_schema": 2,
+      "tm_runtime_attestation": 2,
+      "traffic_light_observation": 8677,
+      "traffic_manager_speed_limit_observation": 8677,
+      "tsxw_device_closed": 2,
+      "tsxw_device_opened": 2,
+      "tsxw_input_sample": 8677,
+      "tsxw_manual_control": 8677
+    },
+    "events_by_phase": {
+      "CONSENT_AND_ELIGIBILITY": 7,
+      "EYE_TRACKER_CALIBRATION": 4,
+      "MODULE_1": 40315,
+      "POST_EXPERIMENT": 4,
+      "REST": 3,
+      "TRAINING": 3128
+    },
+    "tsxw_input_samples": 8677,
+    "tsxw_input_samples_by_phase": {
+      "MODULE_1": 8058,
+      "TRAINING": 619
+    },
+    "tsxw_manual_controls": 8677,
+    "tsxw_manual_controls_by_phase": {
+      "MODULE_1": 8058,
+      "TRAINING": 619
+    },
+    "telemetry_csv_data_rows": 8679,
+    "telemetry_by_phase": {
+      "MODULE_1": 8059,
+      "TRAINING": 620
+    },
+    "maximum_event_value_characters": 25757
+  },
+  "field_definitions": {
+    "tsxw_input_sample.raw.brake": "Unnormalized brake joystick axis value returned by get_axis(BRAKE_AXIS). Zero is the axis midpoint, not a release declaration.",
+    "tsxw_input_sample.normalized.brake": "Normalized pedal brake before keyboard merging; this run records 0.5 at raw zero.",
+    "tsxw_input_sample.effective.brake": "Brake after per-channel keyboard/TS-XW merging and before delivery limits. It is 1.0 in the eight S override samples; raw/normalized brake remain 0.0/0.5.",
+    "tsxw_input_sample.keyboard_override.throttle": "True when pygame.K_w is pressed; ResearchDriverView._collect_driver_input. It does not mean that the brake channel was overridden.",
+    "tsxw_input_sample.raw.throttle": "Unnormalized accelerator joystick axis; normalization is clamp((1-raw)/2, 0, 1). A recorded nonzero value alone does not prove physical pedal calibration or full press-release motion.",
+    "tsxw_input_sample.normalized.throttle": "Normalized wheel accelerator before keyboard merging.",
+    "tsxw_input_sample.effective.throttle": "Throttle requested after per-channel merging; 1.0 when W overrides.",
+    "tsxw_manual_control.sent.throttle": "Throttle in the VehicleControl command after brake-priority suppression.",
+    "tsxw_manual_control.sent.brake": "VehicleControl brake after the configured manual max_brake cap; all 8,677 commands contain 0.5, including the eight S override samples.",
+    "tsxw_manual_control.throttle_suppression": "POSITIVE_BRAKE identifies the branch setting sent throttle to zero when the capped brake is positive.",
+    "telemetry.throttle_and_brake": "Vehicle state/control readback fields in the separate telemetry CSV; these are not raw joystick fields."
+  },
+  "input_field_frequencies": {
+    "effective.brake": [
+      {
+        "value": 0.5,
+        "count": 8669
+      },
+      {
+        "value": 1.0,
+        "count": 8
+      }
+    ],
+    "effective.hand_brake": [
+      {
+        "value": false,
+        "count": 8669
+      },
+      {
+        "value": true,
+        "count": 8
+      }
+    ],
+    "effective.steering": [
+      {
+        "value": -0.16,
+        "count": 1
+      },
+      {
+        "value": -0.12,
+        "count": 1
+      },
+      {
+        "value": -0.08,
+        "count": 1
+      },
+      {
+        "value": -0.04,
+        "count": 1
+      },
+      {
+        "value": 0.0,
+        "count": 8669
+      },
+      {
+        "value": 0.04,
+        "count": 1
+      },
+      {
+        "value": 0.08,
+        "count": 1
+      },
+      {
+        "value": 0.12,
+        "count": 1
+      },
+      {
+        "value": 0.16,
+        "count": 1
+      }
+    ],
+    "effective.throttle": [
+      {
+        "value": 0.0166778564453125,
+        "count": 6055
+      },
+      {
+        "value": 0.5,
+        "count": 2464
+      },
+      {
+        "value": 1.0,
+        "count": 158
+      }
+    ],
+    "keyboard_override.brake": [
+      {
+        "value": false,
+        "count": 8669
+      },
+      {
+        "value": true,
+        "count": 8
+      }
+    ],
+    "keyboard_override.steering": [
+      {
+        "value": false,
+        "count": 8669
+      },
+      {
+        "value": true,
+        "count": 8
+      }
+    ],
+    "keyboard_override.throttle": [
+      {
+        "value": false,
+        "count": 8519
+      },
+      {
+        "value": true,
+        "count": 158
+      }
+    ],
+    "normalized.brake": [
+      {
+        "value": 0.5,
+        "count": 8677
+      }
+    ],
+    "normalized.steering": [
+      {
+        "value": 0.0,
+        "count": 8677
+      }
+    ],
+    "normalized.throttle": [
+      {
+        "value": 0.0166778564453125,
+        "count": 6126
+      },
+      {
+        "value": 0.5,
+        "count": 2551
+      }
+    ],
+    "raw.brake": [
+      {
+        "value": 0.0,
+        "count": 8677
+      }
+    ],
+    "raw.steering": [
+      {
+        "value": -0.00909423828125,
+        "count": 490
+      },
+      {
+        "value": -0.009002685546875,
+        "count": 4894
+      },
+      {
+        "value": -0.008544921875,
+        "count": 2674
+      },
+      {
+        "value": -0.00848388671875,
+        "count": 619
+      }
+    ],
+    "raw.throttle": [
+      {
+        "value": 0.0,
+        "count": 2551
+      },
+      {
+        "value": 0.966644287109375,
+        "count": 6126
+      }
+    ],
+    "window_input_focus": [
+      {
+        "value": false,
+        "count": 5029
+      },
+      {
+        "value": true,
+        "count": 3648
+      }
+    ]
+  },
+  "manual_control_field_frequencies": {
+    "effective.brake": [
+      {
+        "value": 0.5,
+        "count": 8669
+      },
+      {
+        "value": 1.0,
+        "count": 8
+      }
+    ],
+    "effective.hand_brake": [
+      {
+        "value": false,
+        "count": 8669
+      },
+      {
+        "value": true,
+        "count": 8
+      }
+    ],
+    "effective.steering": [
+      {
+        "value": -0.16,
+        "count": 1
+      },
+      {
+        "value": -0.12,
+        "count": 1
+      },
+      {
+        "value": -0.08,
+        "count": 1
+      },
+      {
+        "value": -0.04,
+        "count": 1
+      },
+      {
+        "value": 0.0,
+        "count": 8669
+      },
+      {
+        "value": 0.04,
+        "count": 1
+      },
+      {
+        "value": 0.08,
+        "count": 1
+      },
+      {
+        "value": 0.12,
+        "count": 1
+      },
+      {
+        "value": 0.16,
+        "count": 1
+      }
+    ],
+    "effective.throttle": [
+      {
+        "value": 0.0166778564453125,
+        "count": 6055
+      },
+      {
+        "value": 0.5,
+        "count": 2464
+      },
+      {
+        "value": 1.0,
+        "count": 158
+      }
+    ],
+    "sent.brake": [
+      {
+        "value": 0.5,
+        "count": 8677
+      }
+    ],
+    "sent.gear": [
+      {
+        "value": 0,
+        "count": 8677
+      }
+    ],
+    "sent.hand_brake": [
+      {
+        "value": false,
+        "count": 8669
+      },
+      {
+        "value": true,
+        "count": 8
+      }
+    ],
+    "sent.manual_gear_shift": [
+      {
+        "value": false,
+        "count": 8677
+      }
+    ],
+    "sent.reverse": [
+      {
+        "value": false,
+        "count": 8677
+      }
+    ],
+    "sent.steering": [
+      {
+        "value": -0.15000000596046448,
+        "count": 1
+      },
+      {
+        "value": -0.11999999731779099,
+        "count": 1
+      },
+      {
+        "value": -0.07999999821186066,
+        "count": 1
+      },
+      {
+        "value": -0.03999999910593033,
+        "count": 1
+      },
+      {
+        "value": 0.0,
+        "count": 8669
+      },
+      {
+        "value": 0.03999999910593033,
+        "count": 1
+      },
+      {
+        "value": 0.07999999821186066,
+        "count": 1
+      },
+      {
+        "value": 0.11999999731779099,
+        "count": 1
+      },
+      {
+        "value": 0.15000000596046448,
+        "count": 1
+      }
+    ],
+    "sent.throttle": [
+      {
+        "value": 0.0,
+        "count": 8677
+      }
+    ],
+    "sent.transport": [
+      {
+        "value": "CHECKED_BATCH_SYNC",
+        "count": 8677
+      }
+    ],
+    "throttle_suppression": [
+      {
+        "value": "POSITIVE_BRAKE",
+        "count": 8677
+      }
+    ]
+  },
+  "telemetry_field_frequencies": {
+    "brake": [
+      {
+        "value": 0.5,
+        "count": 8679
+      }
+    ],
+    "throttle": [
+      {
+        "value": 0.0,
+        "count": 8679
+      }
+    ]
+  },
+  "keyboard_w": {
+    "definition": "event_type == tsxw_input_sample and event_value.keyboard_override.throttle is True",
+    "counts": {
+      "s_override_samples": 8,
+      "w_effective_throttle_equals_1": 158,
+      "w_override_samples": 158,
+      "w_paired_sent_throttle_0_brake_half_positive_brake_reason": 158,
+      "w_window_focused": 158,
+      "w_with_positive_effective_brake": 158
+    },
+    "by_phase": {
+      "MODULE_1": 99,
+      "TRAINING": 59
+    }
+  },
+  "accelerator_channel": {
+    "counts": {
+      "nonzero_nonrelease_raw_without_w": 6055,
+      "raw_release_endpoint_without_w": 0,
+      "raw_zero_without_w": 2464,
+      "samples_without_w_override": 8519
+    },
+    "nonzero_nonrelease_raw_without_w_definition": "keyboard_override.throttle is False and raw.throttle not in (0.0, 32767/32768, 1.0); a channel observation, not an assertion of physical pedal press.",
+    "nonzero_nonrelease_raw_without_w_by_phase": {
+      "MODULE_1": 6055
+    },
+    "raw_value_change_count_across_consecutive_input_samples": 1,
+    "raw_value_changes": [
+      {
+        "before": {
+          "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+          "data_row_number": 12810,
+          "csv_line_start": 12811,
+          "csv_line_end": 12811,
+          "event_type": "tsxw_input_sample",
+          "phase": "MODULE_1",
+          "module": "MODULE_1",
+          "session_elapsed_s": 203.281,
+          "host_monotonic_ns": 294848171000000,
+          "event_value": {
+            "edges": {
+              "left": false,
+              "noa": false,
+              "reject": false,
+              "right": false
+            },
+            "effective": {
+              "brake": 0.5,
+              "hand_brake": false,
+              "steering": 0.0,
+              "throttle": 0.5
+            },
+            "keyboard_override": {
+              "brake": false,
+              "steering": false,
+              "throttle": false
+            },
+            "normalized": {
+              "brake": 0.5,
+              "steering": 0.0,
+              "throttle": 0.5
+            },
+            "raw": {
+              "brake": 0.0,
+              "steering": -0.008544921875,
+              "throttle": 0.0
+            },
+            "window_input_focus": false
+          }
+        },
+        "after": {
+          "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+          "data_row_number": 12815,
+          "csv_line_start": 12816,
+          "csv_line_end": 12816,
+          "event_type": "tsxw_input_sample",
+          "phase": "MODULE_1",
+          "module": "MODULE_1",
+          "session_elapsed_s": 203.36,
+          "host_monotonic_ns": 294848250000000,
+          "event_value": {
+            "edges": {
+              "left": false,
+              "noa": false,
+              "reject": false,
+              "right": false
+            },
+            "effective": {
+              "brake": 0.5,
+              "hand_brake": false,
+              "steering": 0.0,
+              "throttle": 0.0166778564453125
+            },
+            "keyboard_override": {
+              "brake": false,
+              "steering": false,
+              "throttle": false
+            },
+            "normalized": {
+              "brake": 0.5,
+              "steering": 0.0,
+              "throttle": 0.0166778564453125
+            },
+            "raw": {
+              "brake": 0.0,
+              "steering": -0.008544921875,
+              "throttle": 0.966644287109375
+            },
+            "window_input_focus": false
+          }
+        }
+      }
+    ]
+  },
+  "pairing_check": {
+    "paired_input_and_control_count": 8677,
+    "unpaired_event_lines": [],
+    "phase_or_effective_value_mismatches": []
+  },
+  "telemetry_speed": {
+    "min_kmh": 0.0,
+    "max_kmh": 0.3472805410628136,
+    "rows_above_1_kmh": 0,
+    "interpretation": "Small nonzero spawn/settling motion is possible; the claim is zero throttle and half brake, not mathematically zero vehicle speed at every timestamp."
+  },
+  "representative_examples": {
+    "first_input_sample": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 20,
+      "csv_line_start": 21,
+      "csv_line_end": 21,
+      "event_type": "tsxw_input_sample",
+      "phase": "TRAINING",
+      "module": null,
+      "session_elapsed_s": 5.344,
+      "host_monotonic_ns": 294650234000000,
+      "event_value": {
+        "edges": {
+          "left": false,
+          "noa": false,
+          "reject": false,
+          "right": false
+        },
+        "effective": {
+          "brake": 0.5,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 0.5
+        },
+        "keyboard_override": {
+          "brake": false,
+          "steering": false,
+          "throttle": false
+        },
+        "normalized": {
+          "brake": 0.5,
+          "steering": 0.0,
+          "throttle": 0.5
+        },
+        "raw": {
+          "brake": 0.0,
+          "steering": -0.00848388671875,
+          "throttle": 0.0
+        },
+        "window_input_focus": false
+      }
+    },
+    "first_input_following_manual_control": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 22,
+      "csv_line_start": 23,
+      "csv_line_end": 23,
+      "event_type": "tsxw_manual_control",
+      "phase": "TRAINING",
+      "module": null,
+      "session_elapsed_s": 5.344,
+      "host_monotonic_ns": 294650234000000,
+      "event_value": {
+        "effective": {
+          "brake": 0.5,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 0.5
+        },
+        "sent": {
+          "brake": 0.5,
+          "gear": 0,
+          "hand_brake": false,
+          "manual_gear_shift": false,
+          "reverse": false,
+          "steering": 0.0,
+          "throttle": 0.0,
+          "transport": "CHECKED_BATCH_SYNC"
+        },
+        "throttle_suppression": "POSITIVE_BRAKE"
+      }
+    },
+    "first_w_sample": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 170,
+      "csv_line_start": 171,
+      "csv_line_end": 171,
+      "event_type": "tsxw_input_sample",
+      "phase": "TRAINING",
+      "module": null,
+      "session_elapsed_s": 8.328,
+      "host_monotonic_ns": 294653218000000,
+      "event_value": {
+        "edges": {
+          "left": false,
+          "noa": false,
+          "reject": false,
+          "right": false
+        },
+        "effective": {
+          "brake": 0.5,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 1.0
+        },
+        "keyboard_override": {
+          "brake": false,
+          "steering": false,
+          "throttle": true
+        },
+        "normalized": {
+          "brake": 0.5,
+          "steering": 0.0,
+          "throttle": 0.5
+        },
+        "raw": {
+          "brake": 0.0,
+          "steering": -0.00848388671875,
+          "throttle": 0.0
+        },
+        "window_input_focus": true
+      }
+    },
+    "first_w_following_manual_control": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 172,
+      "csv_line_start": 173,
+      "csv_line_end": 173,
+      "event_type": "tsxw_manual_control",
+      "phase": "TRAINING",
+      "module": null,
+      "session_elapsed_s": 8.344,
+      "host_monotonic_ns": 294653234000000,
+      "event_value": {
+        "effective": {
+          "brake": 0.5,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 1.0
+        },
+        "sent": {
+          "brake": 0.5,
+          "gear": 0,
+          "hand_brake": false,
+          "manual_gear_shift": false,
+          "reverse": false,
+          "steering": 0.0,
+          "throttle": 0.0,
+          "transport": "CHECKED_BATCH_SYNC"
+        },
+        "throttle_suppression": "POSITIVE_BRAKE"
+      }
+    },
+    "first_s_sample": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 235,
+      "csv_line_start": 236,
+      "csv_line_end": 236,
+      "event_type": "tsxw_input_sample",
+      "phase": "TRAINING",
+      "module": null,
+      "session_elapsed_s": 9.313,
+      "host_monotonic_ns": 294654203000000,
+      "event_value": {
+        "edges": {
+          "left": false,
+          "noa": false,
+          "reject": false,
+          "right": false
+        },
+        "effective": {
+          "brake": 1.0,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 0.5
+        },
+        "keyboard_override": {
+          "brake": true,
+          "steering": false,
+          "throttle": false
+        },
+        "normalized": {
+          "brake": 0.5,
+          "steering": 0.0,
+          "throttle": 0.5
+        },
+        "raw": {
+          "brake": 0.0,
+          "steering": -0.00848388671875,
+          "throttle": 0.0
+        },
+        "window_input_focus": true
+      }
+    },
+    "first_s_following_manual_control": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 237,
+      "csv_line_start": 238,
+      "csv_line_end": 238,
+      "event_type": "tsxw_manual_control",
+      "phase": "TRAINING",
+      "module": null,
+      "session_elapsed_s": 9.328,
+      "host_monotonic_ns": 294654218000000,
+      "event_value": {
+        "effective": {
+          "brake": 1.0,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 0.5
+        },
+        "sent": {
+          "brake": 0.5,
+          "gear": 0,
+          "hand_brake": false,
+          "manual_gear_shift": false,
+          "reverse": false,
+          "steering": 0.0,
+          "throttle": 0.0,
+          "transport": "CHECKED_BATCH_SYNC"
+        },
+        "throttle_suppression": "POSITIVE_BRAKE"
+      }
+    },
+    "first_changed_accelerator_channel_sample_without_w": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 12815,
+      "csv_line_start": 12816,
+      "csv_line_end": 12816,
+      "event_type": "tsxw_input_sample",
+      "phase": "MODULE_1",
+      "module": "MODULE_1",
+      "session_elapsed_s": 203.36,
+      "host_monotonic_ns": 294848250000000,
+      "event_value": {
+        "edges": {
+          "left": false,
+          "noa": false,
+          "reject": false,
+          "right": false
+        },
+        "effective": {
+          "brake": 0.5,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 0.0166778564453125
+        },
+        "keyboard_override": {
+          "brake": false,
+          "steering": false,
+          "throttle": false
+        },
+        "normalized": {
+          "brake": 0.5,
+          "steering": 0.0,
+          "throttle": 0.0166778564453125
+        },
+        "raw": {
+          "brake": 0.0,
+          "steering": -0.008544921875,
+          "throttle": 0.966644287109375
+        },
+        "window_input_focus": false
+      }
+    },
+    "first_changed_accelerator_following_manual_control": {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 12817,
+      "csv_line_start": 12818,
+      "csv_line_end": 12818,
+      "event_type": "tsxw_manual_control",
+      "phase": "MODULE_1",
+      "module": "MODULE_1",
+      "session_elapsed_s": 203.375,
+      "host_monotonic_ns": 294848265000000,
+      "event_value": {
+        "effective": {
+          "brake": 0.5,
+          "hand_brake": false,
+          "steering": 0.0,
+          "throttle": 0.0166778564453125
+        },
+        "sent": {
+          "brake": 0.5,
+          "gear": 0,
+          "hand_brake": false,
+          "manual_gear_shift": false,
+          "reverse": false,
+          "steering": 0.0,
+          "throttle": 0.0,
+          "transport": "CHECKED_BATCH_SYNC"
+        },
+        "throttle_suppression": "POSITIVE_BRAKE"
+      }
+    }
+  },
+  "input_sample_first_last_by_phase": {
+    "TRAINING": {
+      "first": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 20,
+        "csv_line_start": 21,
+        "csv_line_end": 21,
+        "event_type": "tsxw_input_sample",
+        "phase": "TRAINING",
+        "module": null,
+        "session_elapsed_s": 5.344,
+        "host_monotonic_ns": 294650234000000,
+        "event_value": {
+          "edges": {
+            "left": false,
+            "noa": false,
+            "reject": false,
+            "right": false
+          },
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "keyboard_override": {
+            "brake": false,
+            "steering": false,
+            "throttle": false
+          },
+          "normalized": {
+            "brake": 0.5,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "raw": {
+            "brake": 0.0,
+            "steering": -0.00848388671875,
+            "throttle": 0.0
+          },
+          "window_input_focus": false
+        }
+      },
+      "last": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 3124,
+        "csv_line_start": 3125,
+        "csv_line_end": 3125,
+        "event_type": "tsxw_input_sample",
+        "phase": "TRAINING",
+        "module": null,
+        "session_elapsed_s": 51.719,
+        "host_monotonic_ns": 294696609000000,
+        "event_value": {
+          "edges": {
+            "left": false,
+            "noa": false,
+            "reject": false,
+            "right": false
+          },
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "keyboard_override": {
+            "brake": false,
+            "steering": false,
+            "throttle": false
+          },
+          "normalized": {
+            "brake": 0.5,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "raw": {
+            "brake": 0.0,
+            "steering": -0.00848388671875,
+            "throttle": 0.0
+          },
+          "window_input_focus": true
+        }
+      }
+    },
+    "MODULE_1": {
+      "first": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 3155,
+        "csv_line_start": 3156,
+        "csv_line_end": 3156,
+        "event_type": "tsxw_input_sample",
+        "phase": "MODULE_1",
+        "module": "MODULE_1",
+        "session_elapsed_s": 59.188,
+        "host_monotonic_ns": 294704078000000,
+        "event_value": {
+          "edges": {
+            "left": false,
+            "noa": false,
+            "reject": false,
+            "right": false
+          },
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "keyboard_override": {
+            "brake": false,
+            "steering": false,
+            "throttle": false
+          },
+          "normalized": {
+            "brake": 0.5,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "raw": {
+            "brake": 0.0,
+            "steering": -0.008544921875,
+            "throttle": 0.0
+          },
+          "window_input_focus": true
+        }
+      },
+      "last": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 43441,
+        "csv_line_start": 43442,
+        "csv_line_end": 43442,
+        "event_type": "tsxw_input_sample",
+        "phase": "MODULE_1",
+        "module": "MODULE_1",
+        "session_elapsed_s": 659.11,
+        "host_monotonic_ns": 295304000000000,
+        "event_value": {
+          "edges": {
+            "left": false,
+            "noa": false,
+            "reject": false,
+            "right": false
+          },
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.0166778564453125
+          },
+          "keyboard_override": {
+            "brake": false,
+            "steering": false,
+            "throttle": false
+          },
+          "normalized": {
+            "brake": 0.5,
+            "steering": 0.0,
+            "throttle": 0.0166778564453125
+          },
+          "raw": {
+            "brake": 0.0,
+            "steering": -0.009002685546875,
+            "throttle": 0.966644287109375
+          },
+          "window_input_focus": false
+        }
+      }
+    }
+  },
+  "manual_control_first_last_by_phase": {
+    "TRAINING": {
+      "first": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 22,
+        "csv_line_start": 23,
+        "csv_line_end": 23,
+        "event_type": "tsxw_manual_control",
+        "phase": "TRAINING",
+        "module": null,
+        "session_elapsed_s": 5.344,
+        "host_monotonic_ns": 294650234000000,
+        "event_value": {
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "sent": {
+            "brake": 0.5,
+            "gear": 0,
+            "hand_brake": false,
+            "manual_gear_shift": false,
+            "reverse": false,
+            "steering": 0.0,
+            "throttle": 0.0,
+            "transport": "CHECKED_BATCH_SYNC"
+          },
+          "throttle_suppression": "POSITIVE_BRAKE"
+        }
+      },
+      "last": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 3126,
+        "csv_line_start": 3127,
+        "csv_line_end": 3127,
+        "event_type": "tsxw_manual_control",
+        "phase": "TRAINING",
+        "module": null,
+        "session_elapsed_s": 51.735,
+        "host_monotonic_ns": 294696625000000,
+        "event_value": {
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "sent": {
+            "brake": 0.5,
+            "gear": 0,
+            "hand_brake": false,
+            "manual_gear_shift": false,
+            "reverse": false,
+            "steering": 0.0,
+            "throttle": 0.0,
+            "transport": "CHECKED_BATCH_SYNC"
+          },
+          "throttle_suppression": "POSITIVE_BRAKE"
+        }
+      }
+    },
+    "MODULE_1": {
+      "first": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 3157,
+        "csv_line_start": 3158,
+        "csv_line_end": 3158,
+        "event_type": "tsxw_manual_control",
+        "phase": "MODULE_1",
+        "module": "MODULE_1",
+        "session_elapsed_s": 59.219,
+        "host_monotonic_ns": 294704109000000,
+        "event_value": {
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.5
+          },
+          "sent": {
+            "brake": 0.5,
+            "gear": 0,
+            "hand_brake": false,
+            "manual_gear_shift": false,
+            "reverse": false,
+            "steering": 0.0,
+            "throttle": 0.0,
+            "transport": "CHECKED_BATCH_SYNC"
+          },
+          "throttle_suppression": "POSITIVE_BRAKE"
+        }
+      },
+      "last": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 43443,
+        "csv_line_start": 43444,
+        "csv_line_end": 43444,
+        "event_type": "tsxw_manual_control",
+        "phase": "MODULE_1",
+        "module": "MODULE_1",
+        "session_elapsed_s": 659.125,
+        "host_monotonic_ns": 295304015000000,
+        "event_value": {
+          "effective": {
+            "brake": 0.5,
+            "hand_brake": false,
+            "steering": 0.0,
+            "throttle": 0.0166778564453125
+          },
+          "sent": {
+            "brake": 0.5,
+            "gear": 0,
+            "hand_brake": false,
+            "manual_gear_shift": false,
+            "reverse": false,
+            "steering": 0.0,
+            "throttle": 0.0,
+            "transport": "CHECKED_BATCH_SYNC"
+          },
+          "throttle_suppression": "POSITIVE_BRAKE"
+        }
+      }
+    }
+  },
+  "telemetry_first_last_by_phase": {
+    "TRAINING": {
+      "first": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_telemetry_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 1,
+        "csv_line_start": 2,
+        "csv_line_end": 2,
+        "phase": "TRAINING",
+        "module": null,
+        "session_elapsed_s": 4.906,
+        "host_monotonic_ns": 294649796000000,
+        "carla_frame": 110746,
+        "speed_kmh": 0.3472805410628136,
+        "throttle": 0.0,
+        "brake": 0.5
+      },
+      "last": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_telemetry_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 620,
+        "csv_line_start": 621,
+        "csv_line_end": 621,
+        "phase": "TRAINING",
+        "module": null,
+        "session_elapsed_s": 51.75,
+        "host_monotonic_ns": 294696640000000,
+        "carla_frame": 112665,
+        "speed_kmh": 0.0,
+        "throttle": 0.0,
+        "brake": 0.5
+      }
+    },
+    "MODULE_1": {
+      "first": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_telemetry_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 621,
+        "csv_line_start": 622,
+        "csv_line_end": 622,
+        "phase": "MODULE_1",
+        "module": "MODULE_1",
+        "session_elapsed_s": 58.766,
+        "host_monotonic_ns": 294703656000000,
+        "carla_frame": 113262,
+        "speed_kmh": 0.05181706625023655,
+        "throttle": 0.0,
+        "brake": 0.5
+      },
+      "last": {
+        "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_telemetry_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+        "data_row_number": 8679,
+        "csv_line_start": 8680,
+        "csv_line_end": 8680,
+        "phase": "MODULE_1",
+        "module": "MODULE_1",
+        "session_elapsed_s": 659.156,
+        "host_monotonic_ns": 295304046000000,
+        "carla_frame": 137454,
+        "speed_kmh": 0.0,
+        "throttle": 0.0,
+        "brake": 0.5
+      }
+    }
+  },
+  "device_open_events": [
+    {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 19,
+      "csv_line_start": 20,
+      "csv_line_end": 20,
+      "event_type": "tsxw_device_opened",
+      "phase": "TRAINING",
+      "module": null,
+      "session_elapsed_s": 5.344,
+      "host_monotonic_ns": 294650234000000,
+      "event_value": {
+        "axes": 4,
+        "brake_calibration_status": "NOMINAL_PROVISIONAL",
+        "brake_pressed_axis": -1.0,
+        "buttons": 13,
+        "guid": "0300fe4a4f04000092b6000000000000",
+        "hats": 1,
+        "index": 0,
+        "instance_id": 0,
+        "name": "TS-XW Racer",
+        "steering_center_axis": 0.0,
+        "steering_deadzone": 0.02,
+        "steering_left_axis": -1.0,
+        "steering_right_axis": 1.0
+      }
+    },
+    {
+      "source": "data/p8_operator/P8-M2-V1-72b04ff08b9d41249485dbb830a441ca/research_events_P8-M2-V1-72b04ff08b9d41249485dbb830a441ca.csv",
+      "data_row_number": 3154,
+      "csv_line_start": 3155,
+      "csv_line_end": 3155,
+      "event_type": "tsxw_device_opened",
+      "phase": "MODULE_1",
+      "module": "MODULE_1",
+      "session_elapsed_s": 59.188,
+      "host_monotonic_ns": 294704078000000,
+      "event_value": {
+        "axes": 4,
+        "brake_calibration_status": "NOMINAL_PROVISIONAL",
+        "brake_pressed_axis": -1.0,
+        "buttons": 13,
+        "guid": "0300fe4a4f04000092b6000000000000",
+        "hats": 1,
+        "index": 0,
+        "instance_id": 1,
+        "name": "TS-XW Racer",
+        "steering_center_axis": 0.0,
+        "steering_deadzone": 0.02,
+        "steering_left_axis": -1.0,
+        "steering_right_axis": 1.0
+      }
+    }
+  ],
+  "cause_explanation_ko": [
+    "최신 실행 로그의 TS-XW 입력 샘플 8,677개 모두에서 raw.brake가 0.0, normalized.brake가 0.5였으며, effective.brake는 8,669개에서 0.5, S 키 우선 입력 8개에서 1.0이었다.",
+    "W 입력이 기록된 샘플은 158개이며 이때 effective.throttle은 1.0이지만, 뒤따르는 수동 제어는 모두 POSITIVE_BRAKE 사유로 sent.throttle=0.0, sent.brake=0.5를 보냈다.",
+    "전체 수동 제어 8,677개와 차량 텔레메트리 8,679개도 throttle=0.0, brake=0.5여서, 직접 확인된 출발 차단 원인은 브레이크 양수 입력에 대한 가속 억제이다.",
+    "가속페달 채널의 raw.throttle이 0.0에서 0.966644287109375로 바뀐 기록도 있지만, 전체 로그의 가속 raw 값은 이 두 종류뿐이므로 페달의 실제 전 구간 동작이 정상이라고 단정할 수는 없다.",
+    "브레이크 raw 값이 계속 0이었던 장치·드라이버·초기화 단계의 근본 원인은 이 로그만으로 확정할 수 없으며, 이 실행에는 MODULE_2의 실제 입력·주행 텔레메트리가 없다."
+  ],
+  "limits": [
+    "This evidence describes one historical uploaded run. It is not a CARLA/Windows hardware test of the patch.",
+    "The latest run proves brake-positive throttle suppression; it does not identify the SDL/driver/hardware cause of persistent raw zero.",
+    "Raw brake zero remains a valid mid-axis input after genuine initialization; replacing every zero with released would erase real half braking.",
+    "Only TRAINING and MODULE_1 have TS-XW samples and telemetry in this run; no successful MODULE_2 hazard execution is demonstrated.",
+    "Window focus is recorded separately; focused W examples are present, so lack of keyboard focus alone cannot explain all failed forward commands."
+  ]
+}
