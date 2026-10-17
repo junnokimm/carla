@@ -144,6 +144,7 @@ class ResearchSnapshotSample:
     left_section_id: int | None = None
     right_road_id: int | None = None
     right_section_id: int | None = None
+    world_snapshot: object | None = None
 
 
 class ResearchNoAObservationSource:
@@ -264,6 +265,7 @@ class ResearchNoAObservationSource:
             None if left_lane is None else int(left_lane.section_id),
             None if right_lane is None else int(right_lane.road_id),
             None if right_lane is None else int(right_lane.section_id),
+            snapshot,
         )
         return VehicleObservation(
             timestamp=timestamp,

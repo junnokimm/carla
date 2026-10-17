@@ -144,7 +144,16 @@ class OperatorApp:
             if result.exit_opportunity is None
             else result.exit_opportunity.classification.value
         )
-        if running_stage is not Stage.MODULE_2_RUNNING or not result.nominal_request:
+        m2_internal_result = (
+            running_stage is Stage.MODULE_2_RUNNING
+            and self.controller.snapshot().stage is Stage.MODULE_2_RUNNING
+            and result.nominal_request
+        )
+        if (
+            running_stage is not Stage.MODULE_2_RUNNING
+            or not result.nominal_request
+            or m2_internal_result
+        ):
             self.controller.record_execution_policy_outcome(
                 DevOutcome.PARTIAL,
                 f"{module} {window_status}; P5={exit_status}; P6 remains blocked",
@@ -157,10 +166,12 @@ class OperatorApp:
             )
             self.status = f"M1 actual {result.actual_active_drive_s:.1f}s; {completion}"
             return
-        if not result.nominal_request:
+        if not result.nominal_request or m2_internal_result:
             self.controller.record_execution_policy_outcome(
                 DevOutcome.BLOCKED,
-                "moving hazard policy and physical readiness blocked; not run",
+                "M2 internal v1 scene recorded; physical/data validation pending; no post-M2 replay"
+                if m2_internal_result
+                else "moving hazard policy and physical readiness blocked; not run",
             )
         self._advance()
         self.controller.record_execution_policy_outcome(

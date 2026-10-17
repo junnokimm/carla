@@ -91,7 +91,7 @@ class OfflineBackend:
     def actors(self) -> OfflineActors:
         return self._actors
 
-    def observe_geometry(self) -> HazardObservation | None:
+    def observe_geometry(self, sample) -> HazardObservation | None:
         if self.error_after is not None and self.read_count == self.error_after:
             if self.failure_action is not None:
                 self.failure_action()
@@ -99,7 +99,9 @@ class OfflineBackend:
         self.read_count += 1
         if not self.observations:
             return None
-        return self.observations.pop(0)
+        # Fixture geometry is generated for the supplied cached frame, not a
+        # stored runtime observation whose acquisition time is being refreshed.
+        return replace(self.observations.pop(0), timestamp=sample.timestamp)
 
     def cleanup(self) -> HazardCleanupEvidence:
         self.cleanup_count += 1
@@ -198,7 +200,17 @@ def controller_with_hazard(
         for value in observations
     ]
     evidence = RunnerEvidence(
-        [], [], [], [DriverInput(), DriverInput(), *actual_inputs, DriverInput()]
+        [],
+        [],
+        [],
+        [
+            DriverInput(),
+            DriverInput(),
+            *actual_inputs,
+            DriverInput(),
+            DriverInput(),
+            DriverInput(),
+        ],
     )
     input_count = 0
 

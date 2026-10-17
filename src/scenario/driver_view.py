@@ -10,8 +10,11 @@ import pygame
 
 from src.experiment.automation import AutomationState
 from src.experiment.automation_interaction import DriverInput
+from src.scenario.active_scene import ActiveDriveScene
 from src.scenario.camera_feed import (
     CameraFeed,
+    CameraFeedSnapshot,
+    DisplayedCameraFrame,
     DriverViewPerformanceObserver,
 )
 from src.scenario.driver_hud import (
@@ -52,6 +55,11 @@ class RuntimeFrameContinuation(Protocol):
 
 
 type RuntimeContinuationFactory = Callable[[], RuntimeFrameContinuation | None]
+
+
+@runtime_checkable
+class RuntimeDisplayContinuation(Protocol):
+    def after_display_completed(self, frame: DisplayedCameraFrame | None) -> bool: ...
 
 
 @runtime_checkable
@@ -288,6 +296,7 @@ class DriverView:
         scheduler: RuntimeIterationScheduler | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
         continuation_factory: RuntimeContinuationFactory | None = None,
+        active_scene: ActiveDriveScene | None = None,
     ) -> bool:
         """Show the composed view until duration elapses or the user exits it."""
         if self._driving_mode_controller is None:
@@ -300,19 +309,34 @@ class DriverView:
             presentation = DriverViewPresentation(self._config.window_size, screen)
             pygame.display.set_caption("CARLA driver view")
             clock = pygame.time.Clock()
-            started_at = time.monotonic()
+            started_at = (
+                time.monotonic() if active_scene is None else active_scene.started_at
+            )
             exited_by_user = False
             continuation: RuntimeFrameContinuation | None = None
+            display_continuation: RuntimeDisplayContinuation | None = None
+            self._capture_hazard_display = active_scene is not None
+            self._hazard_front_frame = None
             continuation_finalized = False
             while True:
+                boundary_events = None
                 if continuation is None and time.monotonic() - started_at >= duration:
                     if continuation_factory is None:
+                        break
+                    # Honor a queued user exit before acquiring hazard resources.
+                    # Reuse this poll below; do not consume non-exit input twice.
+                    boundary_events = pygame.event.get()
+                    if self._exit_requested(boundary_events):
+                        exited_by_user = True
                         break
                     continuation = continuation_factory()
                     continuation_factory = None
                     if continuation is None:
                         break
                     continuation.start()
+                    if isinstance(continuation, RuntimeDisplayContinuation):
+                        display_continuation = continuation
+                        self._capture_hazard_display = True
                 observer = self._performance_observer
                 loop_started_at = observer.timestamp() if observer is not None else 0.0
                 self._begin_iteration()
@@ -320,7 +344,11 @@ class DriverView:
                     observer.timestamp() if observer is not None else 0.0
                 )
                 try:
-                    events = pygame.event.get()
+                    events = (
+                        pygame.event.get()
+                        if boundary_events is None
+                        else boundary_events
+                    )
                     presentation.handle_events(events)
                 finally:
                     if observer is not None:
@@ -340,10 +368,20 @@ class DriverView:
                     self._training_completed_early = True
                     break
                 collected_input: DriverInput | None = None
-                if input_observer is not None or continuation is not None:
+                if (
+                    input_observer is not None
+                    or continuation is not None
+                    or active_scene is not None
+                ):
                     collection_started_at = self._interaction_timestamp()
+                    poll_started_ns = (
+                        time.monotonic_ns() if active_scene is not None else 0
+                    )
                     try:
                         collected_input = self._collect_driver_input(events)
+                        poll_completed_ns = (
+                            time.monotonic_ns() if active_scene is not None else 0
+                        )
                         self._pending_driver_input = collected_input
                     finally:
                         self._record_interaction_duration(
@@ -377,6 +415,10 @@ class DriverView:
                             "post_control", post_started_at
                         )
                 continuation_active = True
+                if active_scene is not None and collected_input is not None:
+                    active_scene.after_control(
+                        collected_input, poll_started_ns, poll_completed_ns
+                    )
                 if continuation is not None:
                     if collected_input is None:
                         raise RuntimeError(
@@ -402,6 +444,8 @@ class DriverView:
                             "frame_prepare", observer.timestamp() - prepare_started_at
                         )
                 draw_started_at = observer.timestamp() if observer is not None else 0.0
+                if self._capture_hazard_display:
+                    self._hazard_front_frame = None
                 try:
                     self._draw(presentation.canvas)
                     presentation.present()
@@ -413,6 +457,11 @@ class DriverView:
                 flip_started_at = observer.timestamp() if observer is not None else 0.0
                 try:
                     pygame.display.flip()
+                    flip_completed_ns = (
+                        time.monotonic_ns()
+                        if display_continuation is not None or active_scene is not None
+                        else None
+                    )
                 finally:
                     if observer is not None:
                         observer.record_duration(
@@ -431,6 +480,28 @@ class DriverView:
                             "after_display_flip",
                             observer.timestamp() - after_flip_started_at,
                         )
+                if display_continuation is not None or active_scene is not None:
+                    assert flip_completed_ns is not None
+                    selected = self._hazard_front_frame
+                    frame = (
+                        None
+                        if selected is None
+                        else DisplayedCameraFrame(
+                            selected[0],
+                            selected[1],
+                            selected[2],
+                            selected[3],
+                            flip_completed_ns,
+                            selected[4],
+                        )
+                    )
+                    if display_continuation is not None:
+                        continuation_active = (
+                            display_continuation.after_display_completed(frame)
+                            and continuation_active
+                        )
+                    if active_scene is not None:
+                        active_scene.after_display_completed(frame)
                 limiter_started_at = (
                     observer.timestamp() if observer is not None else 0.0
                 )
@@ -460,6 +531,8 @@ class DriverView:
                 continuation.finalize("ERROR", error)
             raise
         finally:
+            self._capture_hazard_display = False
+            self._hazard_front_frame = None
             try:
                 try:
                     self._turn_signal_audio.close()
@@ -764,6 +837,7 @@ class DriverView:
             if flip_horizontal:
                 scaled_surface = pygame.transform.flip(scaled_surface, True, False)
             screen.blit(scaled_surface, position)
+            self._remember_hazard_front(feed, snapshot)
             return
         started_at = observer.timestamp()
         surface = pygame.image.frombuffer(
@@ -785,7 +859,20 @@ class DriverView:
             )
         started_at = observer.timestamp()
         screen.blit(scaled_surface, position)
+        self._remember_hazard_front(feed, snapshot)
         observer.record_duration(f"blit.{feed.role}", observer.timestamp() - started_at)
+
+    def _remember_hazard_front(
+        self, feed: CameraFeed, snapshot: CameraFeedSnapshot
+    ) -> None:
+        if getattr(self, "_capture_hazard_display", False) and feed.role == "front":
+            self._hazard_front_frame = (
+                feed.sensor.id,
+                snapshot.last_sensor_frame,
+                snapshot.last_sensor_timestamp_seconds,
+                snapshot.last_host_receipt_seconds,
+                getattr(snapshot.image, "transform", None),
+            )
 
     @staticmethod
     def _exit_requested(events: Sequence[pygame.event.Event]) -> bool:

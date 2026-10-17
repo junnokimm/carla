@@ -1,5 +1,17 @@
 # V5-P7 Traffic + Hazard: development foundation
 
+## 2026-10-17 current moving-ego development path
+
+`python -m src.p8.operator_cli --m2-hazard-v1 ...` now connects the real
+`MovingHazardBackend` inside M2 (one uniform 400..600s exposure opportunity).
+The same M2 continues to 780s; there is no post-M2 scene replay. This reuses P7
+ownership, occurrence, projection and motion-profile utilities; the legacy static
+smoke and injected post-duration plan below remain separate Offline/development contracts.
+See [current status and command](P8_P7_V5_Hazard_Status.md) for tuning, data, TM
+limitations and verification. Physical driving, Tobii and pilot readiness remain unverified.
+
+The remainder preserves the earlier foundation/static-smoke history.
+
 ## Authority, status and exclusions
 
 `CARLA_Experiment_Design_v5_Source_of_Truth.md` sections 5, 7.5, 8 and 11 are

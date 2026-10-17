@@ -55,7 +55,11 @@ class OperatorComponents:
     def enter(self, stage: Stage) -> None:
         if stage is not self.services.stage:
             raise P8Error("COMPONENT_STAGE_CONTEXT_MISMATCH")
-        if stage is Stage.FINAL_HAZARD and self.hazard_observation is None:
+        if (
+            stage is Stage.FINAL_HAZARD
+            and self.hazard_observation is None
+            and self.hazard_loop is None
+        ):
             timestamp = self.services.stamp()
             identities = (
                 self.continuity.bind_final_hazard(self.services)
@@ -134,6 +138,8 @@ class OperatorComponents:
                         assert_never(unreachable)
             return "FULL_ROUTE_EXIT_AND_NOMINAL_WINDOW_BLOCKED"
         if stage is Stage.FINAL_HAZARD:
+            if self.runtime.m2_hazard_v1 is not None:
+                return "PHYSICAL_HAZARD_AND_DATA_VALIDATION_PENDING"
             if (
                 self.hazard_observation is not None
                 and self.hazard_observation.get("execution_status")
@@ -220,6 +226,8 @@ class OperatorComponents:
             self.exit_slots,
             self.continuity,
             self.nominal_m2_handoff,
+            self.occurrences,
+            self._store_hazard_record,
         ).execute(
             OperatorRunRequest(
                 module,

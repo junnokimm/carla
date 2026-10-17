@@ -12,6 +12,7 @@ from src.experiment.automation_interaction import (
 from src.experiment.context import Module1Condition, Module2Condition
 from src.experiment.exit_assistance import ExitContext
 from src.experiment.noa_runtime import NoAControlConfig
+from src.p7.moving_config import MovingHazardConfig
 from src.p7.types import Json
 from src.p8.model import Stage
 from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsConfig
@@ -83,11 +84,14 @@ class OperatorRuntimeConfig:
     hazard_execution: HazardExecutionPlan | None = None
     native_tm_diagnostics: NativeTrafficManagerDiagnosticsConfig | None = None
     tsxw_config: TsxwConfig | None = None
+    m2_hazard_v1: MovingHazardConfig | None = None
 
     def __post_init__(self) -> None:
         self.validate_safety_contract()
 
     def validate_safety_contract(self) -> None:
+        if self.m2_hazard_v1 is not None and self.hazard_execution is not None:
+            raise ValueError("M2_V1_AND_LEGACY_OFFLINE_PLAN_ARE_EXCLUSIVE")
         if not self.interaction_policy.steering_deactivation_enabled:
             raise ResearchSpeedPolicyError(
                 "steering_deactivation_enabled",

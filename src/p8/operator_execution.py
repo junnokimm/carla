@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from src.error_notes import append_error_note
+from src.p7.occurrence import OccurrenceRegistry
 from src.p8.model import Mode, P8Error, Stage
 from src.p8.operator_continuity import OperatorRuntimeContinuity
 from src.p8.operator_exit_ledger_view import LiveCoordinatorEvidence
@@ -15,6 +16,7 @@ from src.p8.operator_exit_result import (
     technical_exit_result,
 )
 from src.p8.operator_live_evidence import after_cleanup_evidence, live_evidence
+from src.p8.operator_m2_hazard import OperatorM2Hazard
 from src.p8.operator_metrics import event_count, reduce_module_run
 from src.p8.operator_model import ModuleRunResult, OperatorRuntimeConfig
 from src.p8.operator_run_config import OperatorRunRequest, prepare_operator_run
@@ -42,6 +44,8 @@ class OperatorRunExecutor:
     exit_slots: dict[Stage, ExitOpportunityResult]
     continuity: OperatorRuntimeContinuity
     nominal_m2_handoff: Callable[[], RuntimeFrameContinuation | None]
+    occurrences: OccurrenceRegistry
+    hazard_record_sink: Callable
 
     def execute(self, request: OperatorRunRequest) -> ModuleRunResult:
         if any(result.stage is request.stage for result in self.runs):
@@ -61,9 +65,13 @@ class OperatorRunExecutor:
                 prepared.config,
                 self.services.borrowed_research_log(),
             )
-            handoff_enabled = (
+            m2_nominal = (
                 request.stage is Stage.MODULE_2_RUNNING and request.nominal_request
             )
+            v1_enabled = m2_nominal and self.runtime.m2_hazard_v1 is not None
+            if v1_enabled and self.services.mode is not Mode.DEV_REHEARSAL:
+                raise P8Error("M2_V1_REQUIRES_DEV_REHEARSAL")
+            handoff_enabled = m2_nominal and not v1_enabled
             if handoff_enabled and self.runtime.hazard_execution is not None:
                 require_offline_hazard_runner(self.services.mode, runner)
             try:
@@ -79,6 +87,22 @@ class OperatorRunExecutor:
                             or actual.persistence.study_run is not self.services.context
                         ):
                             raise P8Error("OPERATOR_SHARED_RESOURCE_IDENTITY_MISMATCH")
+                        if v1_enabled:
+                            actual.active_scene_factory = lambda session, origin: (
+                                OperatorM2Hazard(
+                                    session,
+                                    self.services,
+                                    self.runtime.m2_hazard_v1,
+                                    self.occurrences,
+                                    self.hazard_record_sink,
+                                    origin,
+                                    {
+                                        "client": runner.client_source,
+                                        "viewer": runner.viewer_source,
+                                        "driver_input": runner.driver_input_source,
+                                    },
+                                )
+                            )
                         report = actual.run(
                             continuation_factory=(
                                 (lambda _: self.nominal_m2_handoff())

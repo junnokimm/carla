@@ -20,6 +20,7 @@ from src.experiment.noa_runtime import CarlaNoARuntimeWaypoint, NoARuntimeBundle
 from src.experiment.timestamp import TimestampEnvelope
 from src.p6.runtime import P6Runtime
 from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsCollector
+from src.scenario.active_scene import ActiveDriveScene
 from src.scenario.driver_view import RuntimeFrameContinuation
 from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
 from src.scenario.research_exit_runtime import (
@@ -133,6 +134,9 @@ class ResearchNoASession:
         self._live_shutdown_completed = False
         self._live_shutdown_timestamp: TimestampEnvelope | None = None
         self.shutdown_brake_outcome = ShutdownBrakeOutcome.not_attempted()
+        self.active_scene_factory: (
+            Callable[[ResearchNoASession, float], ActiveDriveScene] | None
+        ) = None
 
     def request_control_mode(self, mode: DrivingControlMode) -> None:
         if (
@@ -257,6 +261,7 @@ class ResearchNoASession:
         commands_at_boundary = self.live_scheduler.commands
         maximum_manual_speed_at_boundary = self.live_scheduler.maximum_manual_speed_kmh
         final_speed_kmh: float | None = None
+        active_scene = None
         try:
             if self.interaction is None:
                 self.request_control_mode(DrivingControlMode.NOA_ACTIVE)
@@ -296,6 +301,8 @@ class ResearchNoASession:
                 )
             initial_snapshot = self.world.get_snapshot()
             active_drive_started_at = self.monotonic_clock()
+            if self.active_scene_factory is not None:
+                active_scene = self.active_scene_factory(self, active_drive_started_at)
             self.live_scheduler.diagnostics.begin_operation_measurement_window()
 
             def create_continuation() -> RuntimeFrameContinuation | None:
@@ -330,7 +337,15 @@ class ResearchNoASession:
 
             try:
                 viewer_started = True
-                if continuation_factory is None:
+                if active_scene is not None:
+                    user_exited = self.viewer.run(
+                        self.config.duration,
+                        scheduler=self.live_scheduler,
+                        diagnostics=self.live_scheduler.diagnostics,
+                        input_observer=self.interaction,
+                        active_scene=active_scene,
+                    )
+                elif continuation_factory is None:
                     user_exited = self.viewer.run(
                         self.config.duration,
                         scheduler=self.live_scheduler,
@@ -380,6 +395,18 @@ class ResearchNoASession:
             was_active = trigger_state.control_mode is DrivingControlMode.NOA_ACTIVE
             run_error = sys.exception()
             primary_error = run_error
+            if active_scene is not None:
+                primary_error = retain_first_error(
+                    lambda: active_scene.finalize(
+                        "ERROR"
+                        if run_error is not None
+                        else "USER_EXIT"
+                        if user_exited
+                        else "M2_END",
+                        run_error,
+                    ),
+                    primary_error,
+                )
             shutdown_timestamps: list[TimestampEnvelope | None] = []
             try:
                 shutdown_timestamps.append(self._shutdown_live())

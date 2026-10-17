@@ -20,6 +20,7 @@ from src.vehicle.carla_noa_control import CarlaVelocity
 __all__ = ["ResearchPostControlObserver"]
 
 if TYPE_CHECKING:
+    from src.scenario.active_scene import ActiveDriveScene
     from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
     from src.scenario.research_exit_view import ExitViewBinding
     from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
@@ -54,6 +55,7 @@ class ResearchNoAViewer(Protocol):
         diagnostics: ResearchNoADiagnostics | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
         continuation_factory: RuntimeContinuationFactory | None = None,
+        active_scene: ActiveDriveScene | None = None,
     ) -> bool: ...
 
     def close(self) -> None: ...

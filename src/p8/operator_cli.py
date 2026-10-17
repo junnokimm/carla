@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isfinite
@@ -13,6 +14,7 @@ from src.experiment.exit_assistance import ExitContext
 from src.experiment.lateral_control import LateralControlConfig
 from src.experiment.longitudinal_control import LongitudinalControlConfig
 from src.experiment.noa_runtime import NoAControlConfig
+from src.p7.moving_config import MovingHazardConfig
 from src.p8.model import Mode, P8Error
 from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsConfig
 from src.p8.operator_controller import OperatorController
@@ -62,6 +64,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--m1", choices=[item.value for item in Module1Condition])
     parser.add_argument("--m2", choices=[item.value for item in Module2Condition])
     parser.add_argument("--ack-dev-live", action="store_true")
+    parser.add_argument(
+        "--m2-hazard-v1",
+        action="store_true",
+        help="DEV: moving hazard inside M2, random 400..600s",
+    )
+    parser.add_argument(
+        "--m2-hazard-seed", type=int, help="Optional reproducible dedicated hazard seed"
+    )
     parser.add_argument("--spawn-index", type=int)
     parser.add_argument("--traffic-manager-port", type=int, default=8000)
     parser.add_argument("--native-tm-diagnostics", action="store_true")
@@ -103,6 +113,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     mode = Mode(args.mode)
+    if args.m2_hazard_seed is not None and not args.m2_hazard_v1:
+        parser.error("--m2-hazard-seed requires --m2-hazard-v1")
+    if args.m2_hazard_v1 and (
+        mode is not Mode.DEV_REHEARSAL or args.drive_duration is not None
+    ):
+        parser.error(
+            "--m2-hazard-v1 requires DEV_REHEARSAL and nominal module durations"
+        )
     diagnostic_tuning = (
         args.native_tm_diagnostics_capacity is not None
         or args.native_tm_diagnostics_interval is not None
@@ -290,6 +308,15 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
         training_exit = _exit_template(training_selection, behavior, assisted_execution)
 
     return OperatorRuntimeConfig(
+        m2_hazard_v1=(
+            MovingHazardConfig(
+                secrets.randbits(64)
+                if args.m2_hazard_seed is None
+                else args.m2_hazard_seed
+            )
+            if args.m2_hazard_v1
+            else None
+        ),
         spawn_index=args.spawn_index or 0,
         control_config=control,
         speed_policy=None,

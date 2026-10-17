@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING, Protocol
 from src.experiment.timestamp import TimestampEnvelope
 from src.p7.config import HazardConfig
 from src.p7.hazard import HazardActors
+from src.p7.policy import HazardPolicy
 from src.p7.types import HazardObservation, P7Error
 
 if TYPE_CHECKING:
     from src.p8.operator_continuity import SharedRuntimeIdentities
     from src.p8.services import SessionServices
+    from src.scenario.research_noa_persistence import ResearchSnapshotSample
     from src.scenario.research_noa_session import ResearchNoASession
 
 
@@ -20,6 +22,7 @@ class HazardPolicyApproval:
     policy_source: str
     approval_reference: str
     backend_readiness_source: str
+    policy: HazardPolicy | None = None
 
     def __post_init__(self) -> None:
         if not all(
@@ -43,7 +46,15 @@ class OperatorHazardBackend(Protocol):
     @property
     def actors(self) -> HazardActors: ...
 
-    def observe_geometry(self) -> HazardObservation | None: ...
+    def observe_geometry(
+        self, sample: ResearchSnapshotSample
+    ) -> HazardObservation | None:
+        """Use this exact cached observation; preserve its timestamp/provenance.
+
+        Returning another observation and relabeling it as fresh is prohibited.
+        Independent sensor events retain their own frame/timestamp fields.
+        """
+        ...
 
     def cleanup(self) -> HazardCleanupEvidence: ...
 

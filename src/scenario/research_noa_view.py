@@ -20,6 +20,7 @@ from src.p8.tsxw_policy import (
     coalesce_command_events,
     merge_driver_input,
 )
+from src.scenario.active_scene import ActiveDriveScene
 from src.scenario.driver_view import (
     CAMERA_BLUEPRINT_ID,
     CameraFeed,
@@ -251,6 +252,7 @@ class ResearchDriverView(DriverView):
         diagnostics: ResearchNoADiagnostics | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
         continuation_factory: RuntimeContinuationFactory | None = None,
+        active_scene: ActiveDriveScene | None = None,
     ) -> bool:
         self._diagnostics = diagnostics
         if self._camera_diagnostics is not None:
@@ -261,6 +263,7 @@ class ResearchDriverView(DriverView):
                 scheduler,
                 input_observer,
                 continuation_factory,
+                active_scene,
             )
         finally:
             if self._vehicle_audio is not None:
