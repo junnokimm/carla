@@ -20,7 +20,7 @@ from tests.m2_hazard_fakes import Actor, Waypoint, World, front_feed
 from tests.research_noa_fakes import FakeMonotonicClock
 
 
-def scene_fixture(tmp_path, seed=42, mode="MANUAL"):
+def scene_fixture(tmp_path, seed=42, mode="MANUAL", scene_class=OperatorM2Hazard):
     clock = FakeMonotonicClock()
     world = World(monotonic_clock=clock)
     events, records, pair_calls = [], [], []
@@ -56,7 +56,7 @@ def scene_fixture(tmp_path, seed=42, mode="MANUAL"):
         stamp=stamp,
         emit=lambda kind, payload: events.append((kind, payload)),
     )
-    scene = OperatorM2Hazard(
+    scene = scene_class(
         session,
         services,
         MovingHazardConfig(seed),
@@ -242,18 +242,19 @@ def test_spawn_failure_preserves_partial_cleanup_and_reservation(tmp_path):
     assert all(actor.destroy_count == 1 for actor in world.actors[1:])
 
 
-def test_collision_keeps_sensor_original_frame_and_requests_existing_shutdown(tmp_path):
+def test_collision_keeps_sensor_original_frame_and_allows_module_end(tmp_path):
     scene, world, _, events, records, _ = scene_fixture(tmp_path)
     scene.backend._sensor.callback(
         SimpleNamespace(other_actor=SimpleNamespace(id=999), frame=3, timestamp=12.25)
     )
-    with pytest.raises(P7Error, match="COLLISION") as caught:
-        tick(scene, world, 1)
-    scene.finalize("ERROR", caught.value)
-    failure = next(p for n, p in events if n == "m2_hazard_unexpected_failure")
+    tick(scene, world, 1)
+    tick(scene, world, 779)
+    scene.finalize("M2_END")
+    failure = next(p for n, p in events if n == "m2_hazard_driving_event")
     assert failure["collisions"][0]["frame"] == 3
     assert failure["collisions"][0]["simulation_seconds"] == 12.25
-    assert records[0]["partial_data"]
+    assert not records[0]["partial_data"]
+    assert records[0]["driving_event_counts"]["COLLISION"] == 1
 
 
 def test_wrong_frame_display_cannot_borrow_latest_geometry(tmp_path):
@@ -298,6 +299,7 @@ def test_window_endpoints_schedule_preparation_and_command_ahead_of_exposure(
 def test_surface_clearance_ttc_and_off_path_invalidity(tmp_path):
     scene, world, _, _, _, _ = scene_fixture(tmp_path)
     prepare(scene, world)
+    tick(scene, world, 0.1)  # Confirm the placement on a later world frame.
     # Ego front x+2.3, fixed cargo approaching face x-0.4.
     cargo_x = scene.backend.cargo.get_transform().location.x
     ego = world.vehicle
@@ -417,7 +419,8 @@ def test_collision_after_last_frame_is_retained_at_shutdown(tmp_path):
         SimpleNamespace(other_actor=SimpleNamespace(id=777), frame=10, timestamp=780.0)
     )
     scene.finalize("M2_END")
-    assert records[0]["execution_status"] == "FAILED"
-    assert records[0]["scene_reason"] == "COLLISION_AT_SHUTDOWN"
+    assert records[0]["execution_status"] == "DEVELOPMENT_RUN_ENDED"
+    assert records[0]["driving_event_counts"]["COLLISION"] == 1
+    assert not records[0]["partial_data"]
     assert records[0]["cleanup"]["pending_collisions"][0]["frame"] == 10
     assert world.vehicle.destroy_count == 0

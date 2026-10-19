@@ -248,7 +248,10 @@ def test_observation_error_still_cleans_owned_hazard_actors(tmp_path: Path) -> N
     assert [actor.destroy_count for actor in owned] == [1, 1]
     assert evidence.viewers[-1].close_count == 1
     assert evidence.vehicles[-1].destroy_count == 1
-    assert controller.session.state is Stage.ABORTED
+    assert controller.session.state is Stage.FINAL_HAZARD
+    assert not controller.session.closed
+    assert controller._operator_components().runtime_faults
+    controller.abort("TEST_OPERATOR_STOP")
 
 
 def test_safety_owner_failure_is_logged_and_owned_actors_are_cleaned(

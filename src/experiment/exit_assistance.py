@@ -370,15 +370,19 @@ class ExitAssistanceCoordinator:
                 self._reference.arm(self.config.route, observation.route_point_index)
                 self._route_was_armed = True
             elif not self._assisted_submission():
-                self.status = ExitAssistanceStatus.INTERRUPTED
                 if self._submission_clock is None:
                     raise ExitPresentationError("TM submission clock is unavailable")
-                self._emit(
-                    "lc_finished",
-                    self._submission_clock(),
-                    outcome="UNVERIFIED",
-                    termination_reason="ASSISTED_SUBMISSION_UNVERIFIED",
-                )
+                self.fail_assisted_submission(self._submission_clock())
+
+    def fail_assisted_submission(self, timestamp: TimestampEnvelope) -> None:
+        """Record a rejected submission, including a deferred signal timeout."""
+        if self.status is not ExitAssistanceStatus.CONFIRMED:
+            return
+        self.status = ExitAssistanceStatus.INTERRUPTED
+        self._emit(
+            "lc_finished", timestamp, outcome="UNVERIFIED",
+            termination_reason="ASSISTED_SUBMISSION_UNVERIFIED",
+        )
 
     def finish(
         self, reason: ExitTerminationReason, timestamp: TimestampEnvelope

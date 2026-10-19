@@ -11,7 +11,7 @@ from src.p6.models import RawGazeSample
 from src.p6.validation.analysis import analyze
 from src.p6.validation.mapping import ValidationError, WindowGeometry
 from src.p6.validation.recording import RawRecorder
-from src.p6.validation.segments import SegmentEvent, SegmentSequence
+from src.p6.validation.segments import TARGETS, SegmentEvent, SegmentSequence
 from src.p6.validation.summary import Json
 
 
@@ -22,7 +22,9 @@ class ValidationRun:
         self.origin = SessionOrigin(time.monotonic_ns(), time.time_ns())
         self._events = (directory / "events.jsonl").open("x", encoding="utf-8")
         self.recorder = RawRecorder(directory / "raw_gaze.jsonl", self.origin)
-        self.sequence = SegmentSequence(directory.name, self.origin.monotonic_ns, self._event)
+        targets = tuple(t for t in TARGETS if t != "REAR_MIRROR" or layout.rear_available)
+        self.sequence = SegmentSequence(directory.name, self.origin.monotonic_ns, self._event,
+                                        targets=targets)
         self.sequence.prepare(self.origin.monotonic_ns)
         self.geometry: WindowGeometry | None = None
         self.last_geometry: WindowGeometry | None = None
@@ -65,6 +67,8 @@ class ValidationRun:
             "window_geometry": None if observed is None else asdict(observed),
             "last_observed_geometry": None if self.last_geometry is None else asdict(self.last_geometry),
             "display_mapping": None if observed is None else asdict(observed.display_mapping),
+            "logical_canvas_size": self.layout.mapping.render_size,
+            "presentation_scaling": "ASPECT_FIT_LETTERBOX",
             "candidate_aoi_version": self.layout.version,
             "mirror_rectangles": {name: asdict(rect) for name, rect in (
                 ("rear", self.layout.rear), ("left", self.layout.left), ("right", self.layout.right))},

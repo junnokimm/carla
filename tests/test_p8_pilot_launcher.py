@@ -122,5 +122,48 @@ def test_repeated_launch_uses_new_ids_and_returns_operator_exit_code(
     assert received[0].participant_id != received[1].participant_id
     assert received[0].run_id != received[1].run_id
     assert all(args.m2 == "NOA_L2" for args in received)
+    assert all(args.gaze_config == Path("config/p8_gaze.json") for args in received)
     assert json.loads(config_path.read_text())["m2"] == "MANUAL"
     assert Path.cwd() == tmp_path
+
+
+@pytest.mark.parametrize("choice,expected", [("1", "MANUAL"), ("2", "NOA_L2")])
+@pytest.mark.parametrize("interactive", [True, False])
+def test_assignment_is_selected_per_run_without_changing_saved_config(
+    tmp_path, monkeypatch, choice, expected, interactive
+):
+    path = tmp_path / "pilot.json"
+    original = json.dumps(settings())
+    path.write_text(original, encoding="utf-8")
+    received = []
+    replies = iter(("", "3", choice))
+    monkeypatch.setattr("builtins.input", lambda _: next(replies))
+    monkeypatch.setattr(run_pilot, "PROJECT_ROOT", tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        run_pilot.operator_cli, "main",
+        lambda argv: received.append(build_parser().parse_args(argv)) or 0,
+    )
+    argv = ["--config", str(path)]
+    if not interactive:
+        argv += ["--m2", choice]
+    assert run_pilot.main(argv) == 0
+    assert received[0].m2 == expected
+    assert path.read_text(encoding="utf-8") == original
+    if not interactive:
+        assert next(replies) == ""  # Explicit option never prompts.
+
+
+@pytest.mark.parametrize("error,code", [(EOFError, 2), (KeyboardInterrupt, 130)])
+def test_cancelled_assignment_does_not_launch(tmp_path, monkeypatch, error, code):
+    path = tmp_path / "pilot.json"
+    path.write_text(json.dumps(settings()), encoding="utf-8")
+
+    def cancel(_):
+        raise error
+
+    monkeypatch.setattr("builtins.input", cancel)
+    monkeypatch.setattr(run_pilot, "PROJECT_ROOT", tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(run_pilot.operator_cli, "main", lambda _: pytest.fail("launched"))
+    assert run_pilot.main(["--config", str(path)]) == code

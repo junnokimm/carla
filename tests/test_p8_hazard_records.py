@@ -201,12 +201,13 @@ def test_nominal_m2_cleanup_failure_aborts_after_pre_shutdown_handoff(
     with pytest.raises(RuntimeError, match="retained viewer cleanup failed"):
         controller.execute_current_module()
 
-    # Then: abort finalization does not retry the already-attempted resource release.
-    assert controller.session.closed
-    assert controller.session.state is Stage.ABORTED
+    # Then: keep the operator session open without retrying released resources.
+    assert not controller.session.closed
+    assert controller.session.state is Stage.FINAL_HAZARD
     assert evidence.viewers[-1].close_count == 1
     assert evidence.vehicles[-1].destroy_count == 1
     assert controller.session.components.snapshot()["owned_resource_tokens"] == []
+    controller.abort("TEST_OPERATOR_STOP")
 
 
 def test_blocked_hazard_requires_explicit_blocked_outcome_and_is_not_completed(
@@ -296,6 +297,10 @@ def test_failed_nominal_m2_does_not_enter_final_hazard(
     with pytest.raises(expected_error, match=expected):
         controller.execute_current_module()
 
-    # Then: the session aborts without a hazard-stage observation.
-    assert controller.session.state is Stage.ABORTED
+    # Only an explicit user exit closes the session; runtime errors await the operator.
+    assert controller.session.state is (
+        Stage.ABORTED if failure_kind == "USER_EXIT" else Stage.MODULE_2_RUNNING
+    )
     assert controller.session.components.snapshot()["hazard_observation"] is None
+    if not controller.session.closed:
+        controller.abort("TEST_OPERATOR_STOP")

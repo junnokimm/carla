@@ -364,9 +364,12 @@ class ResearchNoASession:
                     )
             finally:
                 if not m2_boundary_captured:
+                    collision_stop = getattr(self.viewer, "collision_stop", None)
                     self.live_scheduler.diagnostics.end_operation_measurement_window()
                     active_drive_seconds = (
-                        self.monotonic_clock() - active_drive_started_at
+                        collision_stop.active_seconds if collision_stop is not None
+                        else self.monotonic_clock() - active_drive_started_at
+                        - getattr(getattr(self.viewer, "operator_recovery", None), "paused_seconds", 0.0)
                     )
                     scheduler_updates_at_boundary = self.live_scheduler.update_count
                     commands_at_boundary = self.live_scheduler.commands
@@ -377,7 +380,12 @@ class ResearchNoASession:
                         self.live_scheduler.diagnostics.completed_driver_loop_count
                     )
                     try:
-                        final_snapshot = self.world.get_snapshot()
+                        final_snapshot = (
+                            collision_stop.sample.world_snapshot if collision_stop is not None
+                            else self.world.get_snapshot()
+                        )
+                        if collision_stop is not None:
+                            final_speed_kmh = collision_stop.sample.speed_kmh
                     except (OSError, RuntimeError, TypeError, ValueError) as error:
                         performance_capture_error = error
             training_completed_early = self.viewer.training_completed_early

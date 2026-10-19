@@ -40,6 +40,7 @@ from src.experiment.timestamp import (
 )
 from src.logging.csv_logger import ResearchEvent
 from src.logging.research_csv_error import ResearchCsvError
+from src.scenario.iteration_light_state import IterationLightState
 from src.scenario.research_exit_config import ResearchExitAssistanceConfig
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.scenario.research_noa_persistence_config import ResearchPersistenceConfig
@@ -163,6 +164,7 @@ class ResearchNoAObservationSource:
         self._utc_ns = utc_ns
         self._diagnostics = diagnostics
         self.last_snapshot_sample: ResearchSnapshotSample | None = None
+        self.iteration_lights = IterationLightState()
 
     def _record_duration(self, operation: str, started_at: float) -> None:
         if self._diagnostics is not None:
@@ -180,6 +182,7 @@ class ResearchNoAObservationSource:
         )
 
     def get_observation(self) -> VehicleObservation:
+        self.iteration_lights.invalidate()
         started_ns = self._monotonic_ns()
         operation_started_at = self._started_at()
         try:
@@ -223,6 +226,7 @@ class ResearchNoAObservationSource:
             lights = self._hero.get_light_state()
         finally:
             self._record_duration("light_getter", operation_started_at)
+        self.iteration_lights.publish(lights)
         left = bool(lights & carla.VehicleLightState.LeftBlinker)
         right = bool(lights & carla.VehicleLightState.RightBlinker)
         completed_ns = self._monotonic_ns()

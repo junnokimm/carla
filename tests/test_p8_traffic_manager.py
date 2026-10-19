@@ -205,7 +205,7 @@ def test_tm_lane_change_generation_is_invalidated_before_manual_deregistration()
         backend.complete_lane_change(submission.generation)
 
 
-def test_tm_lane_change_inventory_failure_is_nonfatal_and_does_not_force() -> None:
+def test_tm_lane_change_does_not_require_empty_world_rehearsal_inventory() -> None:
     vehicle = FakeResearchVehicle()
     traffic_manager = FakeTrafficManager(8123)
     attestor = FakeTrafficManagerRuntimeAttestor()
@@ -224,9 +224,9 @@ def test_tm_lane_change_inventory_failure_is_nonfatal_and_does_not_force() -> No
         right_lane_change=True,
     )
 
-    assert result.status is LaneChangeSubmissionStatus.BLOCKED
-    assert result.reason == "EMPTY_REHEARSAL_INVENTORY_UNAVAILABLE"
-    assert all(call[0] != "force_lane_change" for call in traffic_manager.calls)
+    assert result.status is LaneChangeSubmissionStatus.SUBMITTED
+    assert result.reason is None
+    assert traffic_manager.calls[-1] == ("force_lane_change", True)
 
 
 def test_tm_lane_change_ownership_loss_propagates_without_force() -> None:

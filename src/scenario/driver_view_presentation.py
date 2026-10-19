@@ -6,6 +6,7 @@ from typing import Final
 import pygame
 from pygame._sdl2.video import Window
 
+from src.scenario.camera_feed import DriverViewPerformanceObserver
 from src.scenario.windows_display import current_monitor_bounds
 
 LETTERBOX_COLOR: Final = (0, 0, 0)
@@ -46,6 +47,8 @@ class DriverViewPresentation:
         self._windowed_position: tuple[int, int] | None = None
         self._display_index: int | None = None
         self._window: Window | None = None
+        self.performance_observer: DriverViewPerformanceObserver | None = None
+        self.gaze_observer = None
 
     def handle_events(self, events: Sequence[pygame.event.Event]) -> None:
         for event in events:
@@ -60,12 +63,26 @@ class DriverViewPresentation:
                 and not self._f11_down
             ):
                 self._f11_down = True
-                self._toggle_fullscreen()
+                observer = self.performance_observer
+                started = observer.timestamp() if observer is not None else 0.0
+                try:
+                    self._toggle_fullscreen()
+                finally:
+                    if observer is not None:
+                        observer.record_duration(
+                            "fullscreen_transition", observer.timestamp() - started
+                        )
 
     def present(self) -> None:
         target = self._display_surface
         if target is None:
             return
+        if self.gaze_observer is not None:
+            try:
+                self.gaze_observer(target.get_size())
+            except Exception:  # noqa: BLE001 -- optional observer cannot stop driving
+                # Optional observation must never interrupt driving or rendering.
+                self.gaze_observer = None
         target.fill(LETTERBOX_COLOR)
         destination = aspect_fit_rect(self._logical_size, target.get_size())
         if destination.size == self._logical_size:

@@ -1,0 +1,137 @@
+........................................................................ [  3%]
+..........................................................F.FF.....F..F. [  6%]
+.......................................s................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 23%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 34%]
+........................................................................ [ 37%]
+........................................................................ [ 40%]
+........................F............................................... [ 44%]
+.......................................F................................ [ 47%]
+........................................................................ [ 51%]
+........................................................................ [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 61%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 71%]
+...............F.......FF............................................... [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+........................................................................ [ 85%]
+........................................................................ [ 88%]
+........................................................................ [ 91%]
+........................................................................ [ 95%]
+........................................................................ [ 98%]
+............................                                             [100%]
+=================================== FAILURES ===================================
+_______ test_protected_front_cockpit_and_hud_configuration_is_unchanged ________
+tests/test_driver_view.py:213: in test_protected_front_cockpit_and_hud_configuration_is_unchanged
+    assert config.cockpit_transform == CameraTransform(
+E   AssertionError: assert CameraTransfo...0.0, roll=0.0) == CameraTransfo...0.0, roll=0.0)
+E     
+E     Omitting 4 identical items, use -vv to show
+E     Differing attributes:
+E     ['x', 'pitch']
+E     
+E     Drill down into differing attribute x:
+E       x: 0.25 != 0.1...
+E     
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+_____ test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps _____
+tests/test_driver_view.py:255: in test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps
+    assert layout.left_mirror.bounds == (24, 561, 240, 135)
+E   assert (24, 453.0, 240, 135) == (24, 561, 240, 135)
+E     
+E     At index 1 diff: 453.0 != 561
+E     Use -v to get more diff
+________ test_layout_recomputes_from_custom_window_and_legacy_side_size ________
+tests/test_driver_view.py:273: in test_layout_recomputes_from_custom_window_and_legacy_side_size
+    assert layout.left_mirror.bounds == (32, 700, 300, 168)
+E   assert (32, 565.5999...999, 300, 168) == (32, 700, 300, 168)
+E     
+E     At index 1 diff: 565.5999999999999 != 700
+E     Use -v to get more diff
+____________ test_draw_keeps_front_raw_and_flips_all_three_mirrors _____________
+tests/test_driver_view.py:468: in test_draw_keeps_front_raw_and_flips_all_three_mirrors
+    assert screen.blits == [
+E   AssertionError: assert [(('scaled', ...1016, 453.0))] == [(('scaled', ... (1016, 561))]
+E     
+E     At index 2 diff: (('flipped', 'left', (240, 135)), (24, 453.0)) != (('flipped', 'left', (240, 135)), (24, 561))
+E     Use -v to get more diff
+______ test_v_respawns_only_front_sensor_with_cockpit_relative_transform _______
+tests/test_driver_view_cockpit.py:52: in test_v_respawns_only_front_sensor_with_cockpit_relative_transform
+    assert spawn.transform.location.x == pytest.approx(0.10)
+E   assert 0.25 == 0.1 ± 1.0e-07
+E     
+E     comparison failed
+E     Obtained: 0.25
+E     Expected: 0.1 ± 1.0e-07
+----------------------------- Captured stdout call -----------------------------
+[driver-view] driving-mode=MANUAL
+[driver-view] view=COCKPIT
+__ test_candidate_matches_current_mirrors_without_claiming_measured_accuracy ___
+tests/test_p6_candidate_aoi.py:24: in test_candidate_matches_current_mirrors_without_claiming_measured_accuracy
+    assert astuple(candidate.left) == layout.left_mirror.bounds
+E   assert (24.0, 561.0, 240.0, 135.0) == (24, 453.0, 240, 135)
+E     
+E     At index 1 diff: 561.0 != 453.0
+E     Use -v to get more diff
+________ test_space_at_previous_segment_end_must_not_skip_next_prepare _________
+tests/test_p6_validation_loop.py:75: in test_space_at_previous_segment_end_must_not_skip_next_prepare
+    live.execute(run, source, live.LiveOptions("fake", 2000, 1, 20))
+src/p6/validation/live.py:49: in execute
+    validate_geometry(run, config)
+src/p6/validation/live.py:33: in validate_geometry
+    raise ValidationError("Candidate mirrors differ from current production layout")
+E   src.p6.validation.mapping.ValidationError: Candidate mirrors differ from current production layout
+
+During handling of the above exception, another exception occurred:
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/contextlib.py:167: in __exit__
+    exc.__traceback__ = traceback
+    ^^^^^^^^^^^^^^^^^
+E   TypeError: super(type, obj): obj must be an instance or subtype of type
+_______ test_diagnostic_profile_requires_exact_candidate_j_path_and_hash _______
+tests/test_p8_runtime_attestation.py:36: in test_diagnostic_profile_requires_exact_candidate_j_path_and_hash
+    assert prepared.libcarla_path == DIAGNOSTIC_LIBCARLA_PATH
+E   AssertionError: assert PosixPath('/workspace/scratch/7ec199e3f2c1/work/current/carla/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') == PosixPath('C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd')
+E    +  where PosixPath('/workspace/scratch/7ec199e3f2c1/work/current/carla/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') = PreparedRuntimeAttestation(port=8123, owner_pid=41, libcarla_path=PosixPath('/workspace/scratch/7ec199e3f2c1/work/curr...la\\libcarla.cp312-win_amd64.pyd'), libcarla_sha256='E4B2BAD4D70DF255C1123E7064602B1B010E34F740638B19BC2608478D479721').libcarla_path
+__________ test_real_windows_listener_pid_without_carla[2-127.0.0.1] ___________
+tests/test_p8_runtime_attestation.py:156: in test_real_windows_listener_pid_without_carla
+    assert windows_listener_pids(listener.getsockname()[1]) == frozenset(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/p8/tm_runtime_attestation.py:198: in windows_listener_pids
+    table = _tcp_table(family)
+            ^^^^^^^^^^^^^^^^^^
+src/p8/tm_runtime_attestation.py:209: in _tcp_table
+    iphlpapi = ctypes.WinDLL("iphlpapi")
+               ^^^^^^^^^^^^^
+E   AttributeError: module 'ctypes' has no attribute 'WinDLL'
+_____________ test_real_windows_listener_pid_without_carla[10-::1] _____________
+tests/test_p8_runtime_attestation.py:156: in test_real_windows_listener_pid_without_carla
+    assert windows_listener_pids(listener.getsockname()[1]) == frozenset(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/p8/tm_runtime_attestation.py:198: in windows_listener_pids
+    table = _tcp_table(family)
+            ^^^^^^^^^^^^^^^^^^
+src/p8/tm_runtime_attestation.py:209: in _tcp_table
+    iphlpapi = ctypes.WinDLL("iphlpapi")
+               ^^^^^^^^^^^^^
+E   AttributeError: module 'ctypes' has no attribute 'WinDLL'
+- generated xml file: /workspace/scratch/7ec199e3f2c1/work/current/carla/docs/m2_hazard_verification/full_suite.xml -
+=========================== short test summary info ============================
+FAILED tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged
+FAILED tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps
+FAILED tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size
+FAILED tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors
+FAILED tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform
+FAILED tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy
+FAILED tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare
+FAILED tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1]
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1]
+10 failed, 2105 passed, 1 skipped in 26.36s

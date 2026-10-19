@@ -1,0 +1,16 @@
+{
+  "source_url": "https://www.libsdl.org/release/SDL2-2.28.4.zip",
+  "source_sha256": "b53b9b42e731a33552d0a533316a88009b423c16a8a3a418df9ffe498c37da3d",
+  "sdl_version": [
+    2,
+    28,
+    4
+  ],
+  "sdl_revision": "SDL-release-2.28.4-0-gcc016b004 (P8 TS-XW preserve existing forces v1)",
+  "architecture": "x64",
+  "dll_sha256": "3a6f1ab75568fac9011710d35814f82f7671805eab5b9e86fd98656d231e064d",
+  "patch_sha256": "a1b03358a2b406b3c8047f406397daa68e93d68a85b996741d274ef3cfb4ae3b",
+  "hint": "P8_TSXW_PRESERVE_FORCES",
+  "usb_vendor": "044f",
+  "usb_product": "b692"
+}

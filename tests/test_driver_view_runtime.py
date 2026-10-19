@@ -140,7 +140,11 @@ def test_opt_in_observer_records_each_host_loop_segment(monkeypatch) -> None:
             return self.now
 
         def record_duration(self, segment: str, duration_seconds: float) -> None:
-            assert duration_seconds > 0.0
+            if segment.endswith("_thread_cpu"):
+                # A fast call or a pure wait can consume no measurable CPU tick.
+                assert duration_seconds >= 0.0
+            else:
+                assert duration_seconds > 0.0
             self.segments.append(segment)
 
         def record_completed_display_flip(self) -> None:
@@ -174,6 +178,10 @@ def test_opt_in_observer_records_each_host_loop_segment(monkeypatch) -> None:
     viewer.run(1.0)
 
     assert observer.segments == [
+        "event_poll",
+        "event_poll_thread_cpu",
+        "presentation_events",
+        "presentation_events_thread_cpu",
         "event_poll_and_presentation",
         "mode_events",
         "scheduler",

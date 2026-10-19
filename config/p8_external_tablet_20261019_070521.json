@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "profile_id": "external-tablet-20261019T070521Z-29b5a008",
+  "method": "PER_EYE_OBSERVED_CONVEX_HULL",
+  "coordinate_system": "EXTENDED_NORMALIZED_TOBII_DISPLAY_PLANE_NOT_PHYSICAL_TABLET",
+  "status": "PROVISIONAL_PARTIAL_EMPIRICAL_MAPPING",
+  "independently_validated": false,
+  "serial_number": "TPNA1-030251042584",
+  "display_area": {
+    "top_left": [
+      -719.5,
+      1012.286376953125,
+      -457.3247375488281
+    ],
+    "top_right": [
+      719.5,
+      1012.286376953125,
+      -457.3247375488281
+    ],
+    "bottom_left": [
+      -719.5,
+      206.3648681640625,
+      -527.833740234375
+    ],
+    "bottom_right": [
+      719.5,
+      206.3648681640625,
+      -527.833740234375
+    ]
+  },
+  "polygons": {
+    "left": [
+      [
+        0.7733186483383179,
+        1.206687388420105
+      ],
+      [
+        0.7989815521240234,
+        0.842728396654129
+      ],
+      [
+        0.9105221128463745,
+        0.842728396654129
+      ],
+      [
+        1.1860121583938599,
+        0.8679134607315063
+      ],
+      [
+        1.2092075586318969,
+        1.245269193649292
+      ],
+      [
+        1.2092075586318969,
+        1.356403956413269
+      ],
+      [
+        1.1473750495910644,
+        1.356403956413269
+      ],
+      [
+        0.7733186483383179,
+        1.3059590148925782
+      ]
+    ],
+    "right": [
+      [
+        0.7238649904727936,
+        1.2503600192070008
+      ],
+      [
+        0.7484234166145325,
+        0.8987727522850036
+      ],
+      [
+        0.8051865756511688,
+        0.8987727522850036
+      ],
+      [
+        1.1911124086380005,
+        0.9287779235839844
+      ],
+      [
+        1.1911124086380005,
+        1.0198605155944824
+      ],
+      [
+        0.7857999062538147,
+        1.333787477016449
+      ],
+      [
+        0.7238649904727936,
+        1.333787477016449
+      ]
+    ]
+  },
+  "missing_targets": [],
+  "fit": {
+    "trim_each_end_seconds": 2,
+    "min_samples_per_eye_target": 60,
+    "coordinate_quantiles": [
+      0.01,
+      0.99
+    ],
+    "noise_margin_normalized": 0.01
+  },
+  "target_evidence": {
+    "tablet_center": {
+      "left": {
+        "sdk_valid_samples_after_trim": 941,
+        "included": true,
+        "envelope": [
+          [
+            1.0624333286285401,
+            1.1396668338775635
+          ],
+          [
+            1.1462622737884522,
+            1.1396668338775635
+          ],
+          [
+            1.1462622737884522,
+            1.2034479236602784
+          ],
+          [
+            1.0624333286285401,
+            1.2034479236602784
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 957,
+        "included": true,
+        "envelope": [
+          [
+            0.883085949420929,
+            1.108499937057495
+          ],
+          [
+            0.9588824343681335,
+            1.108499937057495
+          ],
+          [
+            0.9588824343681335,
+            1.1624150371551514
+          ],
+          [
+            0.883085949420929,
+            1.1624150371551514
+          ]
+        ]
+      }
+    },
+    "tablet_top_left": {
+      "left": {
+        "sdk_valid_samples_after_trim": 927,
+        "included": true,
+        "envelope": [
+          [
+            0.7989815521240234,
+            0.842728396654129
+          ],
+          [
+            0.9105221128463745,
+            0.842728396654129
+          ],
+          [
+            0.9105221128463745,
+            0.9024095034599304
+          ],
+          [
+            0.7989815521240234,
+            0.9024095034599304
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 934,
+        "included": true,
+        "envelope": [
+          [
+            0.7484234166145325,
+            0.8987727522850036
+          ],
+          [
+            0.8051865756511688,
+            0.8987727522850036
+          ],
+          [
+            0.8051865756511688,
+            0.9554704183340073
+          ],
+          [
+            0.7484234166145325,
+            0.9554704183340073
+          ]
+        ]
+      }
+    },
+    "tablet_top_right": {
+      "left": {
+        "sdk_valid_samples_after_trim": 915,
+        "included": true,
+        "envelope": [
+          [
+            1.0872471189498902,
+            0.8679134607315063
+          ],
+          [
+            1.1860121583938599,
+            0.8679134607315063
+          ],
+          [
+            1.1860121583938599,
+            0.9468742442131043
+          ],
+          [
+            1.0872471189498902,
+            0.9468742442131043
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 257,
+        "included": true,
+        "envelope": [
+          [
+            0.9704751873016357,
+            0.9287779235839844
+          ],
+          [
+            1.1911124086380005,
+            0.9287779235839844
+          ],
+          [
+            1.1911124086380005,
+            1.0198605155944824
+          ],
+          [
+            0.9704751873016357,
+            1.0198605155944824
+          ]
+        ]
+      }
+    },
+    "tablet_bottom_left": {
+      "left": {
+        "sdk_valid_samples_after_trim": 809,
+        "included": true,
+        "envelope": [
+          [
+            0.7733186483383179,
+            1.206687388420105
+          ],
+          [
+            0.8503276467323301,
+            1.206687388420105
+          ],
+          [
+            0.8503276467323301,
+            1.3059590148925782
+          ],
+          [
+            0.7733186483383179,
+            1.3059590148925782
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 823,
+        "included": true,
+        "envelope": [
+          [
+            0.7238649904727936,
+            1.2503600192070008
+          ],
+          [
+            0.7857999062538147,
+            1.2503600192070008
+          ],
+          [
+            0.7857999062538147,
+            1.333787477016449
+          ],
+          [
+            0.7238649904727936,
+            1.333787477016449
+          ]
+        ]
+      }
+    },
+    "tablet_bottom_right": {
+      "left": {
+        "sdk_valid_samples_after_trim": 789,
+        "included": true,
+        "envelope": [
+          [
+            1.1473750495910644,
+            1.245269193649292
+          ],
+          [
+            1.2092075586318969,
+            1.245269193649292
+          ],
+          [
+            1.2092075586318969,
+            1.356403956413269
+          ],
+          [
+            1.1473750495910644,
+            1.356403956413269
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 0,
+        "included": false
+      }
+    }
+  },
+  "sources": [
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T070521Z-29b5a008\\tablet\\tablet_center.jsonl",
+      "sha256": "04eb704fa16138fdf904d4a97caf5c02b50f7cf19eb59c8fd553d37521e6d316"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T070521Z-29b5a008\\tablet\\tablet_top_left.jsonl",
+      "sha256": "7007b60dee96800b4e26d30a1da4216c3d23de3fe2c4cbbec97fc87aacb82306"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T070521Z-29b5a008\\tablet\\tablet_top_right.jsonl",
+      "sha256": "d36c75cd59e7f74ffb3ae8714a3699bdccc4b62a441f9b83aa4072504eb6447c"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T070521Z-29b5a008\\tablet\\tablet_bottom_left.jsonl",
+      "sha256": "f79b359f075f51c55793180487cfdd740f9d4b258e7045aaf3b209420eca9647"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T070521Z-29b5a008\\tablet\\tablet_bottom_right.jsonl",
+      "sha256": "5d065b1ef336b94a103f6b09aeabe7d78c38402a90973068fe80755647c03383"
+    }
+  ],
+  "display_source_sha256": "fca399e73c5c1679243b0752678a8b3baee98a7638658fa9c31f229197e9b9ed",
+  "reuse_requirement": "UNCHANGED_NANO_MONITOR_TABLET; PERSONAL_ETM_CALIBRATION_AND_SHORT_AOI_CHECK",
+  "limitations": [
+    "Unobserved corners are not extrapolated.",
+    "Hull interiors interpolate measured directions; accuracy needs independent checks.",
+    "Single-eye matches are retained separately; invalid gaze is never imputed.",
+    "This is not a measured physical tablet plane or validated fixation detector."
+  ]
+}

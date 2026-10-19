@@ -8,12 +8,13 @@ import carla
 import pygame
 
 from src.p6.tobii.client import TobiiProcessSource
-from src.p6.validation.mapping import ValidationError
+from src.p6.validation.mapping import ValidationError, WindowGeometry
 from src.p6.validation.overlay import Preparation, PreparationOverlay, ValidationKeys
 from src.p6.validation.run import ValidationRun
 from src.p6.validation.windows import WindowProbe
 from src.scenario.driver_hud import HUD_SHADOW
 from src.scenario.driver_view import DriverView, DriverViewConfig, calculate_layout
+from src.scenario.driver_view_presentation import DriverViewPresentation
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +23,7 @@ class LiveOptions:
     port: int
     actor_id: int
     max_seconds: int
+    fullscreen: bool = True
 
 
 def validate_geometry(run: ValidationRun, config: DriverViewConfig) -> None:
@@ -43,9 +45,19 @@ def parked(actor: carla.Actor) -> None:
         raise ValidationError("ACTOR_MOVING: park externally; validation never brakes or controls the vehicle")
 
 
+def display_geometry(probe: WindowProbe) -> WindowGeometry:
+    # set_mode during F11 can replace both the display surface and HWND.
+    surface = pygame.display.get_surface()
+    hwnd = pygame.display.get_wm_info().get("window")
+    if surface is None or not isinstance(hwnd, int):
+        raise ValidationError("Pygame display/HWND is unavailable")
+    return probe.snapshot(hwnd, surface.get_size())
+
+
 def execute(run: ValidationRun, source: TobiiProcessSource, options: LiveOptions) -> None:
     base = DriverViewConfig()
-    config = replace(base, front_transform=base.cockpit_transform, fov=base.cockpit_fov)
+    config = replace(base, front_transform=base.cockpit_transform, fov=base.cockpit_fov,
+                     rear_mirror_enabled=run.layout.rear_available)
     validate_geometry(run, config)
     client = carla.Client(options.host, options.port)
     client.set_timeout(2.0)
@@ -61,11 +73,15 @@ def execute(run: ValidationRun, source: TobiiProcessSource, options: LiveOptions
     try:
         pygame.display.init()
         screen = pygame.display.set_mode(config.window_size)
-        pygame.display.set_caption("CARLA AOI validation - read only - ESC to abort")
-        hwnd = pygame.display.get_wm_info().get("window")
-        if not isinstance(hwnd, int):
-            raise ValidationError("Pygame HWND is unavailable")
-        run.last_geometry = probe.snapshot(hwnd, screen.get_size())
+        pygame.display.set_caption("CARLA AOI validation - F11 before C - ESC to abort")
+        presentation = DriverViewPresentation(config.window_size, screen)
+        if options.fullscreen:
+            presentation.handle_events([
+                pygame.event.Event(pygame.KEYDOWN, key=pygame.K_F11),
+                pygame.event.Event(pygame.KEYUP, key=pygame.K_F11),
+            ])
+        canvas = presentation.canvas
+        run.last_geometry = display_geometry(probe)
         view = DriverView(world, actor, config, read_only=True)
         view.attach()
         source.subscribe(run.sample)
@@ -79,6 +95,10 @@ def execute(run: ValidationRun, source: TobiiProcessSource, options: LiveOptions
             if pygame.K_ESCAPE in pressed or any(event.type == pygame.QUIT for event in events):
                 run.sequence.abort(now, "ESC_OR_WINDOW_CLOSE")
                 break
+            # Keep one fixed coordinate mapping for all measured segments.
+            # F11 is available while choosing the monitor, before C confirms it.
+            if not run.operator_confirmed:
+                presentation.handle_events(events)
             run.sequence.advance(now)
             if run.sequence.phase == "DONE":
                 break
@@ -88,7 +108,8 @@ def execute(run: ValidationRun, source: TobiiProcessSource, options: LiveOptions
                 raise ValidationError(f"TOBII_STOPPED:{source.last_error}")
             if run.recorder.error:
                 raise ValidationError(run.recorder.error)
-            observed = probe.snapshot(hwnd, screen.get_size())
+            observed = display_geometry(probe)
+            hwnd = observed.hwnd
             run.last_geometry = observed
             if run.operator_confirmed and observed != run.geometry:
                 raise ValidationError("WINDOW_GEOMETRY_CHANGED_AFTER_CONFIRMATION")
@@ -112,14 +133,16 @@ def execute(run: ValidationRun, source: TobiiProcessSource, options: LiveOptions
                 run.confirm(observed, now)
             start_requested = (was_preparing and pygame.K_SPACE in pressed and ready and run.operator_confirmed
                                and run.sequence.phase == "PREPARE")
-            screen.fill(HUD_SHADOW)
-            view.draw_preview(screen)
+            canvas.fill(HUD_SHADOW)
+            view.draw_preview(canvas)
             preparation = None
             if run.sequence.phase == "PREPARE" and not start_requested:
                 monitor = observed.monitor
                 label = f"{observed.monitor_name}  ({monitor.x}, {monitor.y}) {monitor.width} x {monitor.height}"
-                preparation = Preparation(run.sequence.index, run.sequence.target, label, ready, run.operator_confirmed)
-            overlay.draw(screen, preparation)
+                preparation = Preparation(run.sequence.index, run.sequence.target, label, ready,
+                                          run.operator_confirmed, len(run.sequence.targets))
+            overlay.draw(canvas, preparation)
+            presentation.present()
             pygame.display.flip()
             if start_requested:
                 # The software flip-return boundary is logged, not claimed as photon timing.

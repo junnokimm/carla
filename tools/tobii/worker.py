@@ -24,13 +24,13 @@ def emit(record: WireRecord) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Isolated Tobii SDK worker; no CARLA imports")
-    parser.add_argument("action", choices=("discover", "gaze", "validate"))
+    parser.add_argument("action", choices=("discover", "gaze", "validate", "pilot"))
     parser.add_argument("--serial")
     parser.add_argument("--seconds", type=int, default=15)
     args = parser.parse_args(argv)
-    if args.action in ("gaze", "validate") and not args.serial:
+    if args.action in ("gaze", "validate", "pilot") and not args.serial:
         parser.error("gaze requires an explicit --serial from discovery")
-    maximum = 180 if args.action == "validate" else 20
+    maximum = 7200 if args.action == "pilot" else 180 if args.action == "validate" else 20
     if not 10 <= args.seconds <= maximum:
         parser.error(f"--seconds must be between 10 and {maximum}")
     try:
@@ -41,13 +41,14 @@ def main(argv: list[str] | None = None) -> int:
                               "device_count": len(report.devices)}, ensure_ascii=True), flush=True)
             return 0 if report.status == "OK" else 2
         stop_requested = threading.Event()
-        if args.action == "validate":
+        if args.action in ("validate", "pilot"):
             def read_stop() -> None:
                 sys.stdin.readline()
                 stop_requested.set()
 
             threading.Thread(target=read_stop, name="tobii-validation-stop", daemon=True).start()
-        result = capture(sdk, CaptureOptions(args.serial, args.seconds), emit,
+        result = capture(sdk, CaptureOptions(args.serial, args.seconds,
+                                            include_display_area=args.action == "pilot"), emit,
                          stop_requested=stop_requested)
         return 0 if result == "RAW_CAPTURED" else 2
     except TobiiError as error:

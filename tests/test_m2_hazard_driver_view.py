@@ -10,7 +10,7 @@ from src.scenario.camera_feed import CameraFeed
 from tests.test_driver_view import FakeHero, FakeWorld
 
 
-@pytest.mark.parametrize("ending", ["duration", "escape", "close", "flip_error"])
+@pytest.mark.parametrize("ending", ["duration", "escape", "close", "flip_error", "obstacle_collision"])
 def test_active_scene_uses_existing_poll_and_selected_image_without_owning_duration(
     monkeypatch, ending
 ):
@@ -90,6 +90,8 @@ def test_active_scene_uses_existing_poll_and_selected_image_without_owning_durat
 
     def after_control(driver, start, completed):
         inputs.append((driver, start, completed))
+        if ending == "obstacle_collision":
+            scene.collision_stop = SimpleNamespace(wait=lambda: trace.append("collision_notice"))
         return False  # Scene completion cannot stop the 780s M2 loop.
 
     def after_display(frame):
@@ -105,7 +107,12 @@ def test_active_scene_uses_existing_poll_and_selected_image_without_owning_durat
         with pytest.raises(RuntimeError, match="flip failure"):
             view.run(780, active_scene=scene)
     else:
-        assert view.run(780, active_scene=scene) is (ending != "duration")
+        assert view.run(780, active_scene=scene) is (ending not in ("duration", "obstacle_collision"))
+    if ending == "obstacle_collision":
+        assert len(inputs) == 1
+        assert not frames
+        assert trace.index("collision_notice") < trace.index("quit")
+        return
     assert len(frames) == (3 if ending == "duration" else 1)
     assert all(value.brake == 0.7 and start < end for value, start, end in inputs)
     assert frames[0].frame == 1 and frames[0].camera_transform.location.x == 1

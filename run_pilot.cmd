@@ -7,5 +7,5 @@ if not exist "%P8_PILOT_PYTHON%" (
     echo Use the existing verified P8 Python environment. See docs\P8_Pilot_Fix_20261017.md.
     exit /b 2
 )
-"%P8_PILOT_PYTHON%" -B -u -m tools.run_pilot %*
+"%P8_PILOT_PYTHON%" -B -u -m tools.run_pilot_supervised %*
 exit /b %ERRORLEVEL%

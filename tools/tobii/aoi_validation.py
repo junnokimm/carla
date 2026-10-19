@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--actor-id", type=int, help="Existing externally parked CARLA vehicle; never spawned/controlled here")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
+    parser.add_argument("--windowed", action="store_true",
+                        help="Start windowed instead of fullscreen; F11 is available before C confirms the display")
     parser.add_argument("--max-seconds", type=int, choices=range(20, 181), default=120,
                         metavar="20..180", help="Total live-window deadline, including preparation (default: 120)")
     parser.add_argument("--output-root", type=Path, default=Path("data/p6_aoi_validation"))
@@ -49,7 +51,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             from src.p6.validation.live import LiveOptions, execute
 
-            execute(run, source, LiveOptions(args.host, args.port, args.actor_id, args.max_seconds))
+            execute(run, source, LiveOptions(args.host, args.port, args.actor_id, args.max_seconds,
+                                             fullscreen=not args.windowed))
     except (OSError, RuntimeError, ValueError) as error:
         failed = True
         if run is not None:

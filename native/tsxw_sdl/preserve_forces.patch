@@ -1,0 +1,41 @@
+--- a/src/joystick/windows/SDL_dinputjoystick.c
++++ b/src/joystick/windows/SDL_dinputjoystick.c
+@@ -743,6 +743,14 @@
+ {
+     HRESULT result;
+     DIPROPDWORD dipdw;
++    Uint16 vendor, product;
++    SDL_bool preserve_existing_forces;
++
++    /* P8 local change: leave TS-XW driver-managed resistance alone.
++     * Input format, axis ranges, ordering and polling are unchanged. */
++    SDL_GetJoystickGUIDInfo(joystickdevice->guid, &vendor, &product, NULL, NULL);
++    preserve_existing_forces = (vendor == 0x044f && product == 0xb692 &&
++        SDL_GetHintBoolean("P8_TSXW_PRESERVE_FORCES", SDL_FALSE));
+ 
+     joystick->hwdata->buffered = SDL_TRUE;
+     joystick->hwdata->Capabilities.dwSize = sizeof(DIDEVCAPS);
+@@ -760,11 +768,10 @@
+         return SetDIerror("IDirectInput::CreateDevice", result);
+     }
+ 
+-    /* Acquire shared access. Exclusive access is required for forces,
+-     * though. */
++    /* P8 TS-XW input-only access must not claim exclusive force control. */
+     result =
+         IDirectInputDevice8_SetCooperativeLevel(joystick->hwdata->InputDevice, SDL_HelperWindow,
+-                                                DISCL_EXCLUSIVE |
++                                                (preserve_existing_forces ? DISCL_NONEXCLUSIVE : DISCL_EXCLUSIVE) |
+                                                     DISCL_BACKGROUND);
+     if (FAILED(result)) {
+         return SetDIerror("IDirectInputDevice8::SetCooperativeLevel", result);
+@@ -787,7 +794,8 @@
+     }
+ 
+     /* Force capable? */
+-    if (joystick->hwdata->Capabilities.dwFlags & DIDC_FORCEFEEDBACK) {
++    if (!preserve_existing_forces &&
++        (joystick->hwdata->Capabilities.dwFlags & DIDC_FORCEFEEDBACK)) {
+         result = IDirectInputDevice8_Acquire(joystick->hwdata->InputDevice);
+         if (FAILED(result)) {
+             return SetDIerror("IDirectInputDevice8::Acquire", result);

@@ -1,4 +1,4 @@
-"""M2-internal v1 opportunity. Scene status never terminates a normal drive."""
+"""M2 opportunity with an explicit confirmation boundary for obstacle contact."""
 
 import json
 from dataclasses import asdict
@@ -10,11 +10,14 @@ from src.p7.metrics import canonical_hazard_record
 from src.p7.moving_backend import MovingHazardBackend
 from src.p7.moving_config import SCENARIO_VERSION, TARGET_TTC_S, WINDOW
 from src.p7.types import P7Error
+from src.p8.hazard_collision_stop import COLLISION_END, HazardCollisionStop
 from src.scenario.research_noa_lifecycle import retain_first_error
 
 # Leave room for the scene/services envelope below the default 128 KiB CSV field
 # limit. This is a storage chunk bound, not a sampling or research threshold.
 _RAW_BATCH_JSON_CHAR_LIMIT = 64 * 1024
+_DRIVING_EVENT_POLICY = "OWNED_OBSTACLE_COLLISION_CONFIRM_STOP_OTHER_EVENTS_CONTINUE"
+_PROGRAM_VERSION = "P8_M2_COLLISION_CONFIRM_STOP_V1"
 
 
 class OperatorM2Hazard:
@@ -30,9 +33,13 @@ class OperatorM2Hazard:
         self.claimed = False
         self.elapsed = 0.0
         self.next_attempt = self.planned - config.preparation_s
+        self.preparation_s = None
         self.command_at = None
         self.first_geometry = self.first_display = None
         self.last_reason = None
+        self.collision_stop = None
+        self._road_departure_active = False
+        self._driving_event_counts = {"COLLISION": 0, "ROAD_DEPARTURE_PROXY": 0}
         self.last_frame = None
         self.raw = []
         self._raw_pending_batch = None
@@ -58,9 +65,14 @@ class OperatorM2Hazard:
                 "m2_active_origin_monotonic_s": started_at,
                 "origin_record_monotonic_ns": self.origin_stamp.host.monotonic_ns,
                 "target_ttc_s": TARGET_TTC_S,
+                "preparation_range_s": [
+                    min(config.preparation_s, config.lane_change_s),
+                    config.preparation_s,
+                ],
                 "tuning": asdict(config),
                 "provenance": provenance,
                 "response_thresholds": "UNDECIDED",
+                "driving_event_policy": _DRIVING_EVENT_POLICY,
             },
         )
         try:
@@ -80,7 +92,7 @@ class OperatorM2Hazard:
             {
                 "scenario_version": SCENARIO_VERSION,
                 "m2_active_elapsed_s": self.elapsed,
-                "program_version": "P8_M2_V1_20261017",
+                "program_version": _PROGRAM_VERSION,
                 "auto_state": self.session.bundle.automation_runtime.state.control_mode.value,
                 "scene_state": self.state,
                 **payload,
@@ -101,8 +113,13 @@ class OperatorM2Hazard:
         return None
 
     def after_control(self, driver_input, poll_started_ns, poll_completed_ns):
-        if self.closed:
+        if self.closed or self.collision_stop is not None:
             return
+        sample = self.capture_raw_input(driver_input, poll_started_ns, poll_completed_ns)
+        self._advance_scene(sample)
+
+    def capture_raw_input(self, driver_input, poll_started_ns, poll_completed_ns):
+        """Keep recording input even after the scene itself has been invalidated."""
         self.elapsed = self.session.monotonic_clock() - self.started_at
         persistence = self.session.persistence
         sample = persistence.source.last_snapshot_sample
@@ -134,13 +151,18 @@ class OperatorM2Hazard:
                 "scene_state": self.state,
             }
         )
+        return sample
+
+    def _advance_scene(self, sample):
+        stamp = sample.timestamp
         failure = self.backend.failures(sample)
-        if failure is not None:
+        if failure is not None and failure["reason"] not in self._driving_event_counts:
             self.state, self.last_reason = "ABORTED", failure["reason"]
             self.emit("unexpected_failure", failure)
-            raise P7Error(
-                f"M2_V1_{self.last_reason}"
-            )  # Existing session shutdown/brake owner.
+            raise P7Error(f"M2_V1_{self.last_reason}")
+        self._record_driving_event(failure)
+        if self.collision_stop is not None:
+            return
         if (
             self.last_frame is not None
             and stamp.carla_snapshot.frame <= self.last_frame
@@ -165,19 +187,39 @@ class OperatorM2Hazard:
                 )
             elif self.elapsed >= self.next_attempt:
                 self.next_attempt = self.elapsed + self.config.retry_s
-                reason = self._p5_blocker()
+                # Reuse the remaining lead-in to the same scheduled exposure.
+                # Once it is shorter, retain one existing lane-change duration
+                # for preparation instead of restarting a six-second horizon.
+                preparation_s = min(
+                    self.config.preparation_s,
+                    max(self.config.lane_change_s, self.planned - self.elapsed),
+                )
+                reason = (
+                    "ROAD_DEPARTURE_PROXY_ACTIVE"
+                    if self._road_departure_active
+                    else "COLLISION_OBSERVED_THIS_SAMPLE"
+                    if failure is not None
+                    else self._p5_blocker()
+                )
+                route_attempt = None
                 if reason is None:
                     try:
-                        route = self.backend.preflight(sample)
+                        route = self.backend.preflight(sample, preparation_s)
                     except P7Error as error:
                         reason = str(error)
+                    route_attempt = self.backend.preparation_attempt
                 if reason is not None:
                     self.last_reason = reason
                     self.emit(
                         "preparation_deferred",
-                        {"reason": reason, "planned_active_s": self.planned},
+                        {
+                            "reason": reason,
+                            "planned_active_s": self.planned,
+                            "preparation_s": preparation_s,
+                            "route_attempt": route_attempt,
+                        },
                     )
-                elif self.elapsed + self.config.preparation_s > WINDOW[1]:
+                elif self.elapsed + preparation_s > WINDOW[1]:
                     self.state, self.last_reason = (
                         "NOT_OCCURRED",
                         "INSUFFICIENT_PREPARATION_TIME_IN_WINDOW",
@@ -189,6 +231,7 @@ class OperatorM2Hazard:
                         str(self.services.context.study_run_id),
                     )
                     self.claimed = True
+                    self.preparation_s = preparation_s
                     self.state = "PREPARING"
                     self.emit("preparation_started", route)
                     try:
@@ -197,9 +240,7 @@ class OperatorM2Hazard:
                         self.last_reason = f"PREPARATION_FAILED:{error}"
                         self.emit("preparation_failed", {"reason": self.last_reason})
                         raise
-                    exposure_target = max(
-                        self.planned, self.elapsed + self.config.preparation_s
-                    )
+                    exposure_target = max(self.planned, self.elapsed + preparation_s)
                     self.command_at = exposure_target - delay
                     self.state = "OCCLUDED"
                     self.emit(
@@ -209,11 +250,32 @@ class OperatorM2Hazard:
                             "adjusted_target_active_s": exposure_target,
                             "command_target_active_s": self.command_at,
                             "predicted_partial_exposure_delay_s": delay,
+                            "preparation_s": preparation_s,
                             "delay_reason": self.last_reason,
                         },
                     )
         geometry = self.backend.geometry(sample.world_snapshot)
         if geometry is None:
+            if (
+                self.state == "OCCLUDED"
+                and self.backend.cargo_placement_frame is None
+                and self.command_at is not None
+                and self.elapsed >= self.command_at
+            ):
+                self.state, self.last_reason = (
+                    "ABORTED", "CARGO_PLACEMENT_UNCONFIRMED"
+                )
+                self.emit(
+                    "unexpected_failure",
+                    {
+                        "reason": self.last_reason,
+                        "command_target_active_s": self.command_at,
+                        "placement_observation": (
+                            self.backend.cargo_placement_observation
+                        ),
+                    },
+                )
+                raise P7Error("M2_V1_CARGO_PLACEMENT_UNCONFIRMED")
             return
         self.last_geometry = geometry
         # Preserve each observed frame for later TTC reconstruction, without per-frame disk writes.
@@ -290,9 +352,49 @@ class OperatorM2Hazard:
         if self.backend.retire_if_behind(geometry):
             self.state = "SCENE_RETIRED"
 
+    def _record_driving_event(self, observation):
+        # Driving outcomes are research observations, not session failures.
+        # Preserve every collision callback; log road departure at transitions
+        # rather than writing the same condition on every host loop.
+        reason = None if observation is None else observation["reason"]
+        if reason == "COLLISION":
+            self._driving_event_counts[reason] += len(observation["collisions"])
+            cargo = self.backend.cargo
+            matching = [
+                collision for collision in observation["collisions"]
+                if cargo is not None and collision["actor_id"] == cargo.id
+            ]
+            if matching and self.collision_stop is None:
+                self.collision_stop = HazardCollisionStop(self, matching)
+                self.state = "COLLISION"
+                self.last_reason = COLLISION_END
+        elif reason == "ROAD_DEPARTURE_PROXY":
+            if self._road_departure_active:
+                return
+            self._road_departure_active = True
+            self._driving_event_counts[reason] += 1
+        else:
+            if self._road_departure_active:
+                self._road_departure_active = False
+                self.emit(
+                    "road_departure_proxy_cleared",
+                    {"driving_event_policy": _DRIVING_EVENT_POLICY},
+                )
+            return
+        self.emit(
+            "driving_event",
+            {
+                **observation,
+                "driving_event_policy": _DRIVING_EVENT_POLICY,
+                "session_action": "AWAIT_COLLISION_CONFIRMATION"
+                if self.collision_stop is not None else "CONTINUE",
+            },
+        )
+
     def after_display_completed(self, frame):
         if (
             self.closed
+            or self.collision_stop is not None
             or self.first_display is not None
             or frame is None
             or frame.frame is None
@@ -404,7 +506,9 @@ class OperatorM2Hazard:
 
     def _raw_storage_record(self):
         return {
-            "status": "WRITE_UNCONFIRMED"
+            "status": "UNCONFIRMED_LOG_STORAGE_FAILURE"
+            if getattr(getattr(self.services, "logger", None), "collection_failure_count", 0)
+            else "WRITE_UNCONFIRMED"
             if self.raw
             else "ACKNOWLEDGED_AFTER_RETRY"
             if self._raw_write_errors
@@ -424,15 +528,19 @@ class OperatorM2Hazard:
         if self.closed:
             return
         self.closed = True
-        self.elapsed = self.session.monotonic_clock() - self.started_at
+        self.elapsed = (
+            self.collision_stop.active_seconds if self.collision_stop is not None
+            else self.session.monotonic_clock() - self.started_at
+        )
+        if self.collision_stop is not None:
+            reason = COLLISION_END
         if self.state == "SCHEDULED":
             self.state = "NOT_OCCURRED"
             self.last_reason = self.last_reason or "M2_ENDED_WITHOUT_USABLE_OPPORTUNITY"
-        cleanup = self.backend.cleanup()
+        cleanup = self.cleanup_backend()
         cleanup_failed = bool(cleanup["failures"] or cleanup["remaining_actor_ids"])
-        late_collision = bool(cleanup.get("pending_collisions"))
-        if late_collision:
-            self.state, self.last_reason = "ABORTED", "COLLISION_AT_SHUTDOWN"
+        pending_collisions = cleanup.get("pending_collisions", [])
+        self._driving_event_counts["COLLISION"] += len(pending_collisions)
         primary_error = error
         finalization_errors = []
 
@@ -463,16 +571,18 @@ class OperatorM2Hazard:
         record = {
             **canonical_hazard_record(None),
             "scenario_version": SCENARIO_VERSION,
-            "program_version": "P8_M2_V1_20261017",
+            "program_version": _PROGRAM_VERSION,
             "auto_state_at_m2_scene_close": self.session.bundle.automation_runtime.state.control_mode.value,
             "execution_scope": "DEV_M2_INTERNAL",
             "execution_status": "FAILED"
-            if primary_error is not None or late_collision
+            if primary_error is not None
+            else "CONTROLLED_COLLISION_STOP" if self.collision_stop is not None
             else "DEVELOPMENT_RUN_ENDED",
             "seed": self.config.seed,
             "distribution": "UNIFORM_CLOSED_400_600",
             "window_s": list(WINDOW),
             "planned_exposure_active_s": self.planned,
+            "preparation_s": self.preparation_s,
             "m2_active_origin_monotonic_s": self.started_at,
             "m2_active_elapsed_s": self.elapsed,
             "hazard_state": self.state,
@@ -490,7 +600,8 @@ class OperatorM2Hazard:
             "display_status": "FRAME_MATCHED_PROXY_CANDIDATE"
             if self.first_display
             else "NO_VALIDATED_DISPLAY_CANDIDATE",
-            "driver_response_outcome": None,
+            "driver_response_outcome": "COLLISION" if self.collision_stop is not None else None,
+            "collision_stop": None if self.collision_stop is None else self.collision_stop.record,
             "provenance": self.provenance,
             "occurrence_result": (
                 "INVALID_EXPOSURE"
@@ -500,11 +611,12 @@ class OperatorM2Hazard:
                 else "NOT_OCCURRED"
             ),
             "cleanup": cleanup,
+            "driving_event_policy": _DRIVING_EVENT_POLICY,
+            "driving_event_counts": dict(self._driving_event_counts),
+            "road_departure_proxy_active_at_end": self._road_departure_active,
             "raw_storage": self._raw_storage_record(),
             "finalization_errors": finalization_errors,
-            "partial_data": reason != "M2_END"
-            or primary_error is not None
-            or late_collision,
+            "partial_data": reason != "M2_END" or primary_error is not None,
         }
         attempt("end_event", lambda: self.emit("end", record))
         attempt("event_flush", self.session.persistence.flush_events)
@@ -519,3 +631,6 @@ class OperatorM2Hazard:
         attempt("record_sink", lambda: self.sink(record))
         if error is None and primary_error is not None:
             raise primary_error
+
+    def cleanup_backend(self):
+        return self.backend.cleanup()

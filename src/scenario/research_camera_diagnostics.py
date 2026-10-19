@@ -10,6 +10,7 @@ import carla
 from src.experiment.automation import DrivingControlMode
 from src.scenario.camera_feed import CameraFeed, CameraFeedSnapshot
 from src.scenario.driver_view import DriverViewConfig
+from src.scenario.loop_timing_distribution import LoopTimingDistribution
 from src.scenario.research_camera_metadata import (
     UNKNOWN,
     JsonValue,
@@ -28,6 +29,11 @@ from src.scenario.research_turn_signal_audio_diagnostics import TurnSignalAudioT
 LOOP_CORRELATION_SEGMENTS = frozenset(
     {
         "event_poll_and_presentation",
+        "event_poll",
+        "event_poll_thread_cpu",
+        "presentation_events",
+        "presentation_events_thread_cpu",
+        "fullscreen_transition",
         "mode_events",
         "input_collection",
         "input_observer",
@@ -35,6 +41,8 @@ LOOP_CORRELATION_SEGMENTS = frozenset(
         "manual_control_preparation",
         "manual_control_delivery",
         "post_control",
+        "active_scene_after_control",
+        "active_scene_after_display",
         "audio",
         "frame_prepare",
         "draw",
@@ -159,6 +167,8 @@ class ResearchCameraDiagnostics:
         self._correlated_loop_count = 0
         self._slowest_loop_seconds = -1.0
         self._slowest_loop: dict[str, JsonValue] | None = None
+        self._loop_distribution = LoopTimingDistribution()
+        self._loop_distribution_by_mode: dict[str, LoopTimingDistribution] = {}
         self._frozen_feed_snapshots: dict[str, CameraFeedSnapshot] | None = None
         self._window_start: float | None = None
         self._window_end: float | None = None
@@ -192,6 +202,11 @@ class ResearchCameraDiagnostics:
                     )
                 elif segment == "driver_loop":
                     self._correlated_loop_count += 1
+                    self._loop_distribution.record(duration_seconds)
+                    if mode is not None:
+                        if mode.value not in self._loop_distribution_by_mode:
+                            self._loop_distribution_by_mode[mode.value] = LoopTimingDistribution()
+                        self._loop_distribution_by_mode[mode.value].record(duration_seconds)
                     if duration_seconds > self._slowest_loop_seconds:
                         self._slowest_loop_seconds = duration_seconds
                         self._slowest_loop = {
@@ -225,6 +240,8 @@ class ResearchCameraDiagnostics:
             self._correlated_loop_count = 0
             self._slowest_loop_seconds = -1.0
             self._slowest_loop = None
+            self._loop_distribution = LoopTimingDistribution()
+            self._loop_distribution_by_mode = {}
             self._active_completed_display_flip_baseline = self._completed_display_flips
 
     def end_active_window(
@@ -358,6 +375,15 @@ class ResearchCameraDiagnostics:
             roles[feed.role] = role_payload
         payload = {
             "schema_version": 1,
+            "completed_loop_distribution": {
+                "method": "NEAREST_RANK_BOUNDS_1MS_BINS_OVERFLOW_AT_1000MS",
+                "definition": "Completed active host loops only; mode at completion; not display FPS or photon latency",
+                "all_modes": self._loop_distribution.payload(),
+                "by_mode": {
+                    mode: stats.payload()
+                    for mode, stats in self._loop_distribution_by_mode.items()
+                },
+            },
             "sensor_count": len(feeds),
             "summary_host_monotonic_seconds": _rounded(summary_at),
             "run_measurements": _run_measurements_payload(run_measurements),
@@ -415,11 +441,19 @@ class ResearchCameraDiagnostics:
             ),
             "timing_definitions": {
                 "scheduler": "scheduler.update only",
-                "audio": "turn-signal audio including fresh light RPC; optional vehicle audio when enabled",
+                "audio": "turn-signal audio using same-loop telemetry lights or fresh RPC fallback; optional vehicle audio",
                 "event_poll_and_presentation": "pygame event.get and presentation.handle_events",
+                "event_poll": "pygame.event.get wall time; subset of event_poll_and_presentation except boundary poll",
+                "event_poll_thread_cpu": "calling thread CPU time inside event_poll; not additive wall time; excludes waits and descheduling",
+                "presentation_events": "presentation.handle_events wall time; subset of event_poll_and_presentation",
+                "presentation_events_thread_cpu": "calling thread CPU time inside presentation_events; not additive wall time",
+                "fullscreen_transition": "F11 window transition wall time; subset of presentation_events",
+                "turn_signal_audio_shared_light_age": "age of same-loop telemetry light observation used by audio (max 50ms); not work duration",
                 "mode_events": "mode/view/indicator event handling, including toggle light RPCs",
                 "frame_prepare": "pre-draw hook, including P5 preparation",
                 "after_display_flip": "post-flip hook, including P5 presentation marking",
+                "active_scene_after_control": "M2 scene observation, safety, preparation, geometry and raw batch persistence",
+                "active_scene_after_display": "M2 frame-matched display geometry and candidate persistence after flip",
                 "draw": "complete draw including camera composition and HUD",
                 "conversion.<role>": "CARLA BGRA buffer to pygame surface",
                 "resize.<role>": "pygame smoothscale",
@@ -435,7 +469,7 @@ class ResearchCameraDiagnostics:
                 "latency_scope": "host callback receipt to render preparation only",
                 "sensor_to_photon_or_gpu_latency": "not measured",
                 "instrumentation_overhead": "not separately measured",
-                "storage": "scalar counters and summaries only",
+                "storage": "scalar counters, summaries and fixed 1001-bin completed-loop histograms",
                 "rounded_zero_duration_is_zero_cost": False,
             },
         }

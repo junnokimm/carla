@@ -1,5 +1,7 @@
+import json
 from dataclasses import replace
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 
@@ -25,10 +27,11 @@ from tests.test_p8_operator_backend import StrictClock, advance_to
 @pytest.mark.parametrize(
     "condition", [Module2Condition.MANUAL, Module2Condition.NOA_L2]
 )
-@pytest.mark.parametrize("termination", ["normal", "user_exit", "error", "collision"])
+@pytest.mark.parametrize("termination", ["normal", "user_exit", "error", "collision", "scene_failure", "obstacle_collision", "obstacle_collision_cleanup_error"])
 def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime(
-    tmp_path, condition, termination
+    tmp_path, condition, termination, monkeypatch
 ):
+    collision_end = termination.startswith("obstacle_collision")
     args = build_parser().parse_args(
         [
             "--participant-id",
@@ -77,6 +80,9 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                 clock.advance(17.0)
                 host.advance(17.0)
 
+            def freeze_performance_measurement_window(self):
+                pass
+
             def run(
                 self,
                 duration,
@@ -109,7 +115,7 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                     host.advance(dt)
                     # Genuine interaction boundary: driver override after exposure.
                     driver = DriverInput(
-                        brake=0.3 if active_scene.first_geometry else 0
+                        brake=0.3 if active_scene.first_geometry and not collision_end else 0
                     )
                     polled_start = host.monotonic_ns()
                     polled_end = host.monotonic_ns()
@@ -130,13 +136,14 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                     )
                     diagnostics.record_driver_loop_duration(0.0)
                     assert controller.session.state is Stage.MODULE_2_RUNNING
-                    if index == 100 and termination != "normal":
+                    fault_index = 10 if termination == "scene_failure" else 100
+                    if index == fault_index and termination != "normal":
                         if termination == "user_exit":
                             return True
-                        if termination == "collision":
+                        if termination == "collision" or collision_end:
                             active_scene.backend._sensor.callback(
                                 SimpleNamespace(
-                                    other_actor=world.vehicle,
+                                    other_actor=active_scene.backend.cargo if collision_end else world.vehicle,
                                     frame=world.frame,
                                     timestamp=clock(),
                                 )
@@ -144,11 +151,51 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                             world.step(0.1)
                             input_observer.after_control_applied()
                             active_scene.after_control(driver, polled_start, polled_end)
-                        raise RuntimeError("injected offline error")
+                            if collision_end:
+                                stop = active_scene.collision_stop
+                                assert stop is not None
+
+                                def confirm():
+                                    assert not active_scene.session.bundle.traffic_manager_backend.active
+                                    assert world.vehicle.autopilot_port_calls[-1] == (False, 8000)
+                                    assert world.vehicle.get_control().brake == 1
+                                    assert world.vehicle.get_control().hand_brake
+                                    assert world.vehicle.destroy_count == 0
+                                    clock.advance(120)
+                                    host.advance(120)
+                                    assert world.vehicle.is_alive
+                                    return "SPACE"
+
+                                monkeypatch.setattr(stop, "_wait_for_confirmation", confirm)
+                                stop.wait()
+                                if termination == "obstacle_collision_cleanup_error":
+                                    original_shutdown = active_scene.session._shutdown_live
+
+                                    def fail_shutdown(shutdown=original_shutdown):
+                                        shutdown()
+                                        raise RuntimeError("injected post-confirmation shutdown failure")
+
+                                    monkeypatch.setattr(active_scene.session, "_shutdown_live", fail_shutdown)
+                                return False
+                        elif termination == "scene_failure":
+                            cargo = active_scene.backend.cargo
+                            pose = cargo.get_transform()
+                            pose.location.x += 1
+                            cargo.set_transform(pose)
+                            world.step(0.1)
+                            host.advance(0.1)
+                            input_observer.update(driver)
+                            scheduler.update()
+                            input_observer.after_control_applied()
+                            active_scene.after_control(driver, polled_start, polled_end)
+                            assert active_scene.scene_failure is not None
+                        else:
+                            raise RuntimeError("injected offline error")
                 dt = origin + duration - clock()
                 world.step(dt, ego_speed=0)
                 host.advance(dt)
-                assert active_scene.first_geometry and active_scene.first_display
+                if termination != "scene_failure":
+                    assert active_scene.first_geometry and active_scene.first_display
                 return False
 
         def viewer_factory(world_arg, hero, view_config):
@@ -190,9 +237,9 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
     controller.execute_current_module()
     assert not scenes and all(len(world.actors) == 1 for world in worlds)
     controller.record_execution_policy_outcome(DevOutcome.PARTIAL, "offline M1")
-    for _ in range(3 if termination == "normal" else 4):
+    for _ in range(3 if termination in ("normal", "collision", "scene_failure") or collision_end else 4):
         controller.advance()
-    if termination == "normal":
+    if termination in ("normal", "collision", "scene_failure") or collision_end:
         # Exercise the actual operator post-drive progression too: v1 returns
         # in MODULE_2_RUNNING, unlike the historical post-780 continuation.
         app = object.__new__(OperatorApp)
@@ -201,14 +248,38 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
         app._restore_display = lambda **kwargs: None
         app._run_module(Stage.MODULE_2_PREPARE)
         result = controller._operator_components().runs[-1]
-        assert result.actual_active_drive_s == pytest.approx(780)
-        assert result.window_complete
-        assert controller.session.state is Stage.SESSION_COMPLETE
+        if collision_end:
+            assert result.actual_active_drive_s < 600
+            assert result.actual_active_end_session_s - result.actual_active_start_session_s < 600
+            assert not result.window_complete
+            assert result.completion_reason == "HAZARD_COLLISION"
+            assert result.collision_stop["wait_seconds"] == pytest.approx(120)
+            assert bool(result.collision_stop["errors"]) is termination.endswith("cleanup_error")
+            assert controller.session.state is Stage.ABORTED
+            assert controller.session.abort_reason == "HAZARD_COLLISION"
+            assert controller.session.result["completion_status"] == "ENDED_AFTER_HAZARD_COLLISION"
+            assert controller.session.result_export.archive.is_file()
+            with ZipFile(controller.session.result_export.archive) as archive:
+                assert archive.testzip() is None
+                name = next(name for name in archive.namelist() if name.endswith("session_manifest.json"))
+                saved = json.loads(archive.read(name))
+                m2 = saved["components"]["module_runs"][-1]
+                assert m2["completion_reason"] == "HAZARD_COLLISION"
+                assert m2["collision_stop"]["confirmation"] == "SPACE"
+                assert not m2["window_complete"]
+            assert not app.running
+            if condition is Module2Condition.NOA_L2:
+                assert result.deactivation_count == 0  # terminal stop is not a driver override
+                assert result.automation_on_seconds < 600
+        else:
+            assert result.actual_active_drive_s == pytest.approx(780)
+            assert result.window_complete
+            assert controller.session.state is Stage.SESSION_COMPLETE
         assert controller._operator_components().hazard_loop is None
     else:
         with pytest.raises(RuntimeError):
             controller.execute_current_module()
-        assert controller.session.closed
+        assert controller.session.closed is (termination == "user_exit")
     assert len(scenes) == 1 and scenes[0].closed
     assert preparations == [
         Stage.TRAINING.value,
@@ -218,7 +289,15 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
     record = controller._operator_components().hazard_observation
     assert record["provenance"]["client"] == "INJECTED_TEST_CLIENT"
     assert record["cleanup"] == {"failures": [], "remaining_actor_ids": []}
-    assert record["partial_data"] is (termination != "normal")
+    assert record["partial_data"] is (termination not in ("normal", "collision"))
+    if termination == "scene_failure":
+        assert record["occurrence_result"] == "INVALID"
+    if collision_end:
+        assert record["driver_response_outcome"] == "COLLISION"
+        assert record["execution_status"] == "CONTROLLED_COLLISION_STOP"
+        assert record["end_reason"] == "HAZARD_COLLISION"
+        assert record["collision_stop"]["confirmation"] == "SPACE"
+        assert record["raw_storage"]["pending_sample_count"] == 0
     assert all(view.attach_count == view.close_count == 1 for view in views)
     assert all(world.vehicle.destroy_count == 1 for world in worlds)
     assert all(attestor.calls for attestor in attestations)
@@ -226,3 +305,5 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
         scenes[0].session.bundle.automation_runtime.state.control_mode.value == "MANUAL"
     )
     assert controller._done_claim().participant_ready is False
+    if not controller.session.closed:
+        controller.abort("TEST_OPERATOR_STOP")

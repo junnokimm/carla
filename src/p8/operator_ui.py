@@ -13,7 +13,7 @@ from src.p8.operator_model import (
     TrainingRun,
 )
 from src.p8.operator_pages import stage_page
-from src.p8.operator_render import OperatorRenderer
+from src.p8.operator_render import OperatorPage, OperatorRenderer
 from src.p8.operator_ui_types import OperatorControl, OperatorUiConfig
 
 
@@ -27,6 +27,7 @@ class OperatorApp:
         self.discard_key_batch = False
         self.awaiting_space_release = False
         self.status = "시작 대기"
+        self.runtime_error = None
         self.renderer = OperatorRenderer(config.window_size)
         self.frame_clock = pygame.time.Clock()
 
@@ -83,6 +84,8 @@ class OperatorApp:
             if event.key == pygame.K_ESCAPE:
                 self._abort("OPERATOR_ESCAPE_ABORT")
                 return False
+            if self.runtime_error is not None:
+                continue
             try:
                 self._handle_key(event.key)
             except P8Error as error:
@@ -96,7 +99,27 @@ class OperatorApp:
         return self.running
 
     def render(self, surface: pygame.Surface) -> None:
+        if self.runtime_error is not None:
+            self.renderer.draw(surface, OperatorPage(
+                "실험 진행자 확인", "실행 상태를 확인해 주세요",
+                (
+                    "현재 주행을 자동 재개할 수 없어 확인을 기다리고 있습니다.",
+                    "세션을 임의로 정상 완료하거나 새 주행으로 바꾸지 않습니다.",
+                    self.runtime_error[:300],
+                ),
+                ("ESC / 창 닫기  진행자가 중단하고 결과 저장 시도",),
+                "오류 발생 · 관리자 확인 대기",
+            ))
+            return
         self.renderer.draw(surface, stage_page(self.controller.snapshot(), self.status))
+
+    def hold_runtime_error(self, error):
+        if self.registered and self.controller.snapshot().closed:
+            self.running = False
+            return
+        self.runtime_error = f"{type(error).__name__}:{error}"
+        self._restore_display(require_space_release=True)
+        self.running = True
 
     def _handle_key(self, key: int) -> None:
         if key != pygame.K_SPACE:
@@ -108,8 +131,16 @@ class OperatorApp:
                     Receipt("calibration_boundary", "EXTERNAL_OPERATOR_STEP", None)
                 )
                 self._advance()
-            case Stage.MODULE_1_PREPARE | Stage.MODULE_2_PREPARE:
+            case Stage.MODULE_1_PREPARE:
                 self._run_module(stage)
+            case Stage.MODULE_2_PREPARE:
+                from src.p8.m2_gaze_check import prepare_m2_gaze
+
+                ready = prepare_m2_gaze(self.controller)
+                if getattr(getattr(self.controller, "runtime", None), "gaze_config", None) is not None:
+                    self._restore_display(require_space_release=True)
+                if ready:
+                    self._run_module(stage)
             case Stage.REST:
                 self._advance()
             case Stage.SESSION_COMPLETE | Stage.ABORTED:
@@ -132,6 +163,10 @@ class OperatorApp:
         self._advance()
         running_stage = self.controller.snapshot().stage
         result = self.controller.execute_current_module(self.config.drive_duration_s)
+        if result.completion_reason == "HAZARD_COLLISION":
+            self.status = "장애물 충돌 · 결과 저장 후 종료"
+            self.running = False
+            return
         self._restore_display(require_space_release=True)
         module = "M1" if running_stage is Stage.MODULE_1_RUNNING else "M2"
         window_status = (

@@ -11,10 +11,22 @@ from uuid import uuid4
 
 from src.experiment.context import Module1Condition, Module2Condition
 from src.p8 import operator_cli
+from src.p8.crash_recovery import register_supervised_run
 from src.scenario.research_exit_config import ExitEligibilityWindow
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PILOT_CONFIG = Path("config/p8_pilot.json")
+M2_CHOICES = {"1": "MANUAL", "2": "NOA_L2"}
+
+
+def select_m2_assignment(value: str | None) -> str:
+    if value is not None:
+        return M2_CHOICES.get(value, value)
+    while True:
+        choice = input("M2 배정을 선택하세요 (1=MANUAL, 2=NoA): ").strip()
+        if choice in M2_CHOICES:
+            return M2_CHOICES[choice]
+        print("1 또는 2를 입력하세요. 배정 선택 전에는 실험이 시작되지 않습니다.")
 
 
 def load_pilot_settings(path: Path) -> dict:
@@ -113,11 +125,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, default=PILOT_CONFIG)
     parser.add_argument("--participant-id")
     parser.add_argument("--m1", choices=[item.value for item in Module1Condition])
-    parser.add_argument("--m2", choices=[item.value for item in Module2Condition])
+    parser.add_argument("--gaze-config", type=Path, default=Path("config/p8_gaze.json"))
+    parser.add_argument("--no-gaze", action="store_true", help="시선 수집을 명시적으로 끄고 주행")
+    parser.add_argument(
+        "--m2",
+        choices=[*M2_CHOICES, *[item.value for item in Module2Condition]],
+        help="1=MANUAL, 2=NoA; 생략하면 터미널에서 선택",
+    )
     args = parser.parse_args(argv)
     os.chdir(PROJECT_ROOT)
     try:
         settings = load_pilot_settings(args.config)
+        settings["m2"] = select_m2_assignment(args.m2)
     except KeyboardInterrupt:
         print("설정 입력을 취소했어. 주행은 시작되지 않았어.")
         return 130
@@ -126,20 +145,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.m1 is not None:
         settings["m1"] = args.m1
-    if args.m2 is not None:
-        settings["m2"] = args.m2
     tag = uuid4().hex
     participant_id = args.participant_id or f"PILOT-{tag}"
     run_id = f"P8-PILOT-{tag}"
+    register_supervised_run(Path("data/p8_operator") / run_id, participant_id)
     print(f"파일럿 ID: {participant_id}\nRun ID: {run_id}", flush=True)
     print(
         f"훈련 600초 → M1 600초 ({settings['m1']}) → 휴식 → "
         f"M2 780초 ({settings['m2']}) → 결과 ZIP 저장",
         flush=True,
     )
-    return operator_cli.main(
-        build_operator_args(settings, participant_id=participant_id, run_id=run_id)
-    )
+    operator_args = build_operator_args(settings, participant_id=participant_id, run_id=run_id)
+    if not args.no_gaze:
+        operator_args += ["--gaze-config", str(args.gaze_config)]
+    return operator_cli.main(operator_args)
 
 
 if __name__ == "__main__":

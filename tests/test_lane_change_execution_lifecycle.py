@@ -773,7 +773,7 @@ def test_pending_p5_samples_cannot_progress_before_submission() -> None:
     assert "COMPLETED" not in phases
 
 
-def test_missing_snapshot_latches_unverified_evidence() -> None:
+def test_missing_snapshot_resumes_from_verified_geometry_and_completes() -> None:
     rig = make_rig(LaneChangeDirection.RIGHT)
     rig.persistence.source.last_snapshot_sample = None
     rig.observer.after_control_applied()
@@ -785,9 +785,10 @@ def test_missing_snapshot_latches_unverified_evidence() -> None:
         for event, payload in rig.persistence.events
         if event == "lane_change_lifecycle"
     ]
-    assert phases[-1] == "UNVERIFIED"
-    assert "COMPLETED" not in phases
-    assert rig.backend.lane_change_in_flight is not None
+    assert "UNVERIFIED" in phases
+    assert "OBSERVATION_RESUMED" in phases
+    assert phases[-1] == "COMPLETED"
+    assert rig.backend.lane_change_in_flight is None
 
 
 def test_nonfinite_observation_is_unverified_without_autooff() -> None:

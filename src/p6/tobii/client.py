@@ -15,13 +15,15 @@ from tools.tobii.sdk import TobiiError
 class TobiiProcessSource:
     """Bounded development capture over private stdout IPC, never a vehicle control owner."""
 
-    def __init__(self, python: Path, *, seconds: int = 15, validation: bool = False) -> None:
-        maximum = 180 if validation else 20
+    def __init__(self, python: Path, *, seconds: int = 15, validation: bool = False,
+                 pilot: bool = False) -> None:
+        maximum = 7200 if pilot else 180 if validation else 20
         if not 10 <= seconds <= maximum:
             raise TobiiError("INVALID_DURATION", f"Use 10-{maximum} seconds for bounded capture")
         self._python = python
         self._seconds = seconds
         self._validation = validation
+        self._pilot = pilot
         self.record_sink: Callable[[str], None] | None = None
         self._serial: str | None = None
         self._devices: tuple[DiscoveredDevice, ...] = ()
@@ -43,7 +45,7 @@ class TobiiProcessSource:
         return self._thread is not None and self._thread.is_alive()
 
     def _command(self, action: str) -> list[str]:
-        worker_action = "validate" if action == "gaze" and self._validation else action
+        worker_action = ("pilot" if self._pilot else "validate" if self._validation else "gaze") if action == "gaze" else action
         command = [str(self._python), "-B", "-m", "tools.tobii.worker", worker_action]
         if action == "gaze" and self._serial is not None:
             command += ["--serial", self._serial, "--seconds", str(self._seconds)]
@@ -96,7 +98,7 @@ class TobiiProcessSource:
         self._stop.set()
         process = self._process
         if process is not None and process.poll() is None:
-            if self._validation and process.stdin is not None:
+            if (self._validation or self._pilot) and process.stdin is not None:
                 try:
                     process.stdin.write("STOP\n")
                     process.stdin.flush()
@@ -152,7 +154,8 @@ class TobiiProcessSource:
                 finally:
                     if process.poll() is None:
                         process.kill()
-        except (OSError, ValueError, KeyError, TypeError, TobiiError) as error:
+        except Exception as error:  # noqa: BLE001 -- contain optional sidecar failures
+            # Includes sidecar callback/storage failures; never escape a receiver thread.
             self.last_error = str(error)
             terminal = True
         finally:

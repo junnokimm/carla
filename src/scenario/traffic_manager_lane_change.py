@@ -137,15 +137,9 @@ class TrafficManagerLaneChangeExecutor:
                 LaneChangeSubmissionStatus.REJECTED,
                 "LANE_CHANGE_ALREADY_IN_FLIGHT",
             )
-        inventory_reason = self._inventory_rejection()
-        if inventory_reason is not None:
-            return self._result(
-                request_id,
-                activation_generation,
-                right_lane_change,
-                LaneChangeSubmissionStatus.BLOCKED,
-                inventory_reason,
-            )
+        # Other actors are expected in M1/M2. Admission uses the adjacent lane
+        # geometry; normal TM collision response stays enabled. The historical
+        # empty-world rehearsal gate must not disable every request in traffic.
         if self._ownership_verifier is None or self._runtime_attestation is None:
             return self._result(
                 request_id,

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Final, Protocol, runtime_checkable
 
 import carla
 import pygame
 
+from src.error_notes import append_error_note
 from src.experiment.automation import AutomationState
 from src.experiment.automation_interaction import DriverInput
 from src.scenario.active_scene import ActiveDriveScene
@@ -206,6 +208,8 @@ class DriverView:
         self._performance_observer = performance_observer
         self._training_early_finish = training_early_finish
         self._training_completed_early = False
+        self.operator_recovery = None
+        self.collision_stop = None
 
     @property
     def feeds(self) -> tuple[CameraFeed, ...]:
@@ -302,10 +306,13 @@ class DriverView:
         if self._driving_mode_controller is None:
             raise RuntimeError("read-only view cannot run the vehicle-control loop")
         self._training_completed_early = False
+        self.collision_stop = None
         try:
             screen = self._open_display()
             self._initialize_input()
             presentation = DriverViewPresentation(self._config.window_size, screen)
+            presentation.performance_observer = self._performance_observer
+            presentation.gaze_observer = getattr(self, "gaze_observer", None)
             clock = pygame.time.Clock()
             started_at = (
                 time.monotonic() if active_scene is None else active_scene.started_at
@@ -316,209 +323,254 @@ class DriverView:
             self._capture_hazard_display = active_scene is not None
             self._hazard_front_frame = None
             continuation_finalized = False
+            recovery = self.operator_recovery
             while True:
-                boundary_events = None
-                if continuation is None and time.monotonic() - started_at >= duration:
-                    if continuation_factory is None:
-                        break
-                    # Honor a queued user exit before acquiring hazard resources.
-                    # Reuse this poll below; do not consume non-exit input twice.
-                    boundary_events = pygame.event.get()
-                    if self._exit_requested(boundary_events):
-                        exited_by_user = True
-                        break
-                    continuation = continuation_factory()
-                    continuation_factory = None
-                    if continuation is None:
-                        break
-                    continuation.start()
-                    if isinstance(continuation, RuntimeDisplayContinuation):
-                        display_continuation = continuation
-                        self._capture_hazard_display = True
-                observer = self._performance_observer
-                loop_started_at = observer.timestamp() if observer is not None else 0.0
-                self._begin_iteration()
-                events_started_at = (
-                    observer.timestamp() if observer is not None else 0.0
-                )
-                try:
-                    events = (
-                        pygame.event.get()
-                        if boundary_events is None
-                        else boundary_events
-                    )
-                    presentation.handle_events(events)
-                finally:
-                    if observer is not None:
-                        observer.record_duration(
-                            "event_poll_and_presentation",
-                            observer.timestamp() - events_started_at,
-                        )
-                if input_observer is None:
-                    self._timed_mode_events(events)
-                if self._exit_requested(events):
+                if recovery is not None and recovery.exit_requested:
                     exited_by_user = True
-                    if continuation is not None:
-                        continuation_finalized = True
-                        continuation.finalize("USER_EXIT")
                     break
-                if continuation is None and self._training_finish_requested(events):
-                    self._training_completed_early = True
-                    break
-                collected_input: DriverInput | None = None
-                if (
-                    input_observer is not None
-                    or continuation is not None
-                    or active_scene is not None
-                ):
-                    collection_started_at = self._interaction_timestamp()
-                    poll_started_ns = (
-                        time.monotonic_ns() if active_scene is not None else 0
+                with nullcontext() if recovery is None else recovery.guard(active_scene):
+                    boundary_events = None
+                    if continuation is None and time.monotonic() - started_at - (0.0 if recovery is None else recovery.paused_seconds) >= duration:
+                        if continuation_factory is None:
+                            break
+                        # Honor a queued user exit before acquiring hazard resources.
+                        # Reuse this poll below; do not consume non-exit input twice.
+                        boundary_events = self._poll_events()
+                        if self._exit_requested(boundary_events):
+                            exited_by_user = True
+                            break
+                        continuation = continuation_factory()
+                        continuation_factory = None
+                        if continuation is None:
+                            break
+                        continuation.start()
+                        if isinstance(continuation, RuntimeDisplayContinuation):
+                            display_continuation = continuation
+                            self._capture_hazard_display = True
+                    observer = self._performance_observer
+                    loop_started_at = observer.timestamp() if observer is not None else 0.0
+                    self._begin_iteration()
+                    events_started_at = (
+                        observer.timestamp() if observer is not None else 0.0
                     )
                     try:
-                        collected_input = self._collect_driver_input(events)
-                        poll_completed_ns = (
+                        events = (
+                            self._poll_events()
+                            if boundary_events is None
+                            else boundary_events
+                        )
+                        presentation_started_at = (
+                            observer.timestamp() if observer is not None else 0.0
+                        )
+                        presentation_cpu = time.thread_time() if observer is not None else 0.0
+                        try:
+                            presentation.handle_events(events)
+                        finally:
+                            if observer is not None:
+                                observer.record_duration(
+                                    "presentation_events", observer.timestamp() - presentation_started_at
+                                )
+                                observer.record_duration(
+                                    "presentation_events_thread_cpu", time.thread_time() - presentation_cpu
+                                )
+                    finally:
+                        if observer is not None:
+                            observer.record_duration(
+                                "event_poll_and_presentation",
+                                observer.timestamp() - events_started_at,
+                            )
+                    if input_observer is None:
+                        self._timed_mode_events(events)
+                    if self._exit_requested(events):
+                        exited_by_user = True
+                        if continuation is not None:
+                            continuation_finalized = True
+                            continuation.finalize("USER_EXIT")
+                        break
+                    if continuation is None and self._training_finish_requested(events):
+                        self._training_completed_early = True
+                        break
+                    collected_input: DriverInput | None = None
+                    if (
+                        input_observer is not None
+                        or continuation is not None
+                        or active_scene is not None
+                    ):
+                        collection_started_at = self._interaction_timestamp()
+                        poll_started_ns = (
                             time.monotonic_ns() if active_scene is not None else 0
                         )
-                        self._pending_driver_input = collected_input
-                    finally:
-                        self._record_interaction_duration(
-                            "input_collection", collection_started_at
-                        )
-                    if input_observer is not None:
-                        input_started_at = self._interaction_timestamp()
                         try:
-                            input_observer.update(collected_input)
+                            collected_input = self._collect_driver_input(events)
+                            poll_completed_ns = (
+                                time.monotonic_ns() if active_scene is not None else 0
+                            )
+                            self._pending_driver_input = collected_input
                         finally:
                             self._record_interaction_duration(
-                                "input_observer", input_started_at
+                                "input_collection", collection_started_at
                             )
-                scheduler_started_at = self._interaction_timestamp()
-                try:
-                    control_applied = (
-                        scheduler.update() if scheduler is not None else False
-                    )
-                finally:
-                    self._record_interaction_duration("scheduler", scheduler_started_at)
-                if not control_applied:
-                    self._apply_manual_control()
-                if input_observer is not None:
-                    self._timed_mode_events(self._events_for_mode_handling(events))
-                if isinstance(input_observer, ResearchPostControlObserver):
-                    post_started_at = self._interaction_timestamp()
+                        if input_observer is not None:
+                            input_started_at = self._interaction_timestamp()
+                            try:
+                                input_observer.update(collected_input)
+                            finally:
+                                self._record_interaction_duration(
+                                    "input_observer", input_started_at
+                                )
+                    scheduler_started_at = self._interaction_timestamp()
                     try:
-                        input_observer.after_control_applied()
+                        control_applied = (
+                            scheduler.update() if scheduler is not None else False
+                        )
                     finally:
-                        self._record_interaction_duration(
-                            "post_control", post_started_at
+                        self._record_interaction_duration("scheduler", scheduler_started_at)
+                    if not control_applied:
+                        self._apply_manual_control()
+                    if input_observer is not None:
+                        self._timed_mode_events(self._events_for_mode_handling(events))
+                    if isinstance(input_observer, ResearchPostControlObserver):
+                        post_started_at = self._interaction_timestamp()
+                        try:
+                            input_observer.after_control_applied()
+                        finally:
+                            self._record_interaction_duration(
+                                "post_control", post_started_at
+                            )
+                    continuation_active = True
+                    if active_scene is not None and collected_input is not None:
+                        scene_started_at = (
+                            observer.timestamp() if observer is not None else 0.0
                         )
-                continuation_active = True
-                if active_scene is not None and collected_input is not None:
-                    active_scene.after_control(
-                        collected_input, poll_started_ns, poll_completed_ns
-                    )
-                if continuation is not None:
-                    if collected_input is None:
-                        raise RuntimeError(
-                            "continuation driver input was not collected"
+                        try:
+                            active_scene.after_control(
+                                collected_input, poll_started_ns, poll_completed_ns
+                            )
+                        finally:
+                            if observer is not None:
+                                observer.record_duration(
+                                    "active_scene_after_control",
+                                    observer.timestamp() - scene_started_at,
+                                )
+                    collision_stop = getattr(active_scene, "collision_stop", None)
+                    if collision_stop is not None:
+                        if observer is not None:
+                            observer.record_duration("driver_loop", observer.timestamp() - loop_started_at)
+                        self._complete_iteration()
+                        collision_stop.wait()
+                        break
+                    if continuation is not None:
+                        if collected_input is None:
+                            raise RuntimeError(
+                                "continuation driver input was not collected"
+                            )
+                        continuation_active = continuation.after_control_applied(
+                            collected_input
                         )
-                    continuation_active = continuation.after_control_applied(
-                        collected_input
-                    )
-                audio_started_at = observer.timestamp() if observer is not None else 0.0
-                self._update_turn_signal_audio()
-                if observer is not None:
-                    observer.record_duration(
-                        "audio", observer.timestamp() - audio_started_at
-                    )
-                prepare_started_at = (
-                    observer.timestamp() if observer is not None else 0.0
-                )
-                try:
-                    self._prepare_frame()
-                finally:
+                    audio_started_at = observer.timestamp() if observer is not None else 0.0
+                    self._update_turn_signal_audio()
                     if observer is not None:
                         observer.record_duration(
-                            "frame_prepare", observer.timestamp() - prepare_started_at
+                            "audio", observer.timestamp() - audio_started_at
                         )
-                draw_started_at = observer.timestamp() if observer is not None else 0.0
-                if self._capture_hazard_display:
-                    self._hazard_front_frame = None
-                try:
-                    self._draw(presentation.canvas)
-                    presentation.present()
-                finally:
-                    if observer is not None:
-                        observer.record_duration(
-                            "draw", observer.timestamp() - draw_started_at
-                        )
-                flip_started_at = observer.timestamp() if observer is not None else 0.0
-                try:
-                    pygame.display.flip()
-                    flip_completed_ns = (
-                        time.monotonic_ns()
-                        if display_continuation is not None or active_scene is not None
-                        else None
+                    prepare_started_at = (
+                        observer.timestamp() if observer is not None else 0.0
                     )
-                finally:
+                    try:
+                        self._prepare_frame()
+                    finally:
+                        if observer is not None:
+                            observer.record_duration(
+                                "frame_prepare", observer.timestamp() - prepare_started_at
+                            )
+                    draw_started_at = observer.timestamp() if observer is not None else 0.0
+                    if self._capture_hazard_display:
+                        self._hazard_front_frame = None
+                    try:
+                        self._draw(presentation.canvas)
+                        presentation.present()
+                    finally:
+                        if observer is not None:
+                            observer.record_duration(
+                                "draw", observer.timestamp() - draw_started_at
+                            )
+                    flip_started_at = observer.timestamp() if observer is not None else 0.0
+                    try:
+                        pygame.display.flip()
+                        flip_completed_ns = (
+                            time.monotonic_ns()
+                            if display_continuation is not None or active_scene is not None
+                            else None
+                        )
+                    finally:
+                        if observer is not None:
+                            observer.record_duration(
+                                "display_flip", observer.timestamp() - flip_started_at
+                            )
                     if observer is not None:
-                        observer.record_duration(
-                            "display_flip", observer.timestamp() - flip_started_at
-                        )
-                if observer is not None:
-                    observer.record_completed_display_flip()
-                after_flip_started_at = (
-                    observer.timestamp() if observer is not None else 0.0
-                )
-                try:
-                    self._after_display_flip()
-                finally:
-                    if observer is not None:
-                        observer.record_duration(
-                            "after_display_flip",
-                            observer.timestamp() - after_flip_started_at,
-                        )
-                if display_continuation is not None or active_scene is not None:
-                    assert flip_completed_ns is not None
-                    selected = self._hazard_front_frame
-                    frame = (
-                        None
-                        if selected is None
-                        else DisplayedCameraFrame(
-                            selected[0],
-                            selected[1],
-                            selected[2],
-                            selected[3],
-                            flip_completed_ns,
-                            selected[4],
-                        )
+                        observer.record_completed_display_flip()
+                    after_flip_started_at = (
+                        observer.timestamp() if observer is not None else 0.0
                     )
-                    if display_continuation is not None:
-                        continuation_active = (
-                            display_continuation.after_display_completed(frame)
-                            and continuation_active
+                    try:
+                        self._after_display_flip()
+                    finally:
+                        if observer is not None:
+                            observer.record_duration(
+                                "after_display_flip",
+                                observer.timestamp() - after_flip_started_at,
+                            )
+                    if display_continuation is not None or active_scene is not None:
+                        assert flip_completed_ns is not None
+                        selected = self._hazard_front_frame
+                        frame = (
+                            None
+                            if selected is None
+                            else DisplayedCameraFrame(
+                                selected[0],
+                                selected[1],
+                                selected[2],
+                                selected[3],
+                                flip_completed_ns,
+                                selected[4],
+                            )
                         )
-                    if active_scene is not None:
-                        active_scene.after_display_completed(frame)
-                limiter_started_at = (
-                    observer.timestamp() if observer is not None else 0.0
-                )
-                try:
-                    clock.tick(FRAME_RATE)
-                finally:
+                        if display_continuation is not None:
+                            continuation_active = (
+                                display_continuation.after_display_completed(frame)
+                                and continuation_active
+                            )
+                        if active_scene is not None:
+                            scene_started_at = (
+                                observer.timestamp() if observer is not None else 0.0
+                            )
+                            try:
+                                active_scene.after_display_completed(frame)
+                            finally:
+                                if observer is not None:
+                                    observer.record_duration(
+                                        "active_scene_after_display",
+                                        observer.timestamp() - scene_started_at,
+                                    )
+                    limiter_started_at = (
+                        observer.timestamp() if observer is not None else 0.0
+                    )
+                    try:
+                        clock.tick(FRAME_RATE)
+                    finally:
+                        if observer is not None:
+                            observer.record_duration(
+                                "fps_limiter", observer.timestamp() - limiter_started_at
+                            )
                     if observer is not None:
                         observer.record_duration(
-                            "fps_limiter", observer.timestamp() - limiter_started_at
+                            "driver_loop", observer.timestamp() - loop_started_at
                         )
-                if observer is not None:
-                    observer.record_duration(
-                        "driver_loop", observer.timestamp() - loop_started_at
-                    )
-                self._complete_iteration()
-                if continuation is not None and not continuation_active:
-                    continuation_finalized = True
-                    continuation.finalize("TERMINAL")
-                    break
+                    self._complete_iteration()
+                    if continuation is not None and not continuation_active:
+                        continuation_finalized = True
+                        continuation.finalize("TERMINAL")
+                        break
         except BaseException as error:
             if (
                 "continuation" in locals()
@@ -595,7 +647,11 @@ class DriverView:
 
     def close(self) -> None:
         """Stop and destroy every sensor, including sensors from partial setup."""
-        self._turn_signal_audio.close()
+        audio_error = None
+        try:
+            self._turn_signal_audio.close()
+        except (KeyboardInterrupt, OSError, RuntimeError, TypeError, ValueError) as error:
+            audio_error = error
         feeds = tuple(self._feeds)
         self._feeds.clear()
         errors: list[RuntimeError] = []
@@ -608,6 +664,10 @@ class DriverView:
                 feed.sensor.destroy()
             except RuntimeError as error:
                 errors.append(error)
+        if audio_error is not None:
+            for error in errors:
+                append_error_note(audio_error, f"Camera cleanup failure: {error}")
+            raise audio_error
         if errors:
             raise DriverViewCleanupError(tuple(errors))
 
@@ -744,17 +804,32 @@ class DriverView:
         )
         self._hero.set_light_state(carla.VehicleLightState(updated))
 
-    def _update_turn_signal_audio(self) -> None:
+    def _poll_events(self) -> list[pygame.event.Event]:
+        observer = self._performance_observer
+        started = observer.timestamp() if observer is not None else 0.0
+        cpu_started = time.thread_time() if observer is not None else 0.0
+        try:
+            return pygame.event.get()
+        finally:
+            if observer is not None:
+                observer.record_duration("event_poll", observer.timestamp() - started)
+                observer.record_duration("event_poll_thread_cpu", time.thread_time() - cpu_started)
+
+    def _turn_signal_light_observation(self) -> carla.VehicleLightState:
         observer = self._performance_observer
         light_state_started_at = observer.timestamp() if observer is not None else 0.0
         try:
-            lights = self._hero.get_light_state()
+            return self._hero.get_light_state()
         finally:
             if observer is not None:
                 observer.record_turn_signal_audio_duration(
                     "light_state_rpc",
                     observer.timestamp() - light_state_started_at,
                 )
+
+    def _update_turn_signal_audio(self) -> None:
+        observer = self._performance_observer
+        lights = self._turn_signal_light_observation()
         blinkers = (
             carla.VehicleLightState.LeftBlinker | carla.VehicleLightState.RightBlinker
         )

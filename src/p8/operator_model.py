@@ -86,6 +86,7 @@ class OperatorRuntimeConfig:
     native_tm_diagnostics: NativeTrafficManagerDiagnosticsConfig | None = None
     tsxw_config: TsxwConfig | None = None
     m2_hazard_v1: MovingHazardConfig | None = None
+    gaze_config: Path | None = None
 
     def __post_init__(self) -> None:
         self.validate_safety_contract()
@@ -194,6 +195,7 @@ class ModuleRunResult:
     training_completed_early: bool = False
     nominal_request: bool = False
     exit_opportunity: ExitOpportunityResult | None = None
+    collision_stop: dict[str, Json] | None = None
 
     @property
     def window_complete(self) -> bool:
@@ -225,6 +227,7 @@ class ModuleRunResult:
             "runtime_started_session_s": self.runtime_started_session_s,
             "runtime_closed_session_s": self.runtime_closed_session_s,
             "completion_reason": self.completion_reason,
+            "collision_stop": self.collision_stop,
             "training_completed_early": self.training_completed_early,
             "nominal_request": self.nominal_request,
             "window_complete": self.window_complete,
@@ -251,6 +254,7 @@ class OperatorSnapshot:
     deletion_status: str
     result_export: OperatorResultExport | None = None
     hazard_status: str | None = None
+    module_2_condition: Module2Condition | None = None
 
 
 @dataclass(frozen=True, slots=True)

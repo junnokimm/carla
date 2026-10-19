@@ -622,6 +622,9 @@ class ResearchNoARunner:
                     config=self._config.automation_interaction.policy,
                     event_sink=record_event,
                     diagnostics=diagnostics,
+                    # This gate belongs to this spawned ego only. Its actor-local
+                    # box is fixed; actual activation still refreshes the box.
+                    cache_static_bounds=traffic_manager is not None,
                 )
                 if persistence is not None:
                     interaction = PersistedInteractionObserver(
@@ -821,6 +824,9 @@ class ResearchNoARunner:
             traffic_manager_port=self._config.traffic_manager_port,
             control_sender=control_sender,
             vehicle_audio_source=audio_source,
+            iteration_light_state=(
+                None if persistence is None else persistence.source.iteration_lights
+            ),
             vehicle_audio_status_sink=(
                 None
                 if audio_source is None

@@ -32,6 +32,7 @@ from src.scenario.driver_view import (
     RuntimeDriverInputObserver,
     RuntimeIterationScheduler,
 )
+from src.scenario.iteration_light_state import IterationLightState
 from src.scenario.research_camera_diagnostics import ResearchCameraDiagnostics
 from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
 from src.scenario.research_exit_view import (
@@ -66,6 +67,7 @@ class ResearchDriverViewConfig(DriverViewConfig):
     tsxw_event_sink: Callable[[TsxwLogEvent], None] | None = None
     vehicle_audio_source: Callable[[], VehicleAudioState | None] | None = None
     vehicle_audio_status_sink: Callable[[str], None] | None = None
+    iteration_light_state: IterationLightState | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +200,16 @@ class ResearchDriverView(DriverView):
             self._tsxw_commands = TsxwCommandState()
             self._tsxw_mode_events = None
 
+    def recover_input(self) -> None:
+        """Reopen a disconnected input device only after operator confirmation."""
+        try:
+            self._close_input()
+        finally:
+            self._tsxw_input = None
+            self._pending_driver_input = None
+            self._steer = 0.0
+        self._initialize_input()
+
     def _close_input(self) -> None:
         self._tsxw_input_prepared = False
         try:
@@ -217,17 +229,47 @@ class ResearchDriverView(DriverView):
             finally:
                 self._record_interaction_duration("vehicle_audio_update", started_at)
 
+    def _turn_signal_light_observation(self) -> carla.VehicleLightState:
+        shared = self._research_config.iteration_light_state
+        sample = None if shared is None else shared.consume()
+        if sample is None:
+            return super()._turn_signal_light_observation()
+        lights, age = sample
+        if self._performance_observer is not None:
+            self._performance_observer.record_duration(
+                "turn_signal_audio_shared_light_age", age
+            )
+        return lights
+
     def close(self) -> None:
+        pending_error = None
         try:
             if self._tsxw_input_prepared:
                 try:
                     self._close_input()
                 finally:
                     pygame.quit()
+        except BaseException as error:
+            pending_error = error
+            raise
         finally:
-            if self._vehicle_audio is not None:
-                self._vehicle_audio.close(fade=False)
-            super().close()
+            audio_error = pending_error
+            try:
+                if self._vehicle_audio is not None:
+                    self._vehicle_audio.close(fade=False)
+            except (KeyboardInterrupt, OSError, RuntimeError, TypeError, ValueError) as error:
+                if audio_error is None:
+                    audio_error = error
+                else:
+                    append_error_note(audio_error, f"Vehicle audio cleanup failure: {error}")
+            try:
+                super().close()
+            except (KeyboardInterrupt, OSError, RuntimeError, TypeError, ValueError) as error:
+                if audio_error is None:
+                    raise
+                append_error_note(audio_error, f"Driver-view cleanup failure: {error}")
+            if audio_error is not None and audio_error is not pending_error:
+                raise audio_error
 
     def _events_for_mode_handling(
         self,
@@ -326,6 +368,8 @@ class ResearchDriverView(DriverView):
             self._diagnostics = None
 
     def _begin_iteration(self) -> None:
+        if self._research_config.iteration_light_state is not None:
+            self._research_config.iteration_light_state.begin()
         if self._camera_diagnostics is not None:
             self._camera_diagnostics.begin_driver_loop()
         if self._diagnostics is not None:
@@ -477,17 +521,13 @@ class ResearchDriverView(DriverView):
             and lane_change_direction is not LaneChangeDirection.RIGHT
         ):
             confirm_requested = False
+        # Apply accepted indicator edges before their shared request observer.
+        # Mode/driver-priority decisions belong to the automation controller;
+        # even a sub-threshold brake value must not delay the lamp until after
+        # the lane-change submission check. Consume each light toggle only once.
         mode_source = self._research_config.automation_state_source
-        if (
-            lane_change_direction is not None
-            and mode_source is not None
-            and mode_source().control_mode is DrivingControlMode.NOA_ACTIVE
-            and not (
-                driver_input.brake > 0.0
-                or driver_input.steering_engaged
-                or toggle_requested
-            )
-        ):
+        if (self._accepted_signal_event_ids and mode_source is not None
+                and mode_source().control_mode is DrivingControlMode.NOA_ACTIVE):
             self._handle_mode_events(
                 [
                     event

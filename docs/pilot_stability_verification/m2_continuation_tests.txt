@@ -1,0 +1,727 @@
+........................................................................ [  3%]
+..........................................................F.FF.....F.... [  6%]
+.....F........................................s......................... [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 20%]
+........................................................................ [ 23%]
+........................................................................ [ 26%]
+........................................................................ [ 30%]
+.....................................................FF................. [ 33%]
+........................................................................ [ 36%]
+........................................................................ [ 40%]
+................................................F....................... [ 43%]
+.............F..FFFFFFF........................................F........ [ 46%]
+........................................................................ [ 50%]
+........................................................................ [ 53%]
+FFFFF................................................................... [ 56%]
+........................F................FF.FFFFFFFF....F............... [ 60%]
+.........................................................F.............. [ 63%]
+........................................................................ [ 66%]
+...............FFF...sF...........................F.F..F...FFFF......... [ 70%]
+.........................................................FF............. [ 73%]
+........................................................................ [ 76%]
+........................................................................ [ 80%]
+........................................................................ [ 83%]
+......................................................F................. [ 86%]
+........................................................................ [ 90%]
+.......................................................FFFFFFF.......... [ 93%]
+............................................F..FF..FFF.................. [ 96%]
+....................................................................     [100%]
+================================== FAILURES ===================================
+_______ test_protected_front_cockpit_and_hud_configuration_is_unchanged _______
+tests\test_driver_view.py:213: in test_protected_front_cockpit_and_hud_configuration_is_unchanged
+    assert config.cockpit_transform == CameraTransform(
+E   AssertionError: assert CameraTransfo...0.0, roll=0.0) == CameraTransfo...0.0, roll=0.0)
+E     
+E     Omitting 4 identical items, use -vv to show
+E     Differing attributes:
+E     ['x', 'pitch']
+E     
+E     Drill down into differing attribute x:
+E       x: 0.25 != 0.1...
+E     
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+____ test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps _____
+tests\test_driver_view.py:255: in test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps
+    assert layout.left_mirror.bounds == (24, 561, 240, 135)
+E   assert (24, 453.0, 240, 135) == (24, 561, 240, 135)
+E     
+E     At index 1 diff: 453.0 != 561
+E     Use -v to get more diff
+_______ test_layout_recomputes_from_custom_window_and_legacy_side_size ________
+tests\test_driver_view.py:273: in test_layout_recomputes_from_custom_window_and_legacy_side_size
+    assert layout.left_mirror.bounds == (32, 700, 300, 168)
+E   assert (32, 565.5999...999, 300, 168) == (32, 700, 300, 168)
+E     
+E     At index 1 diff: 565.5999999999999 != 700
+E     Use -v to get more diff
+____________ test_draw_keeps_front_raw_and_flips_all_three_mirrors ____________
+tests\test_driver_view.py:468: in test_draw_keeps_front_raw_and_flips_all_three_mirrors
+    assert screen.blits == [
+E   AssertionError: assert [(('scaled', ...1016, 453.0))] == [(('scaled', ... (1016, 561))]
+E     
+E     At index 2 diff: (('flipped', 'left', (240, 135)), (24, 453.0)) != (('flipped', 'left', (240, 135)), (24, 561))
+E     Use -v to get more diff
+______ test_v_respawns_only_front_sensor_with_cockpit_relative_transform ______
+tests\test_driver_view_cockpit.py:52: in test_v_respawns_only_front_sensor_with_cockpit_relative_transform
+    assert spawn.transform.location.x == pytest.approx(0.10)
+E   assert 0.25 == 0.1 �� 1.0e-07
+E     
+E     comparison failed
+E     Obtained: 0.25
+E     Expected: 0.1 �� 1.0e-07
+---------------------------- Captured stdout call -----------------------------
+[driver-view] driving-mode=MANUAL
+[driver-view] view=COCKPIT
+___________ test_activation_saturation_preserves_clock_order[False] ___________
+tests\test_noa_saturation_clock.py:72: in test_activation_saturation_preserves_clock_order
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_activation_saturation_pre0\\activation\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_activation_saturation_pre0\\activation\\session_manifest.json'
+___________ test_activation_saturation_preserves_clock_order[True] ____________
+tests\test_noa_saturation_clock.py:72: in test_activation_saturation_preserves_clock_order
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_activation_saturation_pre1\\activation\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_activation_saturation_pre1\\activation\\session_manifest.json'
+---------------------------- Captured stdout call -----------------------------
+pi_trace,frame,simulation_time_seconds,actual_pi_dt_seconds,target_speed_kmh,measured_speed_kmh,integral_effort,throttle_saturated,brake_saturated,steering_saturated,commanded_throttle,commanded_brake,commanded_steering,cached_readback_throttle,cached_readback_brake,cached_readback_steering,cached_readback_gear,cached_readback_manual_gear_shift
+pi_trace,0,0.0,0.0,10.0,0.0,0.0,False,False,False,0.9800000000000001,0.0,-0.0,0.9800000190734863,0.0,-0.0,1,False
+pi_trace,0,0.0,0.0,10.0,0.0,0.0,False,False,False,0.9800000000000001,0.0,-0.0,0.9800000190734863,0.0,-0.0,1,False
+pi_trace,0,0.0,0.0,10.0,0.0,0.0,False,False,False,0.9800000000000001,0.0,-0.0,0.9800000190734863,0.0,-0.0,1,False
+__ test_candidate_matches_current_mirrors_without_claiming_measured_accuracy __
+tests\test_p6_candidate_aoi.py:24: in test_candidate_matches_current_mirrors_without_claiming_measured_accuracy
+    assert astuple(candidate.left) == layout.left_mirror.bounds
+E   assert (24.0, 561.0, 240.0, 135.0) == (24, 453.0, 240, 135)
+E     
+E     At index 1 diff: 561.0 != 453.0
+E     Use -v to get more diff
+_______ test_http_server_exposes_state_accepts_events_and_serves_ranges _______
+tests\test_p6_tablet.py:97: in test_http_server_exposes_state_accepts_events_and_serves_ranges
+    connection.request(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+__________ test_index_and_assets_are_public_but_api_requires_bearer ___________
+tests\test_p6_tablet_http.py:49: in test_index_and_assets_are_public_but_api_requires_bearer
+    connection.request("GET", "/")
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+_ test_invalid_json_numbers_return_400[{"run_epoch":"epoch","event_id":"sync","performance_ms":NaN,"time_origin_ms":1}] _
+tests\test_p6_tablet_http.py:74: in test_invalid_json_numbers_return_400
+    status, _, _ = _request(server, "POST", "/api/sync-mark", payload)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_p6_tablet_http.py:38: in _request
+    connection.request(method, path, body=body, headers=headers)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+_ test_invalid_json_numbers_return_400[{"run_epoch":"epoch","event_id":"sync","performance_ms":true,"time_origin_ms":1}] _
+tests\test_p6_tablet_http.py:74: in test_invalid_json_numbers_return_400
+    status, _, _ = _request(server, "POST", "/api/sync-mark", payload)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_p6_tablet_http.py:38: in _request
+    connection.request(method, path, body=body, headers=headers)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+_______ test_invalid_ranges_return_416_with_content_range[bytes=oops-3] _______
+tests\test_p6_tablet_http.py:86: in test_invalid_ranges_return_416_with_content_range
+    connection.request(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+________ test_invalid_ranges_return_416_with_content_range[bytes=9-2] _________
+tests\test_p6_tablet_http.py:86: in test_invalid_ranges_return_416_with_content_range
+    connection.request(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+______ test_invalid_ranges_return_416_with_content_range[bytes=100-101] _______
+tests\test_p6_tablet_http.py:86: in test_invalid_ranges_return_416_with_content_range
+    connection.request(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+_________________ test_every_post_requires_matching_run_epoch _________________
+tests\test_p6_tablet_http.py:110: in test_every_post_requires_matching_run_epoch
+    status, _, payload = _request(server, "POST", "/api/sync-mark", body)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_p6_tablet_http.py:38: in _request
+    connection.request(method, path, body=body, headers=headers)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1093: in _send_output
+    self.send(msg)
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1037: in send
+    self.connect()
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\http\client.py:1003: in connect
+    self.sock = self._create_connection(
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:865: in create_connection
+    raise exceptions[0]
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\socket.py:850: in create_connection
+    sock.connect(sa)
+E   PermissionError: [WinError 10013] �׼��� ���ѿ� ���� ������ ���Ͽ� �׼����� �õ��߽��ϴ�
+________ test_space_at_previous_segment_end_must_not_skip_next_prepare ________
+tests\test_p6_validation_loop.py:75: in test_space_at_previous_segment_end_must_not_skip_next_prepare
+    live.execute(run, source, live.LiveOptions("fake", 2000, 1, 20))
+src\p6\validation\live.py:49: in execute
+    validate_geometry(run, config)
+src\p6\validation\live.py:33: in validate_geometry
+    raise ValidationError("Candidate mirrors differ from current production layout")
+E   src.p6.validation.mapping.ValidationError: Candidate mirrors differ from current production layout
+
+During handling of the above exception, another exception occurred:
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\contextlib.py:167: in __exit__
+    exc.__traceback__ = traceback
+    ^^^^^^^^^^^^^^^^^
+E   TypeError: super(type, obj): obj must be an instance or subtype of type
+_______ test_dev_live_cli_runs_fake_backed_path_without_real_provenance _______
+tests\test_p8_cli.py:313: in test_dev_live_cli_runs_fake_backed_path_without_real_provenance
+    manifest = json.loads(next(tmp_path.glob("*/session_manifest.json")).read_text())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   StopIteration
+---------------------------- Captured stdout call -----------------------------
+{"status": "FAILED_CLOSED", "reason": "[WinError 5] \uc561\uc138\uc2a4\uac00 \uac70\ubd80\ub418\uc5c8\uc2b5\ub2c8\ub2e4: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_runs_fake_ba0\\\\20261017T145018Z-7a1ec189\\\\.session_manifest.tmp' -> 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_runs_fake_ba0\\\\20261017T145018Z-7a1ec189\\\\session_manifest.json'", "participant_ready": false}
+_ test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum[extra0-10.0-20.0-LEGACY_DEV-0.4] _
+tests\test_p8_cli.py:374: in test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum
+    assert (
+E   AssertionError: assert 2 == 0
+E    +  where 2 = main(['--mode', 'dev-live-drive', '--ack-dev-live', '--spawn-index', '0', '--duration', ...])
+---------------------------- Captured stdout call -----------------------------
+{"status": "FAILED_CLOSED", "reason": "[WinError 5] \uc561\uc138\uc2a4\uac00 \uac70\ubd80\ub418\uc5c8\uc2b5\ub2c8\ub2e4: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_persists_exp0\\\\20261017T145018Z-06f11b94\\\\.session_manifest.tmp' -> 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_persists_exp0\\\\20261017T145018Z-06f11b94\\\\session_manifest.json'", "participant_ready": false}
+_ test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum[extra1-10.0-30.0-HIGH_SPEED_DEV_UNVALIDATED-1.0] _
+tests\test_p8_cli.py:374: in test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum
+    assert (
+E   AssertionError: assert 2 == 0
+E    +  where 2 = main(['--mode', 'dev-live-drive', '--ack-dev-live', '--spawn-index', '0', '--duration', ...])
+---------------------------- Captured stdout call -----------------------------
+{"status": "FAILED_CLOSED", "reason": "[WinError 5] \uc561\uc138\uc2a4\uac00 \uac70\ubd80\ub418\uc5c8\uc2b5\ub2c8\ub2e4: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_persists_exp1\\\\20261017T145018Z-d57b0772\\\\.session_manifest.tmp' -> 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_persists_exp1\\\\20261017T145018Z-d57b0772\\\\session_manifest.json'", "participant_ready": false}
+_ test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum[extra2-25.0-35.0-HIGH_SPEED_DEV_UNVALIDATED-1.0] _
+tests\test_p8_cli.py:374: in test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum
+    assert (
+E   AssertionError: assert 2 == 0
+E    +  where 2 = main(['--mode', 'dev-live-drive', '--ack-dev-live', '--spawn-index', '0', '--duration', ...])
+---------------------------- Captured stdout call -----------------------------
+{"status": "FAILED_CLOSED", "reason": "[WinError 5] \uc561\uc138\uc2a4\uac00 \uac70\ubd80\ub418\uc5c8\uc2b5\ub2c8\ub2e4: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_persists_exp2\\\\20261017T145018Z-99369986\\\\.session_manifest.tmp' -> 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_dev_live_cli_persists_exp2\\\\20261017T145018Z-99369986\\\\session_manifest.json'", "participant_ready": false}
+________ test_dev_live_cli_manifests_one_shot_assignment_write_failure ________
+tests\test_p8_cli_live_failures.py:71: in test_dev_live_cli_manifests_one_shot_assignment_write_failure
+    manifest = json.loads((created[0].directory / "session_manifest.json").read_text())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\nexta\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1013: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_dev_live_cli_manifests_on0\\20261017T145018Z-a6d357de\\session_manifest.json'
+_ test_training_input_preparation_precedes_active_time_and_cancellation_saves[True] _
+tests\test_p8_input_preparation_timing.py:107: in test_training_input_preparation_precedes_active_time_and_cancellation_saves
+    assert controller.session.result_export.archive.is_file()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'is_file'
+_____ test_live_adapter_records_real_partial_run_without_disabled_streams _____
+tests\test_p8_live_drive.py:113: in test_live_adapter_records_real_partial_run_without_disabled_streams
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_records_real0\\partial\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_records_real0\\partial\\session_manifest.json'
+________ test_live_adapter_records_user_exit_separately_from_time_cap _________
+tests\test_p8_live_drive.py:180: in test_live_adapter_records_user_exit_separately_from_time_cap
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_records_user0\\user-exit\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_records_user0\\user-exit\\session_manifest.json'
+_ test_live_adapter_closes_logger_and_writes_manifest_when_initial_emit_fails _
+tests\test_p8_live_drive_audit_failures.py:35: in test_live_adapter_closes_logger_and_writes_manifest_when_initial_emit_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_closes_logge0\\initial-emit-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_closes_logge0\\initial-emit-failure\\session_manifest.json'
+_____ test_live_adapter_keeps_primary_failure_when_abort_emit_also_fails ______
+tests\test_p8_live_drive_audit_failures.py:62: in test_live_adapter_keeps_primary_failure_when_abort_emit_also_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_keeps_primar0\\abort-emit-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_keeps_primar0\\abort-emit-failure\\session_manifest.json'
+______ test_live_adapter_turns_inspection_failure_into_manifested_abort _______
+tests\test_p8_live_drive_audit_failures.py:92: in test_live_adapter_turns_inspection_failure_into_manifested_abort
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_turns_inspec0\\inspection-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_turns_inspec0\\inspection-failure\\session_manifest.json'
+____ test_live_adapter_preserves_closed_runtime_when_end_event_write_fails ____
+tests\test_p8_live_drive_audit_failures.py:129: in test_live_adapter_preserves_closed_runtime_when_end_event_write_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_preserves_cl0\\end-event-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_preserves_cl0\\end-event-failure\\session_manifest.json'
+____ test_live_adapter_preserves_partial_files_when_viewer_creation_fails _____
+tests\test_p8_live_drive_failures.py:59: in test_live_adapter_preserves_partial_files_when_viewer_creation_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_preserves_pa0\\creation-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_preserves_pa0\\creation-failure\\session_manifest.json'
+______ test_live_adapter_cannot_report_success_when_session_close_fails _______
+tests\test_p8_live_drive_failures.py:85: in test_live_adapter_cannot_report_success_when_session_close_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_cannot_repor0\\session-close-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_cannot_repor0\\session-close-failure\\session_manifest.json'
+________ test_live_adapter_preserves_manifest_when_logger_close_fails _________
+tests\test_p8_live_drive_failures.py:120: in test_live_adapter_preserves_manifest_when_logger_close_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_preserves_ma0\\logger-close-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_preserves_ma0\\logger-close-failure\\session_manifest.json'
+___ test_live_adapter_does_not_claim_stage_started_when_transmission_fails ____
+tests\test_p8_live_drive_failures.py:141: in test_live_adapter_does_not_claim_stage_started_when_transmission_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_does_not_cla0\\transmission-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_does_not_cla0\\transmission-failure\\session_manifest.json'
+__________ test_live_adapter_rejects_synchronous_world_before_spawn ___________
+tests\test_p8_live_drive_gates.py:122: in test_live_adapter_rejects_synchronous_world_before_spawn
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_rejects_sync0\\synchronous-world\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_live_adapter_rejects_sync0\\synchronous-world\\session_manifest.json'
+___________ test_high_cli_preserves_default_cap_and_wires_pi_trace ____________
+tests\test_p8_noa_trace_cli.py:60: in test_high_cli_preserves_default_cap_and_wires_pi_trace
+    assert exit_code == 0
+E   assert 2 == 0
+---------------------------- Captured stdout call -----------------------------
+pi_trace,frame,simulation_time_seconds,actual_pi_dt_seconds,target_speed_kmh,measured_speed_kmh,integral_effort,throttle_saturated,brake_saturated,steering_saturated,commanded_throttle,commanded_brake,commanded_steering,cached_readback_throttle,cached_readback_brake,cached_readback_steering,cached_readback_gear,cached_readback_manual_gear_shift
+pi_trace,0,0.0,0.0,25.0,0.0,0.0,True,False,False,0.4,0.0,-0.0,0.4000000059604645,0.0,-0.0,1,False
+pi_trace,0,0.0,0.0,25.0,0.0,0.0,True,False,False,0.4,0.0,-0.0,0.4000000059604645,0.0,-0.0,1,False
+pi_trace,0,0.0,0.0,25.0,0.0,0.0,True,False,False,0.4,0.0,-0.0,0.4000000059604645,0.0,-0.0,1,False
+pi_trace,0,0.0,0.0,25.0,0.0,0.0,True,False,False,0.4,0.0,-0.0,0.4000000059604645,0.0,-0.0,1,False
+{"status": "FAILED_CLOSED", "reason": "[WinError 5] \uc561\uc138\uc2a4\uac00 \uac70\ubd80\ub418\uc5c8\uc2b5\ub2c8\ub2e4: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_high_cli_preserves_defaul0\\\\20261017T145028Z-a77f46c8\\\\.session_manifest.tmp' -> 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_high_cli_preserves_defaul0\\\\20261017T145028Z-a77f46c8\\\\session_manifest.json'", "participant_ready": false}
+_ test_export_contains_only_finalized_run_and_preserves_exact_originals[SESSION_COMPLETE] _
+tests\test_p8_operator_results.py:47: in test_export_contains_only_finalized_run_and_preserves_exact_originals
+    assert result.error is None
+E   assert "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contain... 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contains_only_fina0\\\\_exports\\\\run-export.zip'" is None
+E    +  where "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contain... 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contains_only_fina0\\\\_exports\\\\run-export.zip'" = OperatorResultExport(directory=WindowsPath('C:/dev/carla/.pytest-m2-continuation-full/test_export_contains_only_fina0/...'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contains_only_fina0\\\\_exports\\\\run-export.zip'").error
+_ test_export_contains_only_finalized_run_and_preserves_exact_originals[ABORTED] _
+tests\test_p8_operator_results.py:47: in test_export_contains_only_finalized_run_and_preserves_exact_originals
+    assert result.error is None
+E   assert "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contain... 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contains_only_fina1\\\\_exports\\\\run-export.zip'" is None
+E    +  where "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contain... 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contains_only_fina1\\\\_exports\\\\run-export.zip'" = OperatorResultExport(directory=WindowsPath('C:/dev/carla/.pytest-m2-continuation-full/test_export_contains_only_fina1/...'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_export_contains_only_fina1\\\\_exports\\\\run-export.zip'").error
+_ test_repeated_export_reuses_identical_zip_but_never_replaces_different_data _
+tests\test_p8_operator_results.py:63: in test_repeated_export_reuses_identical_zip_but_never_replaces_different_data
+    original_zip = first.archive.read_bytes()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'read_bytes'
+__ test_actual_operator_abort_exports_terminal_manifest_and_live_provenance ___
+tests\test_p8_operator_results.py:134: in test_actual_operator_abort_exports_terminal_manifest_and_live_provenance
+    assert result.error is None
+E   assert "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_actual_operato...C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_actual_operator_abort_exp0\\\\_exports\\\\operator-run.zip'" is None
+E    +  where "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_actual_operato...C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_actual_operator_abort_exp0\\\\_exports\\\\operator-run.zip'" = OperatorResultExport(directory=WindowsPath('C:/dev/carla/.pytest-m2-continuation-full/test_actual_operator_abort_exp0/...:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_actual_operator_abort_exp0\\\\_exports\\\\operator-run.zip'").error
+__________ test_real_pygame_event_driver_completes_truthful_dev_flow __________
+tests\test_p8_operator_ui_e2e.py:107: in test_real_pygame_event_driver_completes_truthful_dev_flow
+    assert exported.error is None
+E   assert "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_real_pygame_ev...\\carla\\\\.pytest-m2-continuation-full\\\\test_real_pygame_event_driver_0\\\\session\\\\_exports\\\\operator-run.zip'" is None
+E    +  where "PermissionError:[WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_real_pygame_ev...\\carla\\\\.pytest-m2-continuation-full\\\\test_real_pygame_event_driver_0\\\\session\\\\_exports\\\\operator-run.zip'" = OperatorResultExport(directory=WindowsPath('C:/dev/carla/.pytest-m2-continuation-full/test_real_pygame_event_driver_0/...\carla\\\\.pytest-m2-continuation-full\\\\test_real_pygame_event_driver_0\\\\session\\\\_exports\\\\operator-run.zip'").error
+____ test_p8_actual_p5_runtime_records_binding_event_and_physical_outcome _____
+tests\test_p8_p5_live_drive.py:98: in test_p8_actual_p5_runtime_records_binding_event_and_physical_outcome
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_p8_actual_p5_runtime_reco0\\p8-p5-runtime\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_p8_actual_p5_runtime_reco0\\p8-p5-runtime\\session_manifest.json'
+________ test_p8_p5_map_mismatch_fails_before_spawn_and_is_manifested _________
+tests\test_p8_p5_live_drive.py:185: in test_p8_p5_map_mismatch_fails_before_spawn_and_is_manifested
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_p8_p5_map_mismatch_fails_0\\p8-p5-map\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_p8_p5_map_mismatch_fails_0\\p8-p5-map\\session_manifest.json'
+__________ test_p8_cli_allows_bounded_long_p5_development_validation __________
+tests\test_p8_p5_live_drive.py:304: in test_p8_cli_allows_bounded_long_p5_development_validation
+    manifest = json.loads(next(tmp_path.glob("*/session_manifest.json")).read_text())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   StopIteration
+---------------------------- Captured stdout call -----------------------------
+{"status": "FAILED_CLOSED", "reason": "[WinError 5] \uc561\uc138\uc2a4\uac00 \uac70\ubd80\ub418\uc5c8\uc2b5\ub2c8\ub2e4: 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_p8_cli_allows_bounded_lon0\\\\20261017T145034Z-735fe1ef\\\\.session_manifest.tmp' -> 'C:\\\\dev\\\\carla\\\\.pytest-m2-continuation-full\\\\test_p8_cli_allows_bounded_lon0\\\\20261017T145034Z-735fe1ef\\\\session_manifest.json'", "participant_ready": false}
+___________________ test_session_manifest_refuses_overwrite ___________________
+tests\test_p8_p5_live_drive.py:312: in test_session_manifest_refuses_overwrite
+    services.save_manifest_once({"first": True})
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_session_manifest_refuses_0\\manifest-once\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_session_manifest_refuses_0\\manifest-once\\session_manifest.json'
+_______ test_runtime_error_manifest_uses_terminal_p5_event_from_cleanup _______
+tests\test_p8_p5_oracle_gaps.py:64: in test_runtime_error_manifest_uses_terminal_p5_event_from_cleanup
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_runtime_error_manifest_us0\\p8-p5-error\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_runtime_error_manifest_us0\\p8-p5-error\\session_manifest.json'
+_________ test_escape_manifest_records_user_exit_terminal_and_cleanup _________
+tests\test_p8_p5_oracle_gaps.py:90: in test_escape_manifest_records_user_exit_terminal_and_cleanup
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_escape_manifest_records_u0\\p8-p5-escape\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_escape_manifest_records_u0\\p8-p5-escape\\session_manifest.json'
+__________ test_real_windows_listener_pid_without_carla[2-127.0.0.1] __________
+tests\test_p8_runtime_attestation.py:156: in test_real_windows_listener_pid_without_carla
+    assert windows_listener_pids(listener.getsockname()[1]) == frozenset(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\tm_runtime_attestation.py:198: in windows_listener_pids
+    table = _tcp_table(family)
+            ^^^^^^^^^^^^^^^^^^
+src\p8\tm_runtime_attestation.py:220: in _tcp_table
+    raise OSError(result, "GetExtendedTcpTable size lookup failed")
+E   OSError: [Errno 5] GetExtendedTcpTable size lookup failed
+____________ test_real_windows_listener_pid_without_carla[23-::1] _____________
+tests\test_p8_runtime_attestation.py:156: in test_real_windows_listener_pid_without_carla
+    assert windows_listener_pids(listener.getsockname()[1]) == frozenset(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\tm_runtime_attestation.py:198: in windows_listener_pids
+    table = _tcp_table(family)
+            ^^^^^^^^^^^^^^^^^^
+src\p8\tm_runtime_attestation.py:220: in _tcp_table
+    raise OSError(result, "GetExtendedTcpTable size lookup failed")
+E   OSError: [Errno 5] GetExtendedTcpTable size lookup failed
+______ test_violation_telemetry_and_event_share_common_timestamp_fields _______
+tests\test_research_noa_high_speed_runtime.py:347: in test_violation_telemetry_and_event_share_common_timestamp_fields
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_violation_telemetry_and_e0\\violation-shared-timestamp\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_violation_telemetry_and_e0\\violation-shared-timestamp\\session_manifest.json'
+_ test_speed_limit_violation_is_logged_at_every_live_observation_boundary[INITIAL-speeds_kmh0-inputs0-0] _
+tests\test_research_noa_speed_policy_events.py:82: in test_speed_limit_violation_is_logged_at_every_live_observation_boundary
+    result, events, vehicle = _run_speed_sequence(
+tests\test_research_noa_speed_policy_events.py:55: in _run_speed_sequence
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_0\\initial\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_0\\initial\\session_manifest.json'
+_ test_speed_limit_violation_is_logged_at_every_live_observation_boundary[MANUAL-speeds_kmh1-inputs1-1] _
+tests\test_research_noa_speed_policy_events.py:82: in test_speed_limit_violation_is_logged_at_every_live_observation_boundary
+    result, events, vehicle = _run_speed_sequence(
+tests\test_research_noa_speed_policy_events.py:55: in _run_speed_sequence
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_1\\manual\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_1\\manual\\session_manifest.json'
+_ test_speed_limit_violation_is_logged_at_every_live_observation_boundary[NOA_ACTIVE-speeds_kmh2-inputs2-1] _
+tests\test_research_noa_speed_policy_events.py:82: in test_speed_limit_violation_is_logged_at_every_live_observation_boundary
+    result, events, vehicle = _run_speed_sequence(
+tests\test_research_noa_speed_policy_events.py:55: in _run_speed_sequence
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_2\\noa_active\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_2\\noa_active\\session_manifest.json'
+_ test_speed_limit_violation_is_logged_at_every_live_observation_boundary[FINAL-speeds_kmh3-inputs3-1] _
+tests\test_research_noa_speed_policy_events.py:82: in test_speed_limit_violation_is_logged_at_every_live_observation_boundary
+    result, events, vehicle = _run_speed_sequence(
+tests\test_research_noa_speed_policy_events.py:55: in _run_speed_sequence
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_3\\final\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_limit_violation_is_3\\final\\session_manifest.json'
+__ test_nonfinite_violation_event_is_strict_json_and_preserves_safety_error ___
+tests\test_research_noa_speed_policy_events.py:117: in test_nonfinite_violation_event_is_strict_json_and_preserves_safety_error
+    _, events, _ = _run_speed_sequence(
+tests\test_research_noa_speed_policy_events.py:55: in _run_speed_sequence
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_nonfinite_violation_event0\\nonfinite\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_nonfinite_violation_event0\\nonfinite\\session_manifest.json'
+______ test_speed_policy_event_precedes_stage_start_and_matches_manifest ______
+tests\test_research_noa_speed_policy_events.py:137: in test_speed_policy_event_precedes_stage_start_and_matches_manifest
+    result, events, _ = _run_speed_sequence(
+tests\test_research_noa_speed_policy_events.py:55: in _run_speed_sequence
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_policy_event_preced0\\effective-policy\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_speed_policy_event_preced0\\effective-policy\\session_manifest.json'
+_________ test_manual_speed_peak_is_reported_without_noa_mean_samples _________
+tests\test_research_noa_speed_policy_events.py:156: in test_manual_speed_peak_is_reported_without_noa_mean_samples
+    result, _, _ = _run_speed_sequence(
+tests\test_research_noa_speed_policy_events.py:55: in _run_speed_sequence
+    result = run_live_drive(services, runner, reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_manual_speed_peak_is_repo0\\manual-peak\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_manual_speed_peak_is_repo0\\manual-peak\\session_manifest.json'
+____ test_manifest_retains_shutdown_observation_when_telemetry_write_fails ____
+tests\test_shutdown_brake_failure_paths.py:36: in test_manifest_retains_shutdown_observation_when_telemetry_write_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_manifest_retains_shutdown0\\shutdown-telemetry-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_manifest_retains_shutdown0\\shutdown-telemetry-failure\\session_manifest.json'
+____ test_returned_shutdown_call_with_stale_control_does_not_claim_braking ____
+tests\test_shutdown_brake_observability.py:92: in test_returned_shutdown_call_with_stale_control_does_not_claim_braking
+    result = run_live_drive(services, _runner(services, vehicle), reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_returned_shutdown_call_wi0\\shutdown-stale\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_returned_shutdown_call_wi0\\shutdown-stale\\session_manifest.json'
+________ test_raised_shutdown_call_keeps_speed_error_and_actor_cleanup ________
+tests\test_shutdown_brake_observability.py:115: in test_raised_shutdown_call_keeps_speed_error_and_actor_cleanup
+    result = run_live_drive(services, _runner(services, vehicle), reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_raised_shutdown_call_keep0\\shutdown-raised\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_raised_shutdown_call_keep0\\shutdown-raised\\session_manifest.json'
+___ test_manifest_retains_shutdown_outcome_when_violation_event_write_fails ___
+tests\test_shutdown_brake_observability.py:204: in test_manifest_retains_shutdown_outcome_when_violation_event_write_fails
+    result = run_live_drive(
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_manifest_retains_shutdown1\\shutdown-event-failure\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_manifest_retains_shutdown1\\shutdown-event-failure\\session_manifest.json'
+_________ test_initial_violation_reports_shutdown_brake_not_attempted _________
+tests\test_shutdown_brake_observability.py:224: in test_initial_violation_reports_shutdown_brake_not_attempted
+    result = run_live_drive(services, _runner(services, vehicle), reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_initial_violation_reports0\\shutdown-not-attempted\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_initial_violation_reports0\\shutdown-not-attempted\\session_manifest.json'
+______ test_normal_shutdown_exports_returned_call_without_physical_claim ______
+tests\test_shutdown_brake_observability.py:241: in test_normal_shutdown_exports_returned_call_without_physical_claim
+    result = run_live_drive(services, _runner(services, vehicle), reported_history={})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\p8\live_drive.py:385: in run_live_drive
+    services.save_manifest_once(result)
+src\p8\services.py:196: in save_manifest_once
+    os.link(temporary, target)
+E   PermissionError: [WinError 5] �׼����� �źεǾ����ϴ�: 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_normal_shutdown_exports_r0\\shutdown-normal\\.session_manifest.tmp' -> 'C:\\dev\\carla\\.pytest-m2-continuation-full\\test_normal_shutdown_exports_r0\\shutdown-normal\\session_manifest.json'
+- generated xml file: C:\dev\carla\docs\pilot_stability_verification\m2_continuation_tests.xml -
+=========================== short test summary info ===========================
+FAILED tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged
+FAILED tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps
+FAILED tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size
+FAILED tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors
+FAILED tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform
+FAILED tests/test_noa_saturation_clock.py::test_activation_saturation_preserves_clock_order[False]
+FAILED tests/test_noa_saturation_clock.py::test_activation_saturation_preserves_clock_order[True]
+FAILED tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy
+FAILED tests/test_p6_tablet.py::test_http_server_exposes_state_accepts_events_and_serves_ranges
+FAILED tests/test_p6_tablet_http.py::test_index_and_assets_are_public_but_api_requires_bearer
+FAILED tests/test_p6_tablet_http.py::test_invalid_json_numbers_return_400[{"run_epoch":"epoch","event_id":"sync","performance_ms":NaN,"time_origin_ms":1}]
+FAILED tests/test_p6_tablet_http.py::test_invalid_json_numbers_return_400[{"run_epoch":"epoch","event_id":"sync","performance_ms":true,"time_origin_ms":1}]
+FAILED tests/test_p6_tablet_http.py::test_invalid_ranges_return_416_with_content_range[bytes=oops-3]
+FAILED tests/test_p6_tablet_http.py::test_invalid_ranges_return_416_with_content_range[bytes=9-2]
+FAILED tests/test_p6_tablet_http.py::test_invalid_ranges_return_416_with_content_range[bytes=100-101]
+FAILED tests/test_p6_tablet_http.py::test_every_post_requires_matching_run_epoch
+FAILED tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare
+FAILED tests/test_p8_cli.py::test_dev_live_cli_runs_fake_backed_path_without_real_provenance
+FAILED tests/test_p8_cli.py::test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum[extra0-10.0-20.0-LEGACY_DEV-0.4]
+FAILED tests/test_p8_cli.py::test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum[extra1-10.0-30.0-HIGH_SPEED_DEV_UNVALIDATED-1.0]
+FAILED tests/test_p8_cli.py::test_dev_live_cli_persists_explicit_speed_policy_without_targeting_maximum[extra2-25.0-35.0-HIGH_SPEED_DEV_UNVALIDATED-1.0]
+FAILED tests/test_p8_cli_live_failures.py::test_dev_live_cli_manifests_one_shot_assignment_write_failure
+FAILED tests/test_p8_input_preparation_timing.py::test_training_input_preparation_precedes_active_time_and_cancellation_saves[True]
+FAILED tests/test_p8_live_drive.py::test_live_adapter_records_real_partial_run_without_disabled_streams
+FAILED tests/test_p8_live_drive.py::test_live_adapter_records_user_exit_separately_from_time_cap
+FAILED tests/test_p8_live_drive_audit_failures.py::test_live_adapter_closes_logger_and_writes_manifest_when_initial_emit_fails
+FAILED tests/test_p8_live_drive_audit_failures.py::test_live_adapter_keeps_primary_failure_when_abort_emit_also_fails
+FAILED tests/test_p8_live_drive_audit_failures.py::test_live_adapter_turns_inspection_failure_into_manifested_abort
+FAILED tests/test_p8_live_drive_audit_failures.py::test_live_adapter_preserves_closed_runtime_when_end_event_write_fails
+FAILED tests/test_p8_live_drive_failures.py::test_live_adapter_preserves_partial_files_when_viewer_creation_fails
+FAILED tests/test_p8_live_drive_failures.py::test_live_adapter_cannot_report_success_when_session_close_fails
+FAILED tests/test_p8_live_drive_failures.py::test_live_adapter_preserves_manifest_when_logger_close_fails
+FAILED tests/test_p8_live_drive_failures.py::test_live_adapter_does_not_claim_stage_started_when_transmission_fails
+FAILED tests/test_p8_live_drive_gates.py::test_live_adapter_rejects_synchronous_world_before_spawn
+FAILED tests/test_p8_noa_trace_cli.py::test_high_cli_preserves_default_cap_and_wires_pi_trace
+FAILED tests/test_p8_operator_results.py::test_export_contains_only_finalized_run_and_preserves_exact_originals[SESSION_COMPLETE]
+FAILED tests/test_p8_operator_results.py::test_export_contains_only_finalized_run_and_preserves_exact_originals[ABORTED]
+FAILED tests/test_p8_operator_results.py::test_repeated_export_reuses_identical_zip_but_never_replaces_different_data
+FAILED tests/test_p8_operator_results.py::test_actual_operator_abort_exports_terminal_manifest_and_live_provenance
+FAILED tests/test_p8_operator_ui_e2e.py::test_real_pygame_event_driver_completes_truthful_dev_flow
+FAILED tests/test_p8_p5_live_drive.py::test_p8_actual_p5_runtime_records_binding_event_and_physical_outcome
+FAILED tests/test_p8_p5_live_drive.py::test_p8_p5_map_mismatch_fails_before_spawn_and_is_manifested
+FAILED tests/test_p8_p5_live_drive.py::test_p8_cli_allows_bounded_long_p5_development_validation
+FAILED tests/test_p8_p5_live_drive.py::test_session_manifest_refuses_overwrite
+FAILED tests/test_p8_p5_oracle_gaps.py::test_runtime_error_manifest_uses_terminal_p5_event_from_cleanup
+FAILED tests/test_p8_p5_oracle_gaps.py::test_escape_manifest_records_user_exit_terminal_and_cleanup
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1]
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[23-::1]
+FAILED tests/test_research_noa_high_speed_runtime.py::test_violation_telemetry_and_event_share_common_timestamp_fields
+FAILED tests/test_research_noa_speed_policy_events.py::test_speed_limit_violation_is_logged_at_every_live_observation_boundary[INITIAL-speeds_kmh0-inputs0-0]
+FAILED tests/test_research_noa_speed_policy_events.py::test_speed_limit_violation_is_logged_at_every_live_observation_boundary[MANUAL-speeds_kmh1-inputs1-1]
+FAILED tests/test_research_noa_speed_policy_events.py::test_speed_limit_violation_is_logged_at_every_live_observation_boundary[NOA_ACTIVE-speeds_kmh2-inputs2-1]
+FAILED tests/test_research_noa_speed_policy_events.py::test_speed_limit_violation_is_logged_at_every_live_observation_boundary[FINAL-speeds_kmh3-inputs3-1]
+FAILED tests/test_research_noa_speed_policy_events.py::test_nonfinite_violation_event_is_strict_json_and_preserves_safety_error
+FAILED tests/test_research_noa_speed_policy_events.py::test_speed_policy_event_precedes_stage_start_and_matches_manifest
+FAILED tests/test_research_noa_speed_policy_events.py::test_manual_speed_peak_is_reported_without_noa_mean_samples
+FAILED tests/test_shutdown_brake_failure_paths.py::test_manifest_retains_shutdown_observation_when_telemetry_write_fails
+FAILED tests/test_shutdown_brake_observability.py::test_returned_shutdown_call_with_stale_control_does_not_claim_braking
+FAILED tests/test_shutdown_brake_observability.py::test_raised_shutdown_call_keeps_speed_error_and_actor_cleanup
+FAILED tests/test_shutdown_brake_observability.py::test_manifest_retains_shutdown_outcome_when_violation_event_write_fails
+FAILED tests/test_shutdown_brake_observability.py::test_initial_violation_reports_shutdown_brake_not_attempted
+FAILED tests/test_shutdown_brake_observability.py::test_normal_shutdown_exports_returned_call_without_physical_claim
+62 failed, 2092 passed, 2 skipped in 57.23s

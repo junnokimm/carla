@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "profile_id": "external-tablet-20261019T063212Z-8ed48615",
+  "method": "PER_EYE_OBSERVED_CONVEX_HULL",
+  "coordinate_system": "EXTENDED_NORMALIZED_TOBII_DISPLAY_PLANE_NOT_PHYSICAL_TABLET",
+  "status": "PROVISIONAL_PARTIAL_EMPIRICAL_MAPPING",
+  "independently_validated": false,
+  "serial_number": "TPNA1-030251042584",
+  "display_area": {
+    "top_left": [
+      -719.5,
+      1012.286376953125,
+      -457.3247375488281
+    ],
+    "top_right": [
+      719.5,
+      1012.286376953125,
+      -457.3247375488281
+    ],
+    "bottom_left": [
+      -719.5,
+      206.3648681640625,
+      -527.833740234375
+    ],
+    "bottom_right": [
+      719.5,
+      206.3648681640625,
+      -527.833740234375
+    ]
+  },
+  "polygons": {
+    "left": [
+      [
+        0.8036176347732544,
+        0.9009815096855164
+      ],
+      [
+        0.9274430084228515,
+        0.9009815096855164
+      ],
+      [
+        1.209768304824829,
+        1.223666787147522
+      ],
+      [
+        1.209768304824829,
+        1.3466873264312744
+      ],
+      [
+        0.922599402666092,
+        1.407024049758911
+      ],
+      [
+        0.8092785692214965,
+        1.407024049758911
+      ],
+      [
+        0.8036176347732544,
+        0.9682008266448975
+      ]
+    ],
+    "right": [
+      [
+        0.7380931782722473,
+        0.950898733139038
+      ],
+      [
+        0.8012640571594238,
+        0.950898733139038
+      ],
+      [
+        0.9849108850955963,
+        1.1323864364624023
+      ],
+      [
+        0.9849108850955963,
+        1.2008736228942871
+      ],
+      [
+        0.8302083110809326,
+        1.3772980427742005
+      ],
+      [
+        0.7382709777355194,
+        1.3772980427742005
+      ],
+      [
+        0.7380931782722473,
+        1.001834330558777
+      ]
+    ]
+  },
+  "missing_targets": [
+    "tablet_top_right"
+  ],
+  "fit": {
+    "trim_each_end_seconds": 2,
+    "min_samples_per_eye_target": 60,
+    "coordinate_quantiles": [
+      0.01,
+      0.99
+    ],
+    "noise_margin_normalized": 0.01
+  },
+  "target_evidence": {
+    "tablet_center": {
+      "left": {
+        "sdk_valid_samples_after_trim": 929,
+        "included": true,
+        "envelope": [
+          [
+            1.036584463119507,
+            1.177247462272644
+          ],
+          [
+            1.1256727075576782,
+            1.177247462272644
+          ],
+          [
+            1.1256727075576782,
+            1.2377937316894532
+          ],
+          [
+            1.036584463119507,
+            1.2377937316894532
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 934,
+        "included": true,
+        "envelope": [
+          [
+            0.875789532661438,
+            1.1323864364624023
+          ],
+          [
+            0.9849108850955963,
+            1.1323864364624023
+          ],
+          [
+            0.9849108850955963,
+            1.2008736228942871
+          ],
+          [
+            0.875789532661438,
+            1.2008736228942871
+          ]
+        ]
+      }
+    },
+    "tablet_top_left": {
+      "left": {
+        "sdk_valid_samples_after_trim": 925,
+        "included": true,
+        "envelope": [
+          [
+            0.8036176347732544,
+            0.9009815096855164
+          ],
+          [
+            0.9274430084228515,
+            0.9009815096855164
+          ],
+          [
+            0.9274430084228515,
+            0.9682008266448975
+          ],
+          [
+            0.8036176347732544,
+            0.9682008266448975
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 929,
+        "included": true,
+        "envelope": [
+          [
+            0.7380931782722473,
+            0.950898733139038
+          ],
+          [
+            0.8012640571594238,
+            0.950898733139038
+          ],
+          [
+            0.8012640571594238,
+            1.001834330558777
+          ],
+          [
+            0.7380931782722473,
+            1.001834330558777
+          ]
+        ]
+      }
+    },
+    "tablet_top_right": {
+      "left": {
+        "sdk_valid_samples_after_trim": 0,
+        "included": false
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 0,
+        "included": false
+      }
+    },
+    "tablet_bottom_left": {
+      "left": {
+        "sdk_valid_samples_after_trim": 915,
+        "included": true,
+        "envelope": [
+          [
+            0.8092785692214965,
+            1.292718803882599
+          ],
+          [
+            0.922599402666092,
+            1.292718803882599
+          ],
+          [
+            0.922599402666092,
+            1.407024049758911
+          ],
+          [
+            0.8092785692214965,
+            1.407024049758911
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 919,
+        "included": true,
+        "envelope": [
+          [
+            0.7382709777355194,
+            1.3125741839408875
+          ],
+          [
+            0.8302083110809326,
+            1.3125741839408875
+          ],
+          [
+            0.8302083110809326,
+            1.3772980427742005
+          ],
+          [
+            0.7382709777355194,
+            1.3772980427742005
+          ]
+        ]
+      }
+    },
+    "tablet_bottom_right": {
+      "left": {
+        "sdk_valid_samples_after_trim": 785,
+        "included": true,
+        "envelope": [
+          [
+            1.1105651760101318,
+            1.223666787147522
+          ],
+          [
+            1.209768304824829,
+            1.223666787147522
+          ],
+          [
+            1.209768304824829,
+            1.3466873264312744
+          ],
+          [
+            1.1105651760101318,
+            1.3466873264312744
+          ]
+        ]
+      },
+      "right": {
+        "sdk_valid_samples_after_trim": 0,
+        "included": false
+      }
+    }
+  },
+  "sources": [
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T063212Z-8ed48615\\tablet\\tablet_center.jsonl",
+      "sha256": "645e976a091f6d1bfcab2a4e22083fc359ea1d8f7d41be18a1081dfd11b227ce"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T063212Z-8ed48615\\tablet\\tablet_top_left.jsonl",
+      "sha256": "d6401f9a540107491d66c73ee02035c6bb50b45a5900ea9b23608f054d73d5ca"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T063212Z-8ed48615\\tablet\\tablet_top_right.jsonl",
+      "sha256": "5a1f420f2e4d21e1a282089c9ad7ed34514dc70ef6af51298f8c691ac289f530"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T063212Z-8ed48615\\tablet\\tablet_bottom_left.jsonl",
+      "sha256": "4754f0cb0e46409742afdab9040379c7d0fc5a53ed95c7141e394abd01e9f6e0"
+    },
+    {
+      "path": "C:\\dev\\carla\\data\\gaze_recheck\\20261019T063212Z-8ed48615\\tablet\\tablet_bottom_right.jsonl",
+      "sha256": "21256a99e4e95b27cd6829ab01764fc22808227ad27f802d02a634adc67344ee"
+    }
+  ],
+  "display_source_sha256": "79fe874875a16fa2e3c46b9b423081be8b9085a7629a04e4b76745471ca28f03",
+  "reuse_requirement": "UNCHANGED_NANO_MONITOR_TABLET; PERSONAL_ETM_CALIBRATION_AND_SHORT_AOI_CHECK",
+  "limitations": [
+    "Unobserved corners are not extrapolated.",
+    "Hull interiors interpolate measured directions; accuracy needs independent checks.",
+    "Single-eye matches are retained separately; invalid gaze is never imputed.",
+    "This is not a measured physical tablet plane or validated fixation detector."
+  ]
+}

@@ -80,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--drive-duration", type=float)
     parser.add_argument("--training-duration", type=float, default=600.0)
     parser.add_argument("--rear-mirror", action="store_true")
+    parser.add_argument("--gaze-config", type=Path)
     parser.add_argument("--tsxw", action="store_true")
     parser.add_argument("--tsxw-index", type=int)
     parser.add_argument("--tsxw-name")
@@ -258,6 +259,7 @@ def _print_result_paths(controller: OperatorController) -> None:
                     else "RESULT_EXPORT_FAILED",
                     "session_state": session.state.value,
                     "completion_status": session.result["completion_status"],
+                    "end_reason": session.abort_reason,
                     "results_directory": str(result.directory),
                     "results_archive": None
                     if result.archive is None
@@ -335,6 +337,7 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
         training_exit = _exit_template(training_selection, behavior, assisted_execution)
 
     return OperatorRuntimeConfig(
+        gaze_config=args.gaze_config,
         m2_hazard_v1=(
             MovingHazardConfig(
                 secrets.randbits(64)

@@ -5,7 +5,7 @@ from src.scenario.camera_feed import DisplayedCameraFrame
 
 
 class ActiveDriveScene(Protocol):
-    """An internal scene never owns duration, driver control or viewer lifetime."""
+    """Ordinary scene status cannot end driving; obstacle contact has a separate stop boundary."""
 
     started_at: float
 

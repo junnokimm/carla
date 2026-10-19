@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import assert_never
 
+from src.experiment.context import Module2Condition
 from src.p8.model import P8Error, Stage
 from src.p8.operator_copy import MODULE_1_INSTRUCTION, MODULE_2_INSTRUCTION
 from src.p8.operator_model import OperatorSnapshot
@@ -32,7 +33,13 @@ def stage_page(snapshot: OperatorSnapshot, status: str) -> OperatorPage:
             )
             controls = ("SPACE — Module 2 안내로 이동",)
         case Stage.MODULE_2_PREPARE:
-            title = "Module 2 안내"
+            match snapshot.module_2_condition:
+                case Module2Condition.MANUAL:
+                    title = "Module 2 안내 — 배정: 수동 (MANUAL)"
+                case Module2Condition.NOA_L2:
+                    title = "Module 2 안내 — 배정: NoA형 (NOA_L2)"
+                case _:
+                    title = "Module 2 안내"
             body = MODULE_2_INSTRUCTION
             controls = ("SPACE  안내 완료 후 Module 2 시작",)
         case Stage.SESSION_COMPLETE:

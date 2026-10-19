@@ -1,0 +1,70 @@
+{
+  "release": "P8_M2_V1_PLACEMENT_FIX_20261017",
+  "base_release": "P8_M2_V1_ROUTE_FIX_20261017",
+  "source_scope": "Uploaded working files + two explicitly applied patches in this conversation; no Git history inspected",
+  "runtime": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41"
+  },
+  "logic_tests": {
+    "passed": 18,
+    "failed": 0,
+    "scope": "Exact source bodies loaded with isolated fake dependencies; NOT native CARLA/pygame integration",
+    "output": "..................                                                       [100%]\n18 passed in 0.16s\n"
+  },
+  "installer_tests": {
+    "passed": 52,
+    "failed": 0,
+    "output": "....................................................                     [100%]\n52 passed in 4.57s\n"
+  },
+  "native_regressions": {
+    "status": "BLOCKED_AT_COLLECTION",
+    "reason": "No carla/pygame installed; environment dependency download unavailable",
+    "exit_code": 2,
+    "output": "\n==================================== ERRORS ====================================\n______________ ERROR collecting tests/test_m2_cargo_placement.py _______________\nImportError while importing test module '/mnt/data/cargo_fix_work/current/tests/test_m2_cargo_placement.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\ntests/test_m2_cargo_placement.py:3: in <module>\n    import carla\nE   ModuleNotFoundError: No module named 'carla'\n___________ ERROR collecting tests/test_p8_m2_assignment_display.py ____________\nImportError while importing test module '/mnt/data/cargo_fix_work/current/tests/test_p8_m2_assignment_display.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\ntests/test_p8_m2_assignment_display.py:9: in <module>\n    from src.p8.operator_pages import stage_page\nsrc/p8/operator_pages.py:8: in <module>\n    from src.p8.operator_model import OperatorSnapshot\nsrc/p8/operator_model.py:8: in <module>\n    from src.experiment.automation_interaction import (\nsrc/experiment/automation_interaction.py:11: in <module>\n    from src.experiment.automation_activation_gate import (\nsrc/experiment/automation_activation_gate.py:8: in <module>\n    from src.experiment.automation_interaction_types import (\nsrc/experiment/automation_interaction_types.py:11: in <module>\n    from src.vehicle.carla_lane_geometry import CarlaLaneGeometryContext\nsrc/vehicle/__init__.py:46: in <module>\n    from src.vehicle.carla_client import CarlaVehicleClient, HeroVehicleNotFoundError\nsrc/vehicle/carla_client.py:5: in <module>\n    import carla\nE   ModuleNotFoundError: No module named 'carla'\n=========================== short test summary info ============================\nERROR tests/test_m2_cargo_placement.py\nERROR tests/test_p8_m2_assignment_display.py\n!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!\n2 errors in 0.51s\n"
+  },
+  "syntax": {
+    "status": "PASSED",
+    "parser": "CPython 3.13 ast.parse(feature_version=(3,12))",
+    "files": [
+      "src/p7/moving_backend.py",
+      "src/p8/operator_controller.py",
+      "src/p8/operator_m2_hazard.py",
+      "src/p8/operator_model.py",
+      "src/p8/operator_pages.py",
+      "tests/test_m2_hazard_preparation.py",
+      "tests/test_m2_hazard_v1.py",
+      "tests/test_m2_cargo_placement.py",
+      "tests/test_p8_m2_assignment_display.py"
+    ]
+  },
+  "not_run": [
+    "Full project suite",
+    "Ruff",
+    "Windows live CARLA / native TM / TS-XW",
+    "pygame screen rendering"
+  ],
+  "live_validation_required": true,
+  "changed_source_files": [
+    "src/p7/moving_backend.py",
+    "src/p8/operator_controller.py",
+    "src/p8/operator_m2_hazard.py",
+    "src/p8/operator_model.py",
+    "src/p8/operator_pages.py",
+    "tests/test_m2_hazard_preparation.py",
+    "tests/test_m2_hazard_v1.py"
+  ],
+  "applied_file_count": 11,
+  "source_sha256": {
+    "src/p7/moving_backend.py": "62d4f0d2056a55fb8b8c20f226d5d0800d203b04a2b8156f04d596f69c797b8a",
+    "src/p8/operator_controller.py": "e74fc13cf7c1d8ee9fa0afb0674b33c58bc72e5712904661b92c05b52c486c80",
+    "src/p8/operator_m2_hazard.py": "4e39775807a2ad42335e8e2fef9958a15659e54c61e35303d393666de44ba183",
+    "src/p8/operator_model.py": "e2760573b93fa4ed13fd77716c7b7a768b750dda0450d0df681f0dea67390301",
+    "src/p8/operator_pages.py": "faf8bd4a8176c230e24ac11e1771ca8c3160a745651ac1f52648d4f5ca5fc82a",
+    "tests/test_m2_hazard_preparation.py": "6e7024dba75d8f0baf5fa16f799eaf4271e98af4ad0dabd38095d2cd86ddd930",
+    "tests/test_m2_hazard_v1.py": "efcc9b29d993c6bbeae4a2830810eeef0672366ba6dbaeebbdb38a71b7c82f0b",
+    "tests/test_m2_cargo_placement.py": "6312fd0a9b61093de1da69b41ca5411e2d41f4d35c3a671deda34d0346fffa05",
+    "tests/test_p8_m2_assignment_display.py": "261f36261422671b6adb7185a497e46db3d2a62efb6f8dbe504e635ea637acb6",
+    "docs/P8_M2_Placement_Fix_20261017.md": "5f09d543f93b323606043a8b06205b4291a1ce1b06d314b4718a9782cd84ec71"
+  }
+}

@@ -1,5 +1,52 @@
 # P8 patched TM lane-change integration
 
+## Pilot update — 2026-10-18
+
+`run_pilot.cmd` now loads the project-private client in `native/noa_tm/carla`
+before importing CARLA. Its hash is pinned in `src/p8/noa_tm.py` and checked
+again by the existing Traffic Manager ownership attestor. The original Python
+environments, installed CARLA clients and diagnostic profile are unchanged.
+Use this launcher for the behavior below; older direct entrypoints still load
+their installed client. M2 assignment remains `--m2 1` (MANUAL) or `--m2 2` (NoA).
+
+- Training, M1 and M2 share the same indicator request/completion observer.
+  During active NoA, a fresh keyboard Z/X or wheel indicator edge requests one
+  adjacent lane. Completion requires observed target-lane identity, crossing,
+  center/heading and vehicle-fit evidence; it clears the selected indicator and
+  retains NoA. Repeated held inputs do not request multiple lanes.
+- Brake/steering/N deactivation thresholds, activation gates, manual input and
+  control ownership are unchanged. A signal never overrides driver priority.
+- Forced native target advancement is bounded by the existing 20 m ego-to-first-
+  waypoint reset threshold. This prevents a valid lane-change plan from being
+  discarded on the next native cycle. Explicit requests bypass the random-change
+  cooldown; the Python executor still admits only one maneuver at a time.
+- The world-wide EMPTY_REHEARSAL restriction is removed from normal submissions.
+  Other module actors no longer veto all requests. Static adjacent-lane legality
+  checks and existing TM collision settings remain. This is not a new gap/TTC
+  controller or a guarantee of an available neighboring lane. The separate
+  diagnostic preflight retains its empty-world requirement.
+- Indicator edges are applied before NoA request dispatch, including sub-threshold
+  brake input. A delayed signal readback waits up to one second without blocking
+  the driver loop or sending duplicate force calls. Expiry records BLOCKED and
+  keeps driving; a deferred P5 failure also records its existing terminal event.
+- Temporary missing/invalid observation geometry can resume only against the
+  original verified topology. Events retain UNVERIFIED and OBSERVATION_RESUMED;
+  unrelated topology and stale activation generations cannot manufacture completion.
+- Exit confirmation retains P5 correlation when accepted. An expired/unavailable
+  recommendation does not swallow a normal fresh signal in NoA; it is recorded
+  as GENERAL. Explicit exit rejection and driver/manual priority still take precedence.
+
+The native regression executes the actual LocalizationStage against offline
+Town04, without a server: the original library fails target retention and the
+patched library passes 32 direction/speed/position cases. Python regressions
+also cover input through completion with the new client and private TS-XW SDL.
+Evidence is in `data/noa_tm_build/`. Live simulator motion and steering-wheel
+hardware have not been exercised by this implementation task.
+
+The older contracts below describe the previous build. In particular, their
+empty-world-only admission, permanently latched temporary observation failures
+and lack of signal-readback waiting are superseded for the pilot launcher.
+
 Current FPS/progress investigation and recovery contract:
 [P8_P5_FPS_Diagnosis.md](P8_P5_FPS_Diagnosis.md).
 

@@ -125,7 +125,10 @@ def build_performance_summary(
             "activation_queries": "also measured on activation checks outside post-control; do not subtract whole-run totals from post-control",
             "manual_control_delivery": "contains checked manual_batch_rpc_wait and response validation; excludes preparation and post-control",
             "input_collection": "contains indicator_input_light_rpc when a Z/X event requires a fresh observation",
-            "turn_signal_audio_light_rpc": "camera.timing_by_mode; subset of audio and alias of turn_signal_audio_timing light_state_rpc; independent of telemetry light_getter",
+            "turn_signal_audio_light_rpc": "camera.timing_by_mode; subset of audio; fresh fallback only when same-loop telemetry lights unavailable or older than 50ms",
+            "turn_signal_audio_shared_light_age": "observation age, not work duration; camera.timing_by_mode count shows successful reuse",
+            "event_poll_and_presentation": "contains event_poll and presentation_events; fullscreen_transition is nested in presentation_events; thread_cpu labels are not additive wall times",
+            "activation_bounding_box_reused": "count of actor-local box reuse for manual availability; geometry remains fresh and actual activation refreshes box",
             "vehicle_audio_update": "subset of camera audio; cached-state model and preloaded grain launch; excludes pre-drive synthesis and exit fade",
         },
         "limitations": {

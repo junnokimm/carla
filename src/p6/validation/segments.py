@@ -30,17 +30,19 @@ class SegmentEvent:
 
 class SegmentSequence:
     def __init__(self, run_id: str, origin_ns: int,
-                 sink: Callable[[SegmentEvent], None] | None = None) -> None:
+                 sink: Callable[[SegmentEvent], None] | None = None,
+                 *, targets: tuple[str, ...] = TARGETS) -> None:
         self.run_id, self.origin_ns = run_id, origin_ns
         self.phase: Phase = "PREPARE"
         self.index = 0
         self.windows: list[SegmentWindow] = []
         self.events: list[SegmentEvent] = []
         self._sink = sink
+        self.targets = targets
 
     @property
     def target(self) -> str:
-        return TARGETS[self.index]
+        return self.targets[self.index]
 
     def prepare(self, now_ns: int) -> None:
         self._emit("PREPARE", now_ns)
@@ -57,7 +59,7 @@ class SegmentSequence:
             return
         self.windows[-1] = replace(self.windows[-1], complete=True)
         self._emit("END", self.windows[-1].end_ns)
-        if self.index == len(TARGETS) - 1:
+        if self.index == len(self.targets) - 1:
             self.phase = "DONE"
         else:
             self.index += 1

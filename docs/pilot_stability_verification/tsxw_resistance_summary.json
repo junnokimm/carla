@@ -1,0 +1,46 @@
+{
+  "scope": "TS-XW existing-resistance preservation at device open only",
+  "passed": 2205,
+  "failed": 7,
+  "skipped": 2,
+  "new_failures": [],
+  "existing_failures": [
+    [
+      "tests.test_driver_view",
+      "test_draw_keeps_front_raw_and_flips_all_three_mirrors"
+    ],
+    [
+      "tests.test_driver_view",
+      "test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps"
+    ],
+    [
+      "tests.test_driver_view",
+      "test_layout_recomputes_from_custom_window_and_legacy_side_size"
+    ],
+    [
+      "tests.test_driver_view",
+      "test_protected_front_cockpit_and_hud_configuration_is_unchanged"
+    ],
+    [
+      "tests.test_driver_view_cockpit",
+      "test_v_respawns_only_front_sensor_with_cockpit_relative_transform"
+    ],
+    [
+      "tests.test_p6_candidate_aoi",
+      "test_candidate_matches_current_mirrors_without_claiming_measured_accuracy"
+    ],
+    [
+      "tests.test_p6_validation_loop",
+      "test_space_at_previous_segment_end_must_not_skip_next_prepare"
+    ]
+  ],
+  "native_contract": {
+    "native_open_contract": "30 native open contract cases passed (no device access)",
+    "outside_open_function_unchanged": true,
+    "patched_source_sha256": "512bbc0f3d40ba7220753dbfd74efcd17b6899cec75b312d03bad5e88d005d26",
+    "dll_sha256": "3a6f1ab75568fac9011710d35814f82f7671805eab5b9e86fd98656d231e064d",
+    "hardware_opened": false
+  },
+  "physical_resistance_verified": false,
+  "live_driving_verified": false
+}

@@ -14,9 +14,15 @@ def run_operator_ui(controller: OperatorControl, config: OperatorUiConfig) -> in
         screen = pygame.display.set_mode(config.window_size)
         pygame.display.set_caption("P8 Unified Operator")
         app = OperatorApp(controller, config)
-        app.start()
+        try:
+            app.start()
+        except Exception as error:  # noqa: BLE001 -- unexpected errors require visible acknowledgement
+            app.hold_runtime_error(error)
         while app.running:
-            app.handle_events(pygame.event.get())
+            try:
+                app.handle_events(pygame.event.get())
+            except Exception as error:  # noqa: BLE001 -- do not close the UI on a runtime error
+                app.hold_runtime_error(error)
             if not app.running:
                 break
             screen = pygame.display.get_surface() or pygame.display.set_mode(
@@ -31,7 +37,13 @@ def run_operator_ui(controller: OperatorControl, config: OperatorUiConfig) -> in
         exported = snapshot.result_export
         return (
             0
-            if snapshot.stage is Stage.SESSION_COMPLETE
+            if (snapshot.stage is Stage.SESSION_COMPLETE or any(
+                run.completion_reason == "HAZARD_COLLISION"
+                and run.collision_stop is not None
+                and run.collision_stop.get("confirmation") == "SPACE"
+                and not run.collision_stop.get("errors")
+                for run in snapshot.module_runs
+            ))
             and snapshot.closed
             and (exported is None or exported.error is None)
             else 2

@@ -48,6 +48,7 @@ class OperatorComponents:
             "deletion_status": "NOT_REQUESTED",
         }
         self.clean = False
+        self.runtime_faults = []
         self.hazard_observation: dict[str, Json] | None = None
         self.hazard_loop: OperatorHazardLoop | None = None
         self.continuity = OperatorRuntimeContinuity()
@@ -228,6 +229,7 @@ class OperatorComponents:
             self.nominal_m2_handoff,
             self.occurrences,
             self._store_hazard_record,
+            self.runtime_faults,
         ).execute(
             OperatorRunRequest(
                 module,
@@ -263,6 +265,7 @@ class OperatorComponents:
                 else dict(self.hazard_observation)
             ),
             "post": dict(self.post),
+            "runtime_faults": list(self.runtime_faults),
             "owned_resource_tokens": list(self.continuity.tokens()),
             "cleanup_completed": self.clean,
         }

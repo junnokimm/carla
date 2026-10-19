@@ -147,25 +147,43 @@ def test_accepted_p5_submits_one_right_tm_request_after_coordinator_guards() -> 
     assert requests[0]["lc_event_id"] == "route-event"
 
 
-def test_failed_p5_submission_finishes_after_attempt_not_at_decision() -> None:
+def test_p5_confirmation_waits_for_signal_readback_before_native_submission() -> None:
     subject = integrated_rig()
     present(subject)
     subject.lane.vehicle.current_light_state = carla.VehicleLightState.NONE
     subject.observer.update(DriverInput(
         exit_confirm_requested=True, lane_change_direction=LaneChangeDirection.RIGHT,
     ))
-    finished = next(event for event in subject.coordinator.events if event.event_type == "lc_finished")
-    attempts = [payload for kind, payload in subject.lane.persistence.events if kind == "lane_change_lifecycle"]
-    assert finished.timestamp.host.monotonic_ns > max(payload["host_monotonic_ns"] for payload in attempts)
-    payload = json.loads(finished.payload_json)
-    assert payload["decision_commit_host_monotonic_ns"] < finished.timestamp.host.monotonic_ns
+    assert subject.coordinator.status is ExitAssistanceStatus.CONFIRMED
+    assert force_calls(subject) == []
+    subject.lane.vehicle.current_light_state = carla.VehicleLightState.RightBlinker
+    subject.lane.observer.after_control_applied()
+    assert force_calls(subject) == [("force_lane_change", True)]
+    assert not any(event.event_type == "lc_finished" for event in subject.coordinator.events)
+
+
+def test_p5_signal_timeout_records_failed_event_and_keeps_noa() -> None:
+    subject = integrated_rig()
+    present(subject)
+    subject.lane.vehicle.current_light_state = carla.VehicleLightState.NONE
+    subject.observer.update(DriverInput(
+        exit_confirm_requested=True, lane_change_direction=LaneChangeDirection.RIGHT,
+    ))
+    subject.lane.persistence.source.host_ns += 1_000_000_001
+    subject.observer.after_control_applied()
+    assert subject.coordinator.status is ExitAssistanceStatus.INTERRUPTED
+    assert subject.observer.state.control_mode is DrivingControlMode.NOA_ACTIVE
+    assert force_calls(subject) == []
+    finished = [e for e in subject.coordinator.events if e.event_type == "lc_finished"]
+    assert len(finished) == 1
+    assert json.loads(finished[0].payload_json)["termination_reason"] == "ASSISTED_SUBMISSION_UNVERIFIED"
 
 
 @pytest.mark.parametrize(
     "case",
     ["preheld", "reject", "brake", "mode", "timeout", "stale"],
 )
-def test_blocked_p5_input_never_reaches_tm(case: str) -> None:
+def test_p5_guard_preserves_manual_priority_but_does_not_swallow_general_signal(case: str) -> None:
     subject = integrated_rig()
     if case == "preheld":
         subject.observer.update(
@@ -203,12 +221,13 @@ def test_blocked_p5_input_never_reaches_tm(case: str) -> None:
 
     subject.observer.update(driver_input)
 
-    assert force_calls(subject) == []
+    general = case in {"preheld", "timeout", "stale"}
+    assert force_calls(subject) == ([("force_lane_change", True)] if general else [])
     assert subject.reference.armed == []
-    assert all(
-        event_type != "lane_change_request"
-        for event_type, _payload in subject.lane.persistence.events
-    )
+    requests = [payload for event_type, payload in subject.lane.persistence.events
+                if event_type == "lane_change_request"]
+    assert len(requests) == (1 if general else 0)
+    assert all(request["context"] == "GENERAL" for request in requests)
 
 
 def test_p5_during_ongoing_general_request_is_rejected_without_resubmission() -> None:

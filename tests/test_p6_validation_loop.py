@@ -72,7 +72,7 @@ def test_space_at_previous_segment_end_must_not_skip_next_prepare(monkeypatch, t
     monkeypatch.setattr(pygame.event, "get", lambda: next(frames))
     run = ValidationRun(tmp_path / "fake-loop", load_aoi_layout("config/p6_aoi_candidate.json"))
     try:
-        live.execute(run, source, live.LiveOptions("fake", 2000, 1, 20))
+        live.execute(run, source, live.LiveOptions("fake", 2000, 1, 20, fullscreen=False))
     finally:
         run.sequence.abort(current[0], "TEST_CLEANUP")
         run.finish()

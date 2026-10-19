@@ -1,0 +1,7 @@
+{
+  "native_open_contract": "30 native open contract cases passed (no device access)",
+  "outside_open_function_unchanged": true,
+  "patched_source_sha256": "512bbc0f3d40ba7220753dbfd74efcd17b6899cec75b312d03bad5e88d005d26",
+  "dll_sha256": "3a6f1ab75568fac9011710d35814f82f7671805eab5b9e86fd98656d231e064d",
+  "hardware_opened": false
+}

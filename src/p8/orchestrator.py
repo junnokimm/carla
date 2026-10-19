@@ -254,7 +254,10 @@ class ExperimentSession:
             self._end_record("ABORTED", reason)
         except (RuntimeError, ValueError, OSError) as error:
             self._lifecycle_errors.append("ABORT_END:" + str(error))
-        self._finalize("PARTICIPANT_BLOCKED" if blocked else "ABORTED")
+        self._finalize(
+            "PARTICIPANT_BLOCKED" if blocked else
+            "ENDED_AFTER_HAZARD_COLLISION" if reason == "HAZARD_COLLISION" else "ABORTED"
+        )
 
     def _guard(self) -> None:
         approval = self.records[-1].get("dev_approval")
@@ -424,6 +427,9 @@ class ExperimentSession:
             self._save(status, audit=audit)
         finally:
             if self.services.provenance == "ACTUAL_BOUNDED_OPERATOR":
+                from src.p8.collection_report import finalize_collection
+
+                finalize_collection(self.services.directory)
                 self.result_export = export_operator_results(
                     self.services.directory,
                     closed=self.services.closed,

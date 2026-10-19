@@ -1,0 +1,125 @@
+{
+  "scope": "MANUAL loop repeated reads and event-stall diagnostics only",
+  "passed": 2188,
+  "failed": 7,
+  "skipped": 2,
+  "new_failures": [],
+  "existing_failures": [
+    [
+      "tests.test_driver_view",
+      "test_draw_keeps_front_raw_and_flips_all_three_mirrors"
+    ],
+    [
+      "tests.test_driver_view",
+      "test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps"
+    ],
+    [
+      "tests.test_driver_view",
+      "test_layout_recomputes_from_custom_window_and_legacy_side_size"
+    ],
+    [
+      "tests.test_driver_view",
+      "test_protected_front_cockpit_and_hud_configuration_is_unchanged"
+    ],
+    [
+      "tests.test_driver_view_cockpit",
+      "test_v_respawns_only_front_sensor_with_cockpit_relative_transform"
+    ],
+    [
+      "tests.test_p6_candidate_aoi",
+      "test_candidate_matches_current_mirrors_without_claiming_measured_accuracy"
+    ],
+    [
+      "tests.test_p6_validation_loop",
+      "test_space_at_previous_segment_end_must_not_skip_next_prepare"
+    ]
+  ],
+  "blocking_cost_model": {
+    "warning": "SIMULATED_COSTS_NOT_LIVE_FPS_OR_WALL_CLOCK_BENCHMARK",
+    "cost_ms": {
+      "bounding_box": 21.7,
+      "light_query": 21.6,
+      "checked_control": 18.2,
+      "draw": 4,
+      "flip": 0.6
+    },
+    "manual_input": "60 samples; alternating +/-0.2 steering; throttle 0.6; brake 0.3 every fifth loop",
+    "modes": {
+      "MANUAL": {
+        "loops": 60,
+        "before_counts": {
+          "bounds": 48,
+          "lights": 120,
+          "checked_send": 60,
+          "draw": 60
+        },
+        "after_counts": {
+          "bounds": 1,
+          "lights": 60,
+          "checked_send": 60,
+          "draw": 60
+        },
+        "before_modeled_loop_ms": 83.36,
+        "after_modeled_loop_ms": 44.761667,
+        "preserved": {
+          "controls": true,
+          "observations": true,
+          "audio": true,
+          "events": true
+        },
+        "timestamps": "Fresh capture timestamps retained; higher cadence naturally changes sample times"
+      },
+      "NOA_ACTIVE": {
+        "loops": 60,
+        "before_counts": {
+          "bounds": 0,
+          "lights": 120,
+          "checked_send": 0,
+          "draw": 60
+        },
+        "after_counts": {
+          "bounds": 0,
+          "lights": 60,
+          "checked_send": 0,
+          "draw": 60
+        },
+        "before_modeled_loop_ms": 47.8,
+        "after_modeled_loop_ms": 26.2,
+        "preserved": {
+          "controls": true,
+          "observations": true,
+          "audio": true,
+          "events": true
+        },
+        "timestamps": "Fresh capture timestamps retained; higher cadence naturally changes sample times"
+      }
+    }
+  },
+  "invariants": {
+    "checked_control_acknowledgment": "UNCHANGED; every manual loop; no worker, queue, or skipped delivery",
+    "activation": "Fresh geometry each check; fresh bounding box on actual activation",
+    "telemetry": "Every existing capture still queries fresh CARLA state and keeps its timestamps",
+    "audio": "Same-loop observed light state only, max age 50ms; original fresh RPC fallback",
+    "hazard_and_recovery": "Algorithms unchanged; exercised by existing full offline regression suite"
+  },
+  "stall_diagnostics": [
+    "event_poll",
+    "event_poll_thread_cpu",
+    "presentation_events",
+    "presentation_events_thread_cpu",
+    "fullscreen_transition"
+  ],
+  "stall_diagnostics_location": "performance_summary.camera.timing_by_mode and camera.slowest_completed_loop.segments",
+  "original_pilot_hashes": {
+    "research_events_P8-PILOT-900b52901668434c9ff416e0866a1961.csv": {
+      "sha256": "0ba9e686f69e65ea5cf90f0f6ba659ba6ec7bfadf7d58fb0ee8439867c5da646",
+      "matches_original": true
+    },
+    "research_telemetry_P8-PILOT-900b52901668434c9ff416e0866a1961.csv": {
+      "sha256": "bd6ffef8a370cf701a057f12b18767b294992a9601d2548730d7747991b8bc45",
+      "matches_original": true
+    }
+  },
+  "live_carla_or_device_test": false,
+  "remaining_validation": "User-run same-condition NoA/MANUAL comparison; actual display cadence, input response, hazard exposure, and export"
+}

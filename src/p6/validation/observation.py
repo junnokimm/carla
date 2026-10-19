@@ -38,7 +38,7 @@ def observe(sample: RawGazeSample, layout: AoiLayout, *, geometry: WindowGeometr
     elif geometry is None:
         reason = "MAPPING_UNAVAILABLE"
     else:
-        client, reason = to_render_point(normalized, geometry)
+        client, reason = to_render_point(normalized, geometry, logical_size=layout.mapping.render_size)
         if client is not None:
             candidate = candidate_aoi(client, layout)
             if candidate in ("NO_AOI", "INVALID_LAYOUT"):

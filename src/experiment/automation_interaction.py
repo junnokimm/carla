@@ -44,12 +44,15 @@ class AutomationInteractionController:
         config: AutomationInteractionConfig,
         event_sink: Callable[[AutomationInteractionEvent], None],
         diagnostics: ActivationDiagnostics | None = None,
+        cache_static_bounds: bool = False,
     ) -> None:
         self._runtime = runtime
         self.geometry = geometry
         self._vehicle = vehicle
         self._diagnostics = diagnostics
-        self._gate = AutomationActivationGate(geometry, vehicle, config, diagnostics)
+        self._gate = AutomationActivationGate(
+            geometry, vehicle, config, diagnostics, cache_static_bounds
+        )
         self._steering_target = steering_target
         self._config = config
         self._event_sink = event_sink
@@ -174,7 +177,7 @@ class AutomationInteractionController:
             diagnostics = self._diagnostics
             started = 0.0 if diagnostics is None else diagnostics.timestamp()
             try:
-                self._refresh_availability(driver_input)
+                self._refresh_availability(driver_input, reuse_static_bounds=True)
             finally:
                 if diagnostics is not None:
                     diagnostics.set_control_mode(self.state.control_mode)
@@ -235,12 +238,12 @@ class AutomationInteractionController:
         return None
 
     def _refresh_availability(
-        self, driver_input: DriverInput
+        self, driver_input: DriverInput, *, reuse_static_bounds: bool = False
     ) -> ActivationFailureReason | None:
         if self._diagnostics is not None:
             self._diagnostics.set_control_mode(self.state.control_mode)
         failure = (
-            self._gate.failure(driver_input)
+            self._gate.failure(driver_input, reuse_static_bounds=reuse_static_bounds)
             if self._external_available
             else ActivationFailureReason.UNAVAILABLE
         )

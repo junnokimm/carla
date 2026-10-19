@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import cos, isfinite, radians, sin
 from typing import Protocol
 
@@ -36,8 +36,14 @@ class AutomationActivationGate:
     vehicle: ActivationVehicle
     config: AutomationInteractionConfig
     diagnostics: ActivationDiagnostics | None = None
+    cache_static_bounds: bool = False
+    _cached_bounds: ActivationVehicleBoundingBox | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
 
-    def failure(self, driver_input: DriverInput) -> ActivationFailureReason | None:
+    def failure(
+        self, driver_input: DriverInput, *, reuse_static_bounds: bool = False
+    ) -> ActivationFailureReason | None:
         if driver_input.brake >= self.config.driver_brake_threshold:
             return ActivationFailureReason.DRIVER_BRAKE_ACTIVE
         if driver_input.lane_change_in_progress:
@@ -55,13 +61,29 @@ class AutomationActivationGate:
                 diagnostics.record_operation_duration(
                     "activation_geometry_query", diagnostics.timestamp() - started
                 )
-        started = 0.0 if diagnostics is None else diagnostics.timestamp()
-        try:
-            bounding_box = self.vehicle.bounding_box
-        finally:
+        bounding_box = (
+            self._cached_bounds
+            if reuse_static_bounds and self.cache_static_bounds
+            else None
+        )
+        if bounding_box is None:
+            started = 0.0 if diagnostics is None else diagnostics.timestamp()
+            # A failed refresh must never leave a previous successful box available.
+            object.__setattr__(self, "_cached_bounds", None)
+            try:
+                bounding_box = self.vehicle.bounding_box
+            finally:
+                if diagnostics is not None:
+                    diagnostics.record_operation_duration(
+                        "activation_bounding_box_getter",
+                        diagnostics.timestamp() - started,
+                    )
+            if self.cache_static_bounds:
+                object.__setattr__(self, "_cached_bounds", bounding_box)
+        else:
             if diagnostics is not None:
                 diagnostics.record_operation_duration(
-                    "activation_bounding_box_getter", diagnostics.timestamp() - started
+                    "activation_bounding_box_reused", 0.0
                 )
         return lane_alignment_failure(
             context,

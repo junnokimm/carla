@@ -1,0 +1,128 @@
+--- a/server_session.cc
++++ b/server_session.cc
+@@ -7,9 +7,40 @@
+ #include "rpc/this_session.h"
+ 
+ #include "rpc/detail/log.h"
++#include <cstdio>
+ 
+ namespace rpc {
+ namespace detail {
++
++
++// No control or simulation policy belongs here. Reject only the broken RPC
++// connection; keep the server workers and all other clients running.
++static bool valid_request(const RPCLIB_MSGPACK::object &msg) {
++    using namespace RPCLIB_MSGPACK;
++    if (msg.type != type::ARRAY) return false;
++    const auto n = msg.via.array.size;
++    if (n != 3 && n != 4) return false;
++    const auto *a = msg.via.array.ptr;
++    if (a[0].type != type::POSITIVE_INTEGER || a[0].via.u64 != (n == 4 ? 0 : 2))
++        return false;
++    if (n == 4 && (a[1].type != type::POSITIVE_INTEGER ||
++                  a[1].via.u64 > UINT32_MAX)) return false;
++    return a[n - 2].type == type::STR && a[n - 1].type == type::ARRAY;
++}
++
++static void report_rejection(const char *reason, RPCLIB_ASIO::ip::tcp::socket &socket) {
++    std::error_code ec;
++    const auto peer = socket.remote_endpoint(ec);
++    const unsigned port = ec ? 0 : peer.port();
++    const unsigned long address = !ec && peer.address().is_v4()
++        ? peer.address().to_v4().to_ulong() : 0;
++    // Static reason strings and numeric peer only: never log incoming payloads.
++    std::fprintf(stderr, "{\"status\":\"NATIVE_RPC_REJECTED\",\"reason\":\"%s\","
++                 "\"peer_ipv4\":\"%lu.%lu.%lu.%lu\",\"peer_port\":%u}\n",
++                 reason, (address >> 24) & 255, (address >> 16) & 255,
++                 (address >> 8) & 255, address & 255, port);
++    std::fflush(stderr);
++}
+ 
+ static constexpr std::size_t default_buffer_size =
+     rpc::constants::DEFAULT_BUFFER_SIZE;
+@@ -36,7 +67,8 @@
+     LOG_INFO("Closing session.");
+     exit_ = true;
+     write_strand_.post([this, self]() {
+-        socket_.close();
++        std::error_code ignored;
++        socket_.close(ignored);
+         if (parent_)
+             parent_->close_session(self);
+     });
+@@ -53,16 +85,24 @@
+                                                        std::size_t length) {
+             if (exit_) { return; }
+             if (!ec) {
++              try {
+                 pac_.buffer_consumed(length);
+                 RPCLIB_MSGPACK::unpacked result;
+                 while (pac_.next(result) && !exit_) {
+                     auto msg = result.get();
++                    if (!valid_request(msg)) {
++                        report_rejection("INVALID_RPC_ENVELOPE", socket_);
++                        self->close();
++                        return;
++                    }
+                     output_buf_.clear();
+ 
+                     // any worker thread can take this call
+                     auto z = std::shared_ptr<RPCLIB_MSGPACK::zone>(
+                         result.zone().release());
+                     io_->post([this, self, msg, z]() {
++                      if (exit_) return;
++                      try {
+                         this_handler().clear();
+                         this_session().clear();
+                         this_session().set_id(reinterpret_cast<session_id_t>(this));
+@@ -106,7 +146,7 @@
+                             LOG_WARN("Session exit requested from a handler.");
+                             // posting through the strand so this comes after
+                             // the previous write
+-                            write_strand_.post([this]() { exit_ = true; });
++                            write_strand_.post([this, self]() { exit_ = true; });
+                         }
+ 
+                         if (this_server().stopping_) {
+@@ -114,8 +154,17 @@
+                             // posting through the strand so this comes after
+                             // the previous write
+                             write_strand_.post(
+-                                [this]() { parent_->close_sessions(); });
+-                        }
++                                [this, self]() { parent_->close_sessions(); });
++                        }
++                      } catch (const RPCLIB_MSGPACK::type_error &) {
++                        report_rejection("RPC_ARGUMENT_TYPE", socket_);
++                        self->close();
++                      } catch (const std::exception &) {
++                        // A handler exception may escape when suppression is off.
++                        // Do not report successful execution or retry the command.
++                        report_rejection("RPC_DISPATCH_EXCEPTION", socket_);
++                        self->close();
++                      }
+                     });
+                 }
+ 
+@@ -131,6 +180,10 @@
+                     }
+                     do_read();
+                 }
++              } catch (const RPCLIB_MSGPACK::unpack_error &) {
++                report_rejection("MSGPACK_UNPACK_ERROR", socket_);
++                self->close();
++              }
+             } else if (ec == RPCLIB_ASIO::error::eof ||
+                        ec == RPCLIB_ASIO::error::connection_reset) {
+                 LOG_INFO("Client disconnected");
+@@ -140,7 +193,8 @@
+             }
+         }));
+     if (exit_) {
+-        socket_.close();
++        std::error_code ignored;
++        socket_.close(ignored);
+     }
+ }
+ 
