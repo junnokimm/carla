@@ -36,9 +36,13 @@ def reduce_module_run(
     completion_reason: str,
     training_completed_early: bool,
     nominal_request: bool,
+    fallback_rows: list | None = None,
 ) -> ModuleRunResult:
-    with path.open(newline="", encoding="utf-8") as source:
-        rows = list(csv.DictReader(source))[offset:]
+    if fallback_rows is not None:
+        rows = fallback_rows
+    else:
+        with path.open(newline="", encoding="utf-8") as source:
+            rows = list(csv.DictReader(source))[offset:]
     expected_phase = {
         Stage.MODULE_1_RUNNING: ExperimentPhase.MODULE_1.value,
         Stage.MODULE_2_RUNNING: ExperimentPhase.MODULE_2.value,

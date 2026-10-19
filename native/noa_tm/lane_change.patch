@@ -1,0 +1,35 @@
+--- a/LocalizationStage.cpp
++++ b/LocalizationStage.cpp
+@@ -158,7 +158,9 @@
+ 
+   if (auto_or_force_lane_change
+       && front_waypoint_not_junction
+-      && (recently_not_executed_lane_change || done_with_previous_lane_change)) {
++      // Explicit requests are serialized by the application until completion.
++      // The random-lane-change cooldown must not swallow the next request.
++      && (lane_change_info.change_lane || recently_not_executed_lane_change || done_with_previous_lane_change)) {
+ 
+     SimpleWaypointPtr change_over_point = AssignLaneChange(actor_id, vehicle_location, vehicle_speed,
+                                                            force_lane_change, lane_change_direction);
+@@ -448,9 +450,20 @@
+     if (change_over_point != nullptr) {
+       const float change_over_distance = cg::Math::Clamp(1.5f * vehicle_speed, MIN_WPT_DISTANCE, MAX_WPT_DISTANCE);
+       const SimpleWaypointPtr starting_point = change_over_point;
++      // Update() clears a buffer whose first point is > MAX_START_DISTANCE
++      // from the ego. Measure forced targets from the EGO, not only from
++      // the adjacent waypoint, so a new plan survives the next cycle.
++      if (force && cg::Math::DistanceSquared(change_over_point->GetLocation(),
++                                             vehicle_location) > SQUARE(MAX_START_DISTANCE)) {
++        return nullptr;
++      }
+       while (change_over_point->DistanceSquared(starting_point) < SQUARE(change_over_distance) &&
+              !change_over_point->CheckJunction()) {
+-        change_over_point = change_over_point->GetNextWaypoint().front();
++        const auto next = change_over_point->GetNextWaypoint();
++        if (next.empty() || next.front() == change_over_point) break;
++        if (force && cg::Math::DistanceSquared(next.front()->GetLocation(),
++                                               vehicle_location) > SQUARE(MAX_START_DISTANCE)) break;
++        change_over_point = next.front();
+       }
+     }
+   }

@@ -1,5 +1,19 @@
 # V5-P8 full-flow orchestration foundation
 
+## 2026-10-17 M2 v1 operating update
+
+For the current user-requested moving-hazard development rehearsal, add
+`--m2-hazard-v1` to the existing operator command. See
+[the current Korean command/status](P8_P7_V5_Hazard_Status.md#2026-10-17--사용자-지정-m2-내부-랜덤-위험사건-v1).
+The scene runs **inside M2**, targeting one uniform random exposure in 400..600
+active seconds. Input, vehicle telemetry, camera and NoA/manual runtime continue
+to 780 seconds. The later FINAL_HAZARD UI boundary only summarizes the stored
+result/readiness; it does not start another drive or hazard. Physical/Tobii/data
+validation and participant readiness remain incomplete.
+
+The post-780 continuation description below is the preserved legacy Fake/default
+blocked path, not the `--m2-hazard-v1` operating procedure.
+
 Current patched TM execution contract: [P8_Patched_TM_LaneChange.md](P8_Patched_TM_LaneChange.md).
 Its separate-environment command supersedes the historical request-only commands below.
 

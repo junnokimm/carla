@@ -40,6 +40,10 @@ __all__ = [
 
 
 class TrafficManager(Protocol):
+    def collision_detection(
+        self, reference_actor, other_actor, detect_collision: bool
+    ) -> None: ...
+
     def get_port(self) -> int: ...
 
     def auto_lane_change(
@@ -81,6 +85,8 @@ class TrafficManagerNoAControlBackend:
         self._traffic_manager = traffic_manager
         self._port = traffic_manager.get_port()
         self._active = False
+        self._hazard_pairs: dict[int, object] = {}
+        self.hazard_pair_revision = 0
         self._lane_changes = TrafficManagerLaneChangeExecutor(
             vehicle,
             traffic_manager,
@@ -116,6 +122,9 @@ class TrafficManagerNoAControlBackend:
         try:
             self._traffic_manager.ignore_lights_percentage(self._vehicle, 0.0)
             self._vehicle.set_autopilot(True, self._port)
+            for cargo in self._hazard_pairs.values():
+                self._traffic_manager.collision_detection(self._vehicle, cargo, False)
+                self.hazard_pair_revision += 1
         except RuntimeError as error:
             try:
                 self._vehicle.set_autopilot(False, self._port)
@@ -137,6 +146,22 @@ class TrafficManagerNoAControlBackend:
 
     def ensure_manual_control(self) -> None:
         self.enter_manual_control()
+
+    def set_hazard_pair_detection(self, owned_cargo, enabled: bool) -> None:
+        """Only a newly owned cargo pair; never changes physical collision or mode.
+
+        New actor IDs have the TM default (True); the scene restores it before
+        destruction. Static props may not enter TM's vehicle/walker pipeline:
+        command return is not evidence that the planner ignores the prop.
+        """
+        if owned_cargo.id == self._vehicle.id:
+            raise ValueError("HAZARD_PAIR_CANNOT_BE_EGO")
+        self._traffic_manager.collision_detection(self._vehicle, owned_cargo, enabled)
+        if enabled:
+            self._hazard_pairs.pop(owned_cargo.id, None)
+        else:
+            self._hazard_pairs[owned_cargo.id] = owned_cargo
+        self.hazard_pair_revision += 1
 
     @property
     def lane_change_in_flight(self) -> LaneChangeSubmission | None:

@@ -1,0 +1,36 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+___ test_audio_close_failure_cannot_skip_camera_cleanup[audio_error0-False] ___
+tests\test_driver_view_cleanup_audio_failure.py:31: in test_audio_close_failure_cannot_skip_camera_cleanup
+    assert trace == ["stop", "destroy"]
+E   AssertionError: assert [] == ['stop', 'destroy']
+E     
+E     Right contains 2 more items, first extra item: 'stop'
+E     Use -v to get more diff
+___ test_audio_close_failure_cannot_skip_camera_cleanup[audio_error0-True] ____
+tests\test_driver_view_cleanup_audio_failure.py:31: in test_audio_close_failure_cannot_skip_camera_cleanup
+    assert trace == ["stop", "destroy"]
+E   AssertionError: assert [] == ['stop', 'destroy']
+E     
+E     Right contains 2 more items, first extra item: 'stop'
+E     Use -v to get more diff
+___ test_audio_close_failure_cannot_skip_camera_cleanup[audio_error1-False] ___
+tests\test_driver_view_cleanup_audio_failure.py:31: in test_audio_close_failure_cannot_skip_camera_cleanup
+    assert trace == ["stop", "destroy"]
+E   AssertionError: assert [] == ['stop', 'destroy']
+E     
+E     Right contains 2 more items, first extra item: 'stop'
+E     Use -v to get more diff
+___ test_audio_close_failure_cannot_skip_camera_cleanup[audio_error1-True] ____
+tests\test_driver_view_cleanup_audio_failure.py:31: in test_audio_close_failure_cannot_skip_camera_cleanup
+    assert trace == ["stop", "destroy"]
+E   AssertionError: assert [] == ['stop', 'destroy']
+E     
+E     Right contains 2 more items, first extra item: 'stop'
+E     Use -v to get more diff
+=========================== short test summary info ===========================
+FAILED tests/test_driver_view_cleanup_audio_failure.py::test_audio_close_failure_cannot_skip_camera_cleanup[audio_error0-False]
+FAILED tests/test_driver_view_cleanup_audio_failure.py::test_audio_close_failure_cannot_skip_camera_cleanup[audio_error0-True]
+FAILED tests/test_driver_view_cleanup_audio_failure.py::test_audio_close_failure_cannot_skip_camera_cleanup[audio_error1-False]
+FAILED tests/test_driver_view_cleanup_audio_failure.py::test_audio_close_failure_cannot_skip_camera_cleanup[audio_error1-True]
+4 failed in 0.33s

@@ -1,0 +1,60 @@
+65인치 모니터 / 별도 실제 태블릿 재검증
+
+준비
+- run_pilot은 종료한다. Unreal에서 Town04를 열고 Play를 누른다.
+- Nano 별도 거치대의 실제 위치·각도와 화면 발광 영역을 ETM Advanced setup에 등록한다.
+- 65인치 16:9 명목 크기는 약 1439 x 809 mm. 실측값을 우선한다.
+- 눈–Nano 거리를 실측한다. 이 검사 도구는 45~85cm 밖이면 측정 전에 종료한다.
+- 실제 주행 자세에서 피험자 Calibration까지 완료한다.
+- 화면 크기만 일치한다고 장치 위치·각도나 보정 정확도가 확인되는 것은 아니다.
+
+PowerShell 실행
+  cd C:\dev\carla
+  .\run_gaze_check.cmd
+
+Nano 한 대는 자동 선택한다. 여러 대면 --serial TPNA1-030251042584를 추가한다.
+전체화면 전방·미러 검증 3회 뒤 태블릿 추적 확인을 진행한다.
+시간을 줄여 1회만 검사하려면 --repeats 1을 추가한다.
+CARLA 없이 태블릿만 재검사하려면 --tablet-only를 추가한다.
+짧은 재검증(전방 포함 각 10초):
+  .\run_gaze_check.cmd --tablet-only --tablet-seconds 10 --serial TPNA1-030251042584
+이 모드에서는 Unreal을 실행할 필요가 없다. Nano·태블릿·좌석 위치를 유지한다.
+
+전방·미러
+- 새 검증 전용 차량만 생성하며 선호 지점 344가 차 있으면 주변 빈 지점을 찾는다.
+- 65인치 모니터 전체화면인지 확인 후 C를 누른다.
+- 다른 모니터에 열리면 C 전에 F11 -> 창 이동 -> F11 -> C 순서로 진행한다.
+- 전방 -> 좌측 미러 -> 우측 미러 -> 눈 감기, 각각 2초씩 측정한다.
+- 피험자는 대상을 먼저 주시하고 진행자가 Space를 누른다.
+- 화면 안내가 다시 나타나면 다음 대상을 준비한다. ESC로 현재 검증을 중단한다.
+- 각 회차의 준비 시간 포함 제한은 180초다. 반복 사이에는 Enter로 진행한다.
+- 검증 후 이번에 만든 임시 차량만 정리한다. 기존 차량/월드 설정은 변경하지 않는다.
+
+태블릿
+- pygame 검증 창 종료 후 터미널 안내를 따라간다.
+- 전방 중앙 -> 태블릿 중앙 -> 좌상 -> 우상 -> 좌하 -> 우하 -> 전방 중앙 순서다.
+- 각 대상을 주시한 뒤 진행자가 Enter. 다음 안내가 나올 때까지 유지한다(기본 20초, 옵션 10~20초).
+- 실제 태블릿을 본다. 이 도구가 별도 태블릿 영상을 표시하는 것은 아니다.
+- 모서리는 베젤이 아닌 실제 화면의 안쪽 모서리를 사용한다.
+- 터미널을 보려고 자세를 바꾸지 말고, 평소 사용하는 시선/머리 움직임을 유지한다.
+- 원본 수집 단계다. 종료 후 시작 시 보관한 매핑 사본으로 영역 분류를 검증한다.
+- 이 검사 데이터를 매핑에 다시 맞춘 결과는 독립 검증으로 간주하지 않는다.
+- 화면 밖 좌표나 추적 손실을 TABLET으로 간주하지 않는다.
+
+기록
+  C:\dev\carla\data\gaze_recheck\<UTC시각-고유ID>\
+    display_area.json        장치에서 읽은 화면 크기·UCS 모서리 좌표
+    setup.json               진행자가 확인한 거리·피험자 보정 여부
+    aoi\monitor_01..03\     기존 검증 원본/summary/mapping_evidence
+    tablet\*.jsonl          위치별 원본 시선 (요청한 10~20초)
+    tablet_profile_snapshot.json  시작 시 설정된 매핑 사본 (사용 가능할 때)
+    *_console.txt            단계별 콘솔 (오류 포함)
+    summary.json             완료/중단/실패, 측정 시간, 매핑 사본 경로·해시
+
+수집 완료(CAPTURED_NOT_VALIDATED)는 정확도 합격이 아니다.
+부분 실패·사용자 중단 시에도 생성된 파일은 남는다. 이전 실행을 덮어쓰지 않는다.
+검증 도구만 추가했다. run_pilot/주행/핸들/NoA/위험사건/실험 중 시선 실패 정책은 변경하지 않는다.
+
+거리 및 배치 참고
+https://connect.tobii.com/s/article/how-to-position-participants-and-the-eye-tracker?language=en_US
+https://www.tobii.com/resource-center/learn-articles/how-to-use-screen-based-eye-trackers

@@ -19,7 +19,9 @@ def test_active_continuation_finalizes_once_on_nonterminal_exit(
     exit_event = driver_view.pygame.event.Event(
         driver_view.pygame.KEYDOWN, key=driver_view.pygame.K_ESCAPE
     )
-    event_batches = iter(([], [exit_event] if exit_kind == "USER_EXIT" else []))
+    # The nominal boundary now checks queued exit before creating a hazard.
+    # Exercise an already active continuation: exit on its following frame.
+    event_batches = iter(([], [], [exit_event] if exit_kind == "USER_EXIT" else []))
     monkeypatch.setattr(driver_view.time, "monotonic", lambda: next(times))
     monkeypatch.setattr(driver_view.pygame.display, "init", lambda: None)
     monkeypatch.setattr(driver_view.pygame.display, "set_mode", lambda size: None)

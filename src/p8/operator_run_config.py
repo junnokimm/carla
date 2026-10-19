@@ -129,6 +129,7 @@ def prepare_operator_run(
             camera_diagnostics=True,
             native_tm_diagnostics=runtime.native_tm_diagnostics,
             tsxw_config=runtime.tsxw_config,
+            vehicle_audio=False,
         ),
         exit_config,
     )

@@ -22,6 +22,7 @@ Emit: TypeAlias = Callable[[WireRecord], None]
 class CaptureOptions:
     serial: str
     seconds: float
+    include_display_area: bool = False
 
 
 def capture(sdk: Sdk, options: CaptureOptions, emit: Emit, *,
@@ -30,6 +31,16 @@ def capture(sdk: Sdk, options: CaptureOptions, emit: Emit, *,
     identity = asdict(DeviceIdentity.from_tracker(tracker))
     emit({"record_type": "identity", "schema_version": 1, "device": identity,
           "synthetic": False, "calibration_status": "NOT_VERIFIED"})
+    if options.include_display_area:
+        try:
+            area = tracker.get_display_area()
+            emit({"record_type": "display_area", "status": "OK",
+                  "serial_number": options.serial,
+                  "display_area": {key: getattr(area, key) for key in
+                                   ("top_left", "top_right", "bottom_left", "bottom_right")}})
+        except Exception as error:  # noqa: BLE001 -- native SDK failures must leave capture available
+            # Optional AOI binding must not prevent raw/monitor gaze collection.
+            emit({"record_type": "display_area", "status": "UNAVAILABLE", "detail": str(error)})
 
     def emit_pair(phase: str) -> None:
         try:

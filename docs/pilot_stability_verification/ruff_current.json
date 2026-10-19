@@ -1,0 +1,91 @@
+[
+  {
+    "cell": null,
+    "code": "SIM102",
+    "end_location": {
+      "column": 89,
+      "row": 496
+    },
+    "filename": "C:\\dev\\carla\\src\\p7\\moving_backend.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 493
+    },
+    "message": "Use a single `if` statement instead of nested `if` statements",
+    "name": "collapsible-if",
+    "noqa_row": 493,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/collapsible-if"
+  },
+  {
+    "cell": null,
+    "code": "RUF059",
+    "end_location": {
+      "column": 10,
+      "row": 39
+    },
+    "filename": "C:\\dev\\carla\\tests\\test_m2_cargo_placement.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "_scene",
+          "end_location": {
+            "column": 10,
+            "row": 39
+          },
+          "location": {
+            "column": 5,
+            "row": 39
+          }
+        }
+      ],
+      "message": "Prefix it with an underscore or any other dummy variable pattern"
+    },
+    "location": {
+      "column": 5,
+      "row": 39
+    },
+    "message": "Unpacked variable `scene` is never used",
+    "name": "unused-unpacked-variable",
+    "noqa_row": 39,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-unpacked-variable"
+  },
+  {
+    "cell": null,
+    "code": "PIE807",
+    "end_location": {
+      "column": 56,
+      "row": 27
+    },
+    "filename": "C:\\dev\\carla\\tests\\test_p8_stability_timing.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "list",
+          "end_location": {
+            "column": 56,
+            "row": 27
+          },
+          "location": {
+            "column": 46,
+            "row": 27
+          }
+        }
+      ],
+      "message": "Replace with `lambda` with `list`"
+    },
+    "location": {
+      "column": 46,
+      "row": 27
+    },
+    "message": "Prefer `list` over useless lambda",
+    "name": "reimplemented-container-builtin",
+    "noqa_row": 27,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/reimplemented-container-builtin"
+  }
+]

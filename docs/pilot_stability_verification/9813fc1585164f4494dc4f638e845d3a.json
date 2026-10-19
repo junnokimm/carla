@@ -1,0 +1,506 @@
+{
+  "run_id": "P8-PILOT-9813fc1585164f4494dc4f638e845d3a",
+  "counts": {
+    "stage_start": 14,
+    "assignment": 1,
+    "stage_end": 12,
+    "stage_start_attempt": 12,
+    "execution_policy_stage_outcome": 3,
+    "p8_weather_applied": 3,
+    "tm_runtime_attestation": 3,
+    "p5_exit_manifest": 3,
+    "telemetry_schema": 3,
+    "control_authority": 3,
+    "tsxw_device_opened": 3,
+    "tsxw_input_preparation_started": 3,
+    "tsxw_input_preparation_ready": 3,
+    "initial_state": 3,
+    "lc_active_drive_started": 3,
+    "tsxw_input_sample": 23206,
+    "traffic_manager_speed_limit_observation": 23206,
+    "tsxw_manual_control": 1384,
+    "traffic_light_observation": 23206,
+    "lc_observation_gap": 6632,
+    "availability": 7,
+    "tsxw_device_closed": 3,
+    "lc_finished": 2,
+    "performance_summary": 3,
+    "p8_actual_bounded_run": 2,
+    "calibration_boundary_status": 1,
+    "auto_request": 4,
+    "activation_failure": 2,
+    "lc_draft": 2,
+    "lc_presented": 2,
+    "lc_maneuver_start": 1,
+    "lc_driver_steering_onset": 1,
+    "lc_boundary_crossing": 1,
+    "auto_state": 4,
+    "lc_mode_change": 1,
+    "lc_lateral_reference_invalidated": 6,
+    "lc_lateral_reference_acquired": 5,
+    "lc_navigation_unavailable": 3,
+    "lc_exit_entry_observed": 1,
+    "lc_completed": 2,
+    "disengagement": 2,
+    "m2_hazard_scheduled": 1,
+    "m2_hazard_camera_basis": 28,
+    "m2_hazard_raw_samples": 569,
+    "protocol_deviation": 1,
+    "lc_unpresented_path_observed": 1,
+    "lc_navigation_restored": 1,
+    "m2_hazard_preparation_deferred": 25,
+    "m2_hazard_preparation_started": 1,
+    "m2_hazard_actor_spawn": 2,
+    "m2_hazard_cargo_placed": 1,
+    "m2_hazard_tm_pair": 2,
+    "m2_hazard_actors_prepared": 1,
+    "m2_hazard_exposure_plan": 1,
+    "m2_hazard_unexpected_failure": 1,
+    "m2_hazard_end": 1,
+    "stage_abort": 2,
+    "p8_logs_flushed_before_cleanup": 1,
+    "p8_cleanup_end": 1
+  },
+  "preparation_reasons": {
+    "PREPARATION_OCCLUSION_UNSUITABLE": 25
+  },
+  "hazard_events": [
+    {
+      "line": 38272,
+      "type": "m2_hazard_scheduled",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 0.0,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "MANUAL",
+        "scene_state": "SCHEDULED",
+        "seed": 14471379363621493811,
+        "distribution": "UNIFORM_CLOSED_400_600",
+        "planned_exposure_active_s": 559.9152720324046,
+        "window_s": [
+          400.0,
+          600.0
+        ],
+        "m2_active_origin_monotonic_s": 306589.25,
+        "origin_record_monotonic_ns": 306589281000000,
+        "target_ttc_s": 4.0,
+        "preparation_range_s": [
+          3.0,
+          6.0
+        ],
+        "tuning": {
+          "seed": 14471379363621493811,
+          "preparation_s": 6.0,
+          "lane_change_s": 3.0,
+          "lead_headway_s": 1.5,
+          "minimum_lead_gap_m": 12.0,
+          "route_step_m": 4.0,
+          "retry_s": 1.0,
+          "cleanup_behind_m": 80.0,
+          "speed_gain": 0.35,
+          "gap_gain": 0.15,
+          "steering_gain": 1.5,
+          "steering_slew_per_s": 0.5,
+          "lead_blueprint": "vehicle.mercedes.coupe_2020",
+          "cargo_blueprint": "static.prop.box01"
+        },
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "response_thresholds": "UNDECIDED",
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78378,
+      "type": "m2_hazard_preparation_started",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.420999999973,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "PREPARING",
+        "side": "left",
+        "road_id": 46,
+        "section_id": 0,
+        "lane_id": -3,
+        "cargo_station_m": 174.16628182609693,
+        "lead_station_m": 36.60687000457491,
+        "speed_reference_mps": 24.40458000304994,
+        "preparation_s": 3.0,
+        "required_route_length_m": 241.6053420301944,
+        "occlusion_preview": "INITIAL_BOUNDS_AND_PREPARATION_LATERAL_ENVELOPE",
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78380,
+      "type": "m2_hazard_actor_spawn",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.420999999973,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "PREPARING",
+        "actor_id": 137,
+        "blueprint": "vehicle.mercedes.coupe_2020",
+        "pose": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "yaw": 0.0,
+          "pitch": 0.0,
+          "roll": 0.0
+        },
+        "bounds": {
+          "extent": {
+            "x": 2.3368194103240967,
+            "y": 0.9059062600135803,
+            "z": 0.7209736704826355
+          },
+          "location": {
+            "x": -0.0025976907927542925,
+            "y": 3.1948087553246296e-07,
+            "z": 0.7203620076179504
+          }
+        },
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78381,
+      "type": "m2_hazard_actor_spawn",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.420999999973,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "PREPARING",
+        "actor_id": 138,
+        "blueprint": "static.prop.box01",
+        "pose": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "yaw": 0.0,
+          "pitch": 0.0,
+          "roll": 0.0
+        },
+        "bounds": {
+          "extent": {
+            "x": 0.32444822788238525,
+            "y": 0.32773923873901367,
+            "z": 0.3457734286785126
+          },
+          "location": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.34022006392478943
+          }
+        },
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78382,
+      "type": "m2_hazard_cargo_placed",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.420999999973,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "PREPARING",
+        "actor_id": 138,
+        "pose": {
+          "x": 12.156721115112305,
+          "y": 47.84231948852539,
+          "z": 0.0,
+          "yaw": -90.28911590576172,
+          "pitch": 0.0,
+          "roll": 0.0
+        },
+        "bounds": {
+          "extent": {
+            "x": 0.32444822788238525,
+            "y": 0.32773923873901367,
+            "z": 0.3457734286785126
+          },
+          "location": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.34022006392478943
+          }
+        },
+        "placement_adjustments": 1,
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78383,
+      "type": "m2_hazard_tm_pair",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.420999999973,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "PREPARING",
+        "ego_id": 132,
+        "cargo_id": 138,
+        "before": true,
+        "after": false,
+        "reason": "NO_CARGO_AUTO_AVOIDANCE",
+        "scope": "NEW_OWNED_PAIR_ONLY",
+        "effect": "UNVERIFIED_STATIC_PROP_PIPELINE",
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78384,
+      "type": "m2_hazard_actors_prepared",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.420999999973,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "PREPARING",
+        "ego_bounds": {
+          "extent": {
+            "x": 2.3368194103240967,
+            "y": 0.9059062600135803,
+            "z": 0.7209736704826355
+          },
+          "location": {
+            "x": -0.002597605576738715,
+            "y": 1.6208588931476697e-05,
+            "z": 0.7203620076179504
+          }
+        },
+        "cargo_static_physics": true,
+        "physical_collisions": "UNCHANGED",
+        "initial_occlusion_proxy": true,
+        "predicted_exposure_delay_s": 1.15,
+        "lead_physics": "ENABLED_APPLY_CONTROL",
+        "lead_initial_velocity_mps": 24.40458000304994,
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78385,
+      "type": "m2_hazard_exposure_plan",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.420999999973,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "OCCLUDED",
+        "planned_active_s": 559.9152720324046,
+        "adjusted_target_active_s": 582.420999999973,
+        "command_target_active_s": 581.270999999973,
+        "predicted_partial_exposure_delay_s": 1.15,
+        "preparation_s": 3.0,
+        "delay_reason": "PREPARATION_OCCLUSION_UNSUITABLE",
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78389,
+      "type": "m2_hazard_unexpected_failure",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.6869999999763,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "ABORTED",
+        "reason": "CARGO_MOVED",
+        "observation": {
+          "camera_source": "CACHED_FRONT_RELATIVE_POSE",
+          "camera_pose": {
+            "x": 12.74092960357666,
+            "y": 215.34133911132812,
+            "z": 1.200264811515808,
+            "yaw": -90.98937225341797,
+            "pitch": 1.0059092044830322,
+            "roll": 0.24054975807666779
+          },
+          "ttc_method": "CONNECTED_ROUTE_VERTEX_FRONT_CLEARANCE_OVER_TANGENT_CLOSING_SPEED",
+          "frame": 82376,
+          "simulation_seconds": 1272.8462867438793,
+          "ego_pose": {
+            "x": 13.090176582336426,
+            "y": 215.585205078125,
+            "z": -0.0012196159223094583,
+            "yaw": -90.99493408203125,
+            "pitch": 0.005928603932261467,
+            "roll": 0.24050049483776093
+          },
+          "lead_pose": {
+            "x": 12.832982063293457,
+            "y": 181.85289001464844,
+            "z": 0.16109247505664825,
+            "yaw": -90.28911590576172,
+            "pitch": 0.0,
+            "roll": 0.0
+          },
+          "cargo_pose": {
+            "x": 12.156721115112305,
+            "y": 47.84231948852539,
+            "z": 0.02555336430668831,
+            "yaw": -90.28911590576172,
+            "pitch": 0.0,
+            "roll": 0.0
+          },
+          "ego_speed_mps": 24.375,
+          "lead_speed_mps": 24.421119689941406,
+          "closing_speed_mps": 24.374789909754,
+          "clearance_m": 165.0708894424974,
+          "ttc_candidate_s": 6.772197424210059,
+          "ttc_invalid_reason": null,
+          "collision_path_proxy": true,
+          "partial_visible_proxy": false,
+          "fully_clear_proxy": false,
+          "cargo_stationary": false,
+          "lead_station_m": 40.15400489999141,
+          "ego_station_m": 6.420821450680839,
+          "lead_lateral_m": 9.849925258350095e-07,
+          "lead_move_observed_complete": false,
+          "passed": false,
+          "snapshot_callback_runtime_monotonic_s": 307168.921,
+          "snapshot_callback_receipt_monotonic_ns": 307168921000000
+        },
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78391,
+      "type": "m2_hazard_tm_pair",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.8119999999763,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "ABORTED",
+        "ego_id": 132,
+        "cargo_id": 138,
+        "before": false,
+        "after": true,
+        "reason": "RESTORE_NEW_PAIR_DEFAULT",
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    {
+      "line": 78393,
+      "type": "m2_hazard_end",
+      "payload": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 579.8119999999763,
+        "program_version": "P8_M2_V1_ROUTE_FIX_20261017",
+        "auto_state": "NOA_ACTIVE",
+        "scene_state": "ABORTED",
+        "parameter_status": "DEV_ONLY",
+        "canonical_status": "UNVALIDATED_RESEARCH_DEFINITIONS",
+        "hazard_visible_t": null,
+        "brake_onset_t": null,
+        "steer_onset_t": null,
+        "ttc_at_response": null,
+        "min_ttc": null,
+        "hazard_start_speed": null,
+        "hazard_start_distance": null,
+        "hazard_outcome": null,
+        "auto_state_at_m2_scene_close": "NOA_ACTIVE",
+        "execution_scope": "DEV_M2_INTERNAL",
+        "execution_status": "FAILED",
+        "seed": 14471379363621493811,
+        "distribution": "UNIFORM_CLOSED_400_600",
+        "window_s": [
+          400.0,
+          600.0
+        ],
+        "planned_exposure_active_s": 559.9152720324046,
+        "preparation_s": 3.0,
+        "m2_active_origin_monotonic_s": 306589.25,
+        "hazard_state": "ABORTED",
+        "end_reason": "ERROR",
+        "scene_reason": "CARGO_MOVED",
+        "error": "P7Error:M2_V1_CARGO_MOVED",
+        "occurrence_reserved": true,
+        "first_geometry": null,
+        "display_candidate": null,
+        "target_ttc_s": 4.0,
+        "display_frames_checked": 11599,
+        "display_frames_unmatched": 11598,
+        "display_status": "NO_VALIDATED_DISPLAY_CANDIDATE",
+        "driver_response_outcome": null,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "occurrence_result": "NOT_OCCURRED",
+        "cleanup": {
+          "failures": [],
+          "remaining_actor_ids": []
+        },
+        "raw_storage": {
+          "status": "ACKNOWLEDGED",
+          "acknowledged_batch_count": 569,
+          "acknowledged_sample_count": 11600,
+          "pending_sample_count": 0,
+          "pending_batch_id": null,
+          "possible_duplicate_batches": false,
+          "duplicate_detection_key": "batch_id",
+          "write_errors": []
+        },
+        "finalization_errors": [],
+        "partial_data": true,
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    }
+  ]
+}

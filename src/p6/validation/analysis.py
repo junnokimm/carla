@@ -10,7 +10,7 @@ from src.p6.clock_evidence import read_clock_evidence
 from src.p6.tobii.protocol import TobiiSampleDecoder
 from src.p6.validation.mapping import WindowGeometry
 from src.p6.validation.observation import observe
-from src.p6.validation.segments import TARGETS, SegmentSequence
+from src.p6.validation.segments import SegmentSequence
 from src.p6.validation.summary import Json, TargetStats
 from src.p6.writer import GazeSidecarWriter
 from tools.tobii.sdk import TobiiError
@@ -43,7 +43,7 @@ def analyze(directory: Path, layout: AoiLayout, sequence: SegmentSequence, *,
                 errors.append(f"line {index + 1}: {error}")
     clock_evidence = read_clock_evidence(raw_path)
     mapping = clock_evidence.fit(origin)
-    stats = {target: TargetStats() for target in TARGETS}
+    stats = {target: TargetStats() for target in sequence.targets}
     decoder = TobiiSampleDecoder()
     writer = GazeSidecarWriter(path=directory / "p6_gaze.jsonl", run_id=sequence.run_id,
                               origin=origin, mapping=mapping, layout=layout)
@@ -90,7 +90,7 @@ def analyze(directory: Path, layout: AoiLayout, sequence: SegmentSequence, *,
                     "gaze_y": None if normalized is None else normalized.y,
                     "client_x": None if client is None else client.x,
                     "client_y": None if client is None else client.y,
-                    "client_coordinate_space": "PYGAME_RENDER_SURFACE",
+                    "client_coordinate_space": "PYGAME_LOGICAL_CANVAS",
                     "left": asdict(sample.left), "right": asdict(sample.right),
                     "left_validity": sample.source_metadata["left_validity"],
                     "right_validity": sample.source_metadata["right_validity"],

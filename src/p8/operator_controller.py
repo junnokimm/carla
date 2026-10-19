@@ -21,6 +21,8 @@ from src.p8.operator_registration import claim_registration
 from src.p8.orchestrator import ExperimentSession
 from src.p8.readiness import Readiness, require_participant_ready
 from src.p8.services import SessionServices
+from src.p8.tsxw_input import TsxwDeviceError
+from src.p8.tsxw_preparation import CANCELLED
 from src.scenario.driver_view import RuntimeFrameContinuation
 
 
@@ -129,9 +131,7 @@ class OperatorController:
         try:
             result = self._operator_components().execute_training(training, duration)
         except (OSError, RuntimeError, TypeError, ValueError) as error:
-            self.session.abort(
-                f"ACTUAL_TRAINING_FAILURE:{type(error).__name__}:{error}"
-            )
+            self._record_runtime_fault(error)
             raise
         return self._handle_run_result(result)
 
@@ -144,9 +144,34 @@ class OperatorController:
         try:
             result = self._operator_components().execute_current_module(duration)
         except (OSError, RuntimeError, TypeError, ValueError) as error:
-            self.session.abort(f"ACTUAL_MODULE_FAILURE:{type(error).__name__}:{error}")
+            self._record_runtime_fault(error)
+            partial = next((run for run in self._operator_components().runs
+                            if run.stage is self.session.state
+                            and run.completion_reason == "HAZARD_COLLISION"
+                            and run.collision_stop is not None
+                            and run.collision_stop.get("confirmation") is not None), None)
+            if partial is not None:
+                self._operator_components().runtime_faults[-1]["status"] = "COLLISION_END_FINALIZATION_ERROR"
+                return self._handle_run_result(partial)
             raise
         return self._handle_run_result(result)
+
+    def _record_runtime_fault(self, error):
+        if isinstance(error, TsxwDeviceError) and str(error) == CANCELLED:
+            self.session.abort("OPERATOR_INPUT_PREPARATION_CANCELLED")
+            return
+        components = self._operator_components()
+        record = {
+            "error": f"{type(error).__name__}:{error}",
+            "stage": self.session.state.value,
+            "status": "AWAITING_OPERATOR_RUNTIME_UNAVAILABLE",
+            "analysis_eligible": False,
+        }
+        components.runtime_faults.append(record)
+        try:
+            components.services.emit("operator_runtime_unavailable", record)
+        except Exception as failure:  # noqa: BLE001 -- keep evidence when storage also fails
+            record["recording_error"] = str(failure)
 
     def approve_dev_outcome(self, outcome: DevOutcome, reason: str) -> OperatorSnapshot:
         stage = self.session.state
@@ -185,6 +210,7 @@ class OperatorController:
         session = self.session
         components = self._operator_components()
         post = components.post
+        hazard = components.hazard_observation
         return OperatorSnapshot(
             stage=session.state,
             participant_id=str(session.services.context.participant_id),
@@ -199,6 +225,14 @@ class OperatorController:
             module_runs=tuple(components.runs),
             analysis_eligible=bool(post["analysis_eligible"]),
             deletion_status=str(post["deletion_status"]),
+            result_export=session.result_export,
+            module_2_condition=session.services.context.module_2_condition,
+            hazard_status=(
+                None
+                if hazard is None
+                else f"{hazard.get('execution_status', 'NOT_RECORDED')} / "
+                f"{hazard.get('hazard_state', 'NOT_RECORDED')}"
+            ),
         )
 
     def _operator_components(self) -> OperatorComponents:
@@ -207,6 +241,11 @@ class OperatorController:
         return self._components
 
     def _handle_run_result(self, result: ModuleRunResult) -> ModuleRunResult:
+        if result.completion_reason == "HAZARD_COLLISION":
+            # The partial module and collision evidence have already been stored.
+            # Preserve the incomplete protocol status, with a specific intended end reason.
+            self.session.abort("HAZARD_COLLISION")
+            return result
         if result.user_exited:
             self.session.abort("USER_EXIT")
             raise P8Error("USER_EXIT_ABORTED_OPERATING_SESSION")

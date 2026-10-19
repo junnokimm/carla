@@ -58,7 +58,7 @@ def test_negative_monitor_origin_is_supported() -> None:
 
 @pytest.mark.parametrize("point,expected", [
     (Point(200, 200), "FORWARD"), (Point(1000, 120), "REAR_MIRROR"),
-    (Point(100, 600), "LEFT_MIRROR"), (Point(1100, 600), "RIGHT_MIRROR"),
+    (Point(100, 520), "LEFT_MIRROR"), (Point(1100, 520), "RIGHT_MIRROR"),
     (Point(700, 600), "NO_AOI"),
 ])
 def test_candidate_classification_never_approves_production(point, expected) -> None:

@@ -20,6 +20,7 @@ from src.experiment.noa_runtime import CarlaNoARuntimeWaypoint, NoARuntimeBundle
 from src.experiment.timestamp import TimestampEnvelope
 from src.p6.runtime import P6Runtime
 from src.p8.native_tm_diagnostics import NativeTrafficManagerDiagnosticsCollector
+from src.scenario.active_scene import ActiveDriveScene
 from src.scenario.driver_view import RuntimeFrameContinuation
 from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
 from src.scenario.research_exit_runtime import (
@@ -133,6 +134,9 @@ class ResearchNoASession:
         self._live_shutdown_completed = False
         self._live_shutdown_timestamp: TimestampEnvelope | None = None
         self.shutdown_brake_outcome = ShutdownBrakeOutcome.not_attempted()
+        self.active_scene_factory: (
+            Callable[[ResearchNoASession, float], ActiveDriveScene] | None
+        ) = None
 
     def request_control_mode(self, mode: DrivingControlMode) -> None:
         if (
@@ -257,7 +261,10 @@ class ResearchNoASession:
         commands_at_boundary = self.live_scheduler.commands
         maximum_manual_speed_at_boundary = self.live_scheduler.maximum_manual_speed_kmh
         final_speed_kmh: float | None = None
+        active_scene = None
         try:
+            if self.config.tsxw_config is not None:
+                self.viewer.prepare_input()
             if self.interaction is None:
                 self.request_control_mode(DrivingControlMode.NOA_ACTIVE)
             else:
@@ -296,6 +303,8 @@ class ResearchNoASession:
                 )
             initial_snapshot = self.world.get_snapshot()
             active_drive_started_at = self.monotonic_clock()
+            if self.active_scene_factory is not None:
+                active_scene = self.active_scene_factory(self, active_drive_started_at)
             self.live_scheduler.diagnostics.begin_operation_measurement_window()
 
             def create_continuation() -> RuntimeFrameContinuation | None:
@@ -330,7 +339,15 @@ class ResearchNoASession:
 
             try:
                 viewer_started = True
-                if continuation_factory is None:
+                if active_scene is not None:
+                    user_exited = self.viewer.run(
+                        self.config.duration,
+                        scheduler=self.live_scheduler,
+                        diagnostics=self.live_scheduler.diagnostics,
+                        input_observer=self.interaction,
+                        active_scene=active_scene,
+                    )
+                elif continuation_factory is None:
                     user_exited = self.viewer.run(
                         self.config.duration,
                         scheduler=self.live_scheduler,
@@ -347,9 +364,12 @@ class ResearchNoASession:
                     )
             finally:
                 if not m2_boundary_captured:
+                    collision_stop = getattr(self.viewer, "collision_stop", None)
                     self.live_scheduler.diagnostics.end_operation_measurement_window()
                     active_drive_seconds = (
-                        self.monotonic_clock() - active_drive_started_at
+                        collision_stop.active_seconds if collision_stop is not None
+                        else self.monotonic_clock() - active_drive_started_at
+                        - getattr(getattr(self.viewer, "operator_recovery", None), "paused_seconds", 0.0)
                     )
                     scheduler_updates_at_boundary = self.live_scheduler.update_count
                     commands_at_boundary = self.live_scheduler.commands
@@ -360,7 +380,12 @@ class ResearchNoASession:
                         self.live_scheduler.diagnostics.completed_driver_loop_count
                     )
                     try:
-                        final_snapshot = self.world.get_snapshot()
+                        final_snapshot = (
+                            collision_stop.sample.world_snapshot if collision_stop is not None
+                            else self.world.get_snapshot()
+                        )
+                        if collision_stop is not None:
+                            final_speed_kmh = collision_stop.sample.speed_kmh
                     except (OSError, RuntimeError, TypeError, ValueError) as error:
                         performance_capture_error = error
             training_completed_early = self.viewer.training_completed_early
@@ -380,6 +405,18 @@ class ResearchNoASession:
             was_active = trigger_state.control_mode is DrivingControlMode.NOA_ACTIVE
             run_error = sys.exception()
             primary_error = run_error
+            if active_scene is not None:
+                primary_error = retain_first_error(
+                    lambda: active_scene.finalize(
+                        "ERROR"
+                        if run_error is not None
+                        else "USER_EXIT"
+                        if user_exited
+                        else "M2_END",
+                        run_error,
+                    ),
+                    primary_error,
+                )
             shutdown_timestamps: list[TimestampEnvelope | None] = []
             try:
                 shutdown_timestamps.append(self._shutdown_live())

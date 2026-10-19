@@ -1,0 +1,100 @@
+파일럿 실제 Tobii 수집 / 화면 AOI (2026-10-19)
+
+실행
+  cd C:\dev\carla
+  .\run_pilot.cmd --m2 1
+  .\run_pilot.cmd --m2 2
+두 명령 모두 기본적으로 config/p8_gaze.json을 읽어 실제 Tobii 수집을 시도한다.
+--no-gaze는 명시적으로 수집을 끄며, --gaze-config PATH로 별도 설정을 지정할 수 있다.
+SDK는 기존 .venv-tobii의 Python 3.10 프로세스에서만 실행한다.
+Nano가 한 대면 자동 선택한다. 여러 대면 설정의 serial에 발견된 일련번호를 지정한다.
+장치를 찾지 못해도 합성 시선으로 대체하지 않고 실패를 기록한 뒤 주행을 계속한다.
+
+사용자가 주행 모니터의 ETM 표시 영역 설정과 보정을 완료했다고 확인했다.
+display_confirmed=true와 USER_REPORTED_ETM_CALIBRATED_20261019는 이 보고를 기록한다.
+코드가 실제 보정 정확도를 측정했다는 뜻은 아니다. 피험자/장비 배치 변경 시 다시
+보정해야 한다. monitor_name이 null이면 첫 주행 화면의 모니터를 해당 세션에 고정한다.
+다른 모니터로 창을 옮기면 TRACKER_MONITOR_MISMATCH로 남기고 AOI를 부여하지 않는다.
+
+수집 범위와 실패 정책
+훈련, M1, M2의 실제 주행 호출마다 수집한다. 휴식/운영자 화면에서는 수집하지 않는다.
+매 프레임 작업은 표시 시각/크기를 메모리에 전달하는 것뿐이며, HWND 조회도 250ms마다
+또는 크기 변경 때만 수행한다. 장치 탐색, SDK, Windows 좌표 조사, 분류, 저장은
+백그라운드에서 실행한다. 키보드/핸들 이벤트를 읽거나 소모하지 않고 차량 명령을 쓰지 않는다.
+수집 실패 시 해당 구간의 수집을 중단하고 실험은 계속한다. 다음 주행 구간에서 새로 시도한다.
+SDK 오류/분리/5초 무응답/저장 오류/버퍼 초과는 실패 또는 품질 문제로 기록한다.
+각 수집 프로세스의 상한은 7200초이며 기존 10~20초/180초 진단 명령의 제한은 유지한다.
+구간 종료 시에만 최대 1.5초 기다린다. 파일을 쓰는 스레드가 멈추지 않으면 미완료 파일은
+.gaze_pending에 남기고 ZIP 대상에서 제외한다. 경로는 GAZE_SHUTDOWN_PENDING에 표시한다.
+실험의 다른 오류나 관리자 종료 요청을 이 코드가 숨기지는 않는다.
+
+화면 AOI
+src/p6/pilot_aoi.py에서 실제 DriverViewConfig와 calculate_layout으로 생성한다.
+현재 1280x720 화면의 좌측 미러=(24,453,240,135), 우측=(1016,453,240,135).
+전방은 기존 500/720 높이 경계를 유지하면서 위로 올라온 미러 영역을 제외한다.
+경계의 중복 분류 방지를 위해 1 논리 픽셀 간격을 둔다. 전방은 영상 의미 분석이 아닌
+고정 화면 관심 영역이다. 하단 계기판 등 나머지 영역은 NO_AOI이다.
+후방 미러는 실제 켜져 있을 때만 분류한다. 꺼져 있으면 해당 위치의 전방 화면을 분류한다.
+창 위치/모니터 원점/DPI와 F11 aspect-fit 여백을 반영한다. 검은 여백은 NO_AOI이다.
+창 좌표/포커스는 약 4Hz로 확인하므로 전환 순간은 정밀한 시선 전환 지연 측정에 쓰지 않는다.
+지연된 샘플, 무효 양안, 창 포커스 상실, 좌표 확인 실패에는 이유를 남긴다.
+AOI 결과는 소프트웨어 좌표 분류이며 aoi_validation_status=NOT_VALIDATED를 유지한다.
+
+저장과 확인
+  data/p8_operator/<Run ID>/gaze/<구간-고유ID>/raw_gaze.jsonl
+    SDK 전체 원본, 장치 식별, SDK/호스트 시간 대응 관측, 종료 상태와 dropped_count
+  data/p8_operator/<Run ID>/gaze/<구간-고유ID>/gaze.jsonl
+    실제 화면 좌표/영역 정의, 양안/원본 SDK 데이터, stage/run/participant,
+    AOI/분류 불가 이유/변환 좌표/시퀀스 누락/SDK 콜백 및 IPC 수신 시간
+  data/p8_operator/<Run ID>/gaze/<구간-고유ID>/summary.json
+    수집량, 유효 시선 수, AOI별 수, 누락 수, 오류와 종료 상태
+정상 종료된 파일은 기존 결과 ZIP에 포함된다. COLLECTED는 정확도 합격 판정이 아니다.
+GAZE_STARTED는 구독 시작이고 GAZE_RECEIVING은 실제 첫 샘플 도착이다.
+GAZE_FAILED_CONTINUE이면 실험은 계속되지만 그 구간의 시선 자료는 불완전하다.
+session_elapsed_s는 동일 PC의 SDK 콜백 monotonic 시각에서 실험 시작 시각을 뺀 값이다.
+장치 획득 시각과 광자 표시 시각의 검증된 동기화는 아니다. raw clock pairs를 보존하며
+clock_sync_validated=false를 유지한다. 위험사건 반응시간 분석 전 별도 시간 검증이 필요하다.
+
+정차 상태 AOI 검증 (통합 주행 종료 후 별도로 실행)
+기존 차량을 외부에서 정차시킨 상태에서 실제 Nano 일련번호와 차량 actor ID를 지정한다.
+이 도구는 차량을 생성하거나 주행 제어하지 않는다.
+  & .\.venv\Scripts\python.exe -B -m tools.tobii.aoi_validation `
+    --tobii-python .\.venv-tobii\Scripts\python.exe `
+    --tobii-serial $serial --actor-id $actorId `
+    --aoi config/p6_aoi_rear_disabled_candidate_v1.json --max-seconds 120
+현재 파일럿과 같은 후방 미러 꺼짐 배치이다. C로 ETM 모니터와 일치함을 확인한 뒤
+Space로 전방 → 좌측 → 우측 → 누락 시험을 각 2초 진행한다. ESC로 종료할 수 있다.
+검증 창은 기본으로 현재 모니터의 전체화면으로 시작하며, 실험의 DriverViewPresentation을
+그대로 사용해 논리 화면 1280x720을 비율 유지 확대한다. C 확인 전에는 F11로 창 모드와
+전체화면을 전환할 수 있다. 다른 모니터로 옮기려면 F11 → 창 이동 → F11 → C 순서로
+진행한다. --windowed를 추가하면 처음부터 창 모드로 시작한다. C 확인 후 F11은 무시하며
+측정 전체에 동일한 좌표계를 유지한다. 외부 창 위치/크기 변경 감지는 기존대로 유지한다.
+검증 AOI는 실제 디스플레이/DPI 좌표에서 확대·검은 여백을 역변환한 논리 화면 좌표로
+분류한다. 검은 여백은 OUTSIDE_VIEWPORT로 기록하며 전방/미러에 포함하지 않는다.
+mapping_evidence.json에 실제 창/표시 해상도, logical_canvas_size, presentation_scaling을
+보존한다. gaze_with_candidate_aoi.jsonl의 client_x/y는 PYGAME_LOGICAL_CANVAS 좌표이다.
+후보 설정은 현재 배치로 갱신했고, 후방 미러가 꺼진 검증에서는 후방 주시 단계를 생략한다.
+출력: data/p6_aoi_validation/<검증ID>/{summary.json,raw_gaze.jsonl,mapping_evidence.json,...}
+영역별 일치율/혼동 분포/유효 양안 비율을 확인하고, 중심 및 가장자리를 여러 번 반복한다.
+실주행에서는 각 모듈에서 GAZE_RECEIVING, gaze.jsonl 증가, 종료 후 summary를 확인한다.
+정차 검증 결과만으로 실주행이나 모든 피험자의 정확도가 보장되지는 않는다.
+
+별도 물리 태블릿
+주행 모니터의 정규화 2D 좌표는 그 표시 평면과 시선의 교점이다. 화면 밖/추적 불가를
+TABLET으로 간주하면 안 된다. 이번에는 TABLET을 생성하지 않으며 원본 3D 필드를 보존한다.
+측정 가능성 확인 순서:
+1. 실제 좌석/머리/태블릿 위치를 고정하고, 전방과 태블릿 중심/모서리를 번갈아 주시할 때
+   양안 유효성 및 SDK gaze origin/3D gaze point가 계속 나오는지 실제 장비로 확인한다.
+2. 유효 추적이 유지된다면 Nano 사용자 좌표계(UCS)에서 태블릿 평면의 위치·방향·크기를
+   측정해야 한다. 시선 원점과 표시 평면의 3D gaze point로 만든 시선 광선을 태블릿 평면과
+   교차시켜, 교점이 태블릿 경계 안인지 판단하는 별도 구현 및 타깃 검증이 필요하다.
+3. 태블릿을 볼 때 추적이 끊기면 좌표 계산으로 복구할 수 없다. 장비/태블릿 배치를 조정한 뒤
+   다시 평가하고, 그래도 안 되면 그 배치를 관측할 수 있는 별도 추적 방식이 필요하다.
+현재 코드에는 이 별도 태블릿 평면 측정/교차 분류는 구현하지 않았다.
+공식 근거:
+https://developer.tobiipro.com/commonconcepts/coordinatesystems.html
+https://developer.tobiipro.com/commonconcepts/gaze.html
+
+이번 구현의 검증은 가짜 SDK/오프라인 테스트이다. 실제 장치로 실행한 정확도·연속 수집·
+차량 주행 중 프레임 성능은 아직 측정하지 않았다. 기존 조향/페달/NoA 판정/위험사건 로직은
+변경하지 않았고, 렌더러에는 실패가 전파되지 않는 관측 훅만 추가했다.

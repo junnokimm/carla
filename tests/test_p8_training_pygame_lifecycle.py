@@ -7,7 +7,7 @@ from pathlib import Path
 import pygame
 import pytest
 
-from src.p8.model import P8Error, Stage
+from src.p8.model import Stage
 from src.p8.operator_ui import OperatorApp
 from src.p8.operator_ui_runtime import run_operator_ui
 from tests.p8_training_pygame_lifecycle_support import (
@@ -154,8 +154,7 @@ def test_training_abort_events_exit_and_clean_actual_driver_view(
     controller = build_controller(tmp_path, evidence, event)
     prepare_sdl(monkeypatch)
 
-    with pytest.raises(P8Error, match="USER_EXIT_ABORTED_OPERATING_SESSION"):
-        run_operator_ui(controller, ui_config())
+    assert run_operator_ui(controller, ui_config()) == 2
 
     result = controller.snapshot().module_runs[0]
     assert result.user_exited is True

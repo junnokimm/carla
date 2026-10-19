@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import csv
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from src.error_notes import append_error_note
+from src.p7.occurrence import OccurrenceRegistry
+from src.p8.hazard_collision_stop import COLLISION_END
 from src.p8.model import Mode, P8Error, Stage
 from src.p8.operator_continuity import OperatorRuntimeContinuity
 from src.p8.operator_exit_ledger_view import LiveCoordinatorEvidence
@@ -15,9 +17,12 @@ from src.p8.operator_exit_result import (
     technical_exit_result,
 )
 from src.p8.operator_live_evidence import after_cleanup_evidence, live_evidence
+from src.p8.operator_m2_continuation import ContinuingM2Hazard
 from src.p8.operator_metrics import event_count, reduce_module_run
 from src.p8.operator_model import ModuleRunResult, OperatorRuntimeConfig
+from src.p8.operator_recovery import OperatorRecovery
 from src.p8.operator_run_config import OperatorRunRequest, prepare_operator_run
+from src.p8.pilot_gaze import collect_pilot_gaze
 from src.p8.services import SessionServices
 from src.scenario.driver_view import RuntimeFrameContinuation
 from src.scenario.research_noa_runtime import ResearchNoARunner
@@ -42,6 +47,9 @@ class OperatorRunExecutor:
     exit_slots: dict[Stage, ExitOpportunityResult]
     continuity: OperatorRuntimeContinuity
     nominal_m2_handoff: Callable[[], RuntimeFrameContinuation | None]
+    occurrences: OccurrenceRegistry
+    hazard_record_sink: Callable
+    runtime_faults: list = field(default_factory=list)
 
     def execute(self, request: OperatorRunRequest) -> ModuleRunResult:
         if any(result.stage is request.stage for result in self.runs):
@@ -52,18 +60,24 @@ class OperatorRunExecutor:
         runtime_started_session_s = self.services.elapsed
         live: LiveCoordinatorEvidence | None = None
         actual = None
+        report = None
         runner: ResearchNoARunner | None = None
         primary_error: BaseException | None = None
         secondary_errors: list[BaseException] = []
         try:
-            offset = event_count(path)
+            offset = (self.services.logger.event_count if hasattr(self.services.logger, "event_count")
+                      else event_count(path))
             runner = self.runtime.runner_builder(
                 prepared.config,
                 self.services.borrowed_research_log(),
             )
-            handoff_enabled = (
+            m2_nominal = (
                 request.stage is Stage.MODULE_2_RUNNING and request.nominal_request
             )
+            v1_enabled = m2_nominal and self.runtime.m2_hazard_v1 is not None
+            if v1_enabled and self.services.mode is not Mode.DEV_REHEARSAL:
+                raise P8Error("M2_V1_REQUIRES_DEV_REHEARSAL")
+            handoff_enabled = m2_nominal and not v1_enabled
             if handoff_enabled and self.runtime.hazard_execution is not None:
                 require_offline_hazard_runner(self.services.mode, runner)
             try:
@@ -73,19 +87,41 @@ class OperatorRunExecutor:
                     handoff_enabled=handoff_enabled,
                 ) as actual:
                     try:
+                        actual.viewer.operator_recovery = OperatorRecovery(
+                            actual, self.services, self.runtime_faults
+                        )
                         if (
                             actual.persistence is None
                             or actual.persistence.logger is not self.services.logger
                             or actual.persistence.study_run is not self.services.context
                         ):
                             raise P8Error("OPERATOR_SHARED_RESOURCE_IDENTITY_MISMATCH")
-                        report = actual.run(
-                            continuation_factory=(
-                                (lambda _: self.nominal_m2_handoff())
-                                if handoff_enabled
-                                else None
+                        if v1_enabled:
+                            actual.active_scene_factory = lambda session, origin: (
+                                ContinuingM2Hazard(
+                                    session,
+                                    self.services,
+                                    self.runtime.m2_hazard_v1,
+                                    self.occurrences,
+                                    self.hazard_record_sink,
+                                    origin,
+                                    {
+                                        "client": runner.client_source,
+                                        "viewer": runner.viewer_source,
+                                        "driver_input": runner.driver_input_source,
+                                    },
+                                )
                             )
-                        )
+                        with collect_pilot_gaze(
+                            actual.viewer, self.services, request.stage, self.runtime.gaze_config
+                        ):
+                            report = actual.run(
+                                continuation_factory=(
+                                    (lambda _: self.nominal_m2_handoff())
+                                    if handoff_enabled
+                                    else None
+                                )
+                            )
                     except KeyboardInterrupt as error:
                         primary_error = error
                         if actual.native_tm_collector is not None:
@@ -151,8 +187,11 @@ class OperatorRunExecutor:
                 raise primary_error
             if report is None:
                 raise P8Error("ACTUAL_BOUNDED_RUN_REPORT_MISSING")
+            collision_stop = getattr(actual.viewer, "collision_stop", None)
             result = reduce_module_run(
                 path,
+                fallback_rows=(self.services.logger.fallback_rows(offset)
+                               if getattr(self.services.logger, "collection_failure_count", 0) else None),
                 offset=offset,
                 stage=request.stage,
                 requested_duration_s=request.duration,
@@ -166,18 +205,25 @@ class OperatorRunExecutor:
                 runtime_started_session_s=runtime_started_session_s,
                 runtime_closed_session_s=self.services.elapsed,
                 completion_reason=(
+                    COLLISION_END if collision_stop is not None else
                     "OPERATOR_EARLY_FINISH"
                     if report.training_completed_early
                     else "USER_ABORT"
                     if report.user_exited
+                    else "COMPLETED_WITH_RUNTIME_INTERRUPTION"
+                    if actual is not None and actual.viewer.operator_recovery.paused_seconds > 0
                     else "TIME_LIMIT_REACHED"
                 ),
                 training_completed_early=report.training_completed_early,
                 nominal_request=request.nominal_request,
             )
+            if collision_stop is not None:
+                result = replace(result, collision_stop=dict(collision_stop.record))
             exit_result = (
                 not_configured_exit_result()
                 if exit_config is None
+                else technical_exit_result(exit_config, RuntimeError("LOG_STORAGE_INCOMPLETE"), live, ())
+                if getattr(self.services.logger, "collection_failure_count", 0)
                 else configured_exit_result(
                     path,
                     exit_config,
@@ -225,6 +271,28 @@ class OperatorRunExecutor:
                         (*secondary_errors, reduction_error),
                     )
             self.exit_slots[request.stage] = exit_result
+            collision_stop = None if actual is None else getattr(actual.viewer, "collision_stop", None)
+            if collision_stop is not None:
+                collision_stop.record["errors"].append({
+                    "step": "run_finalization", "error": f"{type(error).__name__}:{error}"
+                })
+                try:
+                    partial = reduce_module_run(
+                        path, offset=offset, stage=request.stage,
+                        requested_duration_s=request.duration,
+                        actual_active_drive_s=collision_stop.active_seconds,
+                        user_exited=False, planned_duration_s=780.0,
+                        runtime_started_session_s=runtime_started_session_s,
+                        runtime_closed_session_s=self.services.elapsed,
+                        completion_reason=COLLISION_END,
+                        training_completed_early=False, nominal_request=request.nominal_request,
+                    )
+                    partial = replace(partial, exit_opportunity=exit_result,
+                                      collision_stop=dict(collision_stop.record))
+                    self.runs.append(partial)
+                    self.services.emit("p8_actual_bounded_run", partial.manifest(), stage=request.stage)
+                except Exception as reduction_error:  # noqa: BLE001 -- preserve the original failure
+                    append_error_note(error, f"Collision partial reduction failed: {reduction_error}")
             raise
         result = replace(result, exit_opportunity=exit_result)
         self.exit_slots[request.stage] = exit_result

@@ -55,7 +55,9 @@ def build_performance_summary(
     if simulation_elapsed is not None and simulation_elapsed < 0.0:
         simulation_elapsed = None
         missing_measurements.append("simulation_elapsed_negative")
-    valid_world_window = world_frame_delta is not None and simulation_elapsed is not None
+    valid_world_window = (
+        world_frame_delta is not None and simulation_elapsed is not None
+    )
     active_camera = None if camera is None else camera.get("active_drive_window")
     display_rate = (
         None
@@ -108,6 +110,8 @@ def build_performance_summary(
         },
         "operations": performance["operations"],
         "operations_by_mode": performance["operations_by_mode"],
+        "operation_accumulation": performance["operation_accumulation"],
+        "operation_accumulation_by_mode": performance["operation_accumulation_by_mode"],
         "mode_definition": performance["mode_definition"],
         "camera": camera,
         "overlap": {
@@ -116,6 +120,16 @@ def build_performance_summary(
             "traffic_light_observation": "contains cached traffic-light getters and conditional actor lookup",
             "map_getter": "legacy alias of waypoint_query; do not sum the two labels",
             "scheduler": "legacy scheduler and operation scheduler timing cover the same update call",
+            "post_control": "contains manual_availability_refresh and persisted observation, including light_getter",
+            "manual_availability_refresh": "contains activation_geometry_query, activation_bounding_box_getter and availability events; manual post-control only",
+            "activation_queries": "also measured on activation checks outside post-control; do not subtract whole-run totals from post-control",
+            "manual_control_delivery": "contains checked manual_batch_rpc_wait and response validation; excludes preparation and post-control",
+            "input_collection": "contains indicator_input_light_rpc when a Z/X event requires a fresh observation",
+            "turn_signal_audio_light_rpc": "camera.timing_by_mode; subset of audio; fresh fallback only when same-loop telemetry lights unavailable or older than 50ms",
+            "turn_signal_audio_shared_light_age": "observation age, not work duration; camera.timing_by_mode count shows successful reuse",
+            "event_poll_and_presentation": "contains event_poll and presentation_events; fullscreen_transition is nested in presentation_events; thread_cpu labels are not additive wall times",
+            "activation_bounding_box_reused": "count of actor-local box reuse for manual availability; geometry remains fresh and actual activation refreshes box",
+            "vehicle_audio_update": "subset of camera audio; cached-state model and preloaded grain launch; excludes pre-drive synthesis and exit fade",
         },
         "limitations": {
             "sensor_to_photon": "not measured",

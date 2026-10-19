@@ -67,6 +67,18 @@ class ResearchLaneChangeInteractionObserver:
             completion_config,
         )
         self._tracker: LaneChangeTracker | None = None
+        self._signal_wait_started_ns: int | None = None
+        self._signal_request_count = 0
+        self._failed_p5_submission: TimestampEnvelope | None = None
+
+    @property
+    def signal_request_count(self) -> int:
+        return self._signal_request_count
+
+    def take_failed_p5_submission(self) -> TimestampEnvelope | None:
+        timestamp = self._failed_p5_submission
+        self._failed_p5_submission = None
+        return timestamp
 
     @property
     def state(self) -> AutomationState:
@@ -130,7 +142,15 @@ class ResearchLaneChangeInteractionObserver:
             p5=True,
             submit=False,
         )
-        return self._submit()
+        # Confirmation accepts an intent. Native submission is recorded only
+        # when the asynchronous light readback permits _submit to send it.
+        submitted = self._submit()
+        return submitted or (self._tracker is not None and not self._tracker.submitted)
+
+    def request_general(self, direction: LaneChangeDirection) -> None:
+        """Dispatch a signal not consumed by an exit confirmation, once per edge."""
+        self._request(direction, self.state, DriverInput(lane_change_direction=direction),
+                      p5=False, submit=True)
 
     def after_control_applied(self) -> None:
         self._interaction.after_control_applied()
@@ -141,7 +161,15 @@ class ResearchLaneChangeInteractionObserver:
         config = self._completion_config
         if tracker is None or config is None:
             return
+        if not tracker.submitted:
+            # Vehicle light commands and the server's light-state readback can
+            # straddle one iteration. Wait without blocking input or re-toggling.
+            if self.state.control_mode is DrivingControlMode.NOA_ACTIVE:
+                self._submit()
+            return
         if sample is None:
+            if tracker.unverified_reason == "MISSING_POST_CONTROL_SNAPSHOT":
+                return
             result = tracker.mark_unverified("MISSING_POST_CONTROL_SNAPSHOT")
             self._record_lifecycle(
                 "UNVERIFIED",
@@ -149,16 +177,20 @@ class ResearchLaneChangeInteractionObserver:
                 result=result,
             )
             return
+        previous_unverified = tracker.unverified_reason
         result = tracker.observe(sample, self._vehicle.bounding_box, config)
         if result.status is LaneChangeObservationStatus.IGNORED:
             return
         record_geometry_observation(self._events, tracker, result, sample)
+        if previous_unverified is not None and not tracker.unverified:
+            self._record_lifecycle("OBSERVATION_RESUMED", previous_unverified, sample.timestamp, result)
         if result.status is LaneChangeObservationStatus.IN_PROGRESS:
             self._record_lifecycle("IN_PROGRESS", None, sample.timestamp, result)
         elif result.status is LaneChangeObservationStatus.UNVERIFIED:
-            self._record_lifecycle(
-                "UNVERIFIED", result.reason, sample.timestamp, result
-            )
+            if result.reason != previous_unverified:
+                self._record_lifecycle(
+                    "UNVERIFIED", result.reason, sample.timestamp, result
+                )
         elif result.status is LaneChangeObservationStatus.COMPLETED:
             self._complete(sample.timestamp, result)
 
@@ -178,6 +210,7 @@ class ResearchLaneChangeInteractionObserver:
         p5: bool,
         submit: bool,
     ) -> None:
+        self._signal_request_count += 1
         executor_ready = (
             self._executor is not None and self._completion_config is not None
         )
@@ -196,6 +229,7 @@ class ResearchLaneChangeInteractionObserver:
         if tracker is None:
             return
         self._tracker = tracker
+        self._signal_wait_started_ns = None
         self._record_lifecycle("REQUESTED", None)
         if submit:
             self._submit()
@@ -215,8 +249,15 @@ class ResearchLaneChangeInteractionObserver:
         except RuntimeError:
             signal_on = False
         if not signal_on:
-            self._record_lifecycle("BLOCKED", "REQUESTED_SIGNAL_NOT_OBSERVED_ON")
-            self._tracker = None
+            now = self._persistence.source.get_host_timestamp()
+            if self._signal_wait_started_ns is None:
+                self._signal_wait_started_ns = now.host.monotonic_ns
+                self._record_lifecycle("WAITING_FOR_SIGNAL", "SIGNAL_READBACK_PENDING", now)
+            elif now.host.monotonic_ns - self._signal_wait_started_ns >= 1_000_000_000:
+                self._record_lifecycle("BLOCKED", "REQUESTED_SIGNAL_NOT_OBSERVED_ON", now)
+                if tracker.context == "P5":
+                    self._failed_p5_submission = now
+                self._tracker = None
             return False
         try:
             result = executor.submit_lane_change(

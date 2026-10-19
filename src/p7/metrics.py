@@ -21,7 +21,9 @@ class CanonicalHazardRecord(TypedDict):
     hazard_outcome: str | None
 
 
-def canonical_hazard_record(outcome: HazardOutcome | None = None) -> CanonicalHazardRecord:
+def canonical_hazard_record(
+    outcome: HazardOutcome | None = None,
+) -> CanonicalHazardRecord:
     return {
         "parameter_status": "DEV_ONLY",
         "canonical_status": "UNVALIDATED_RESEARCH_DEFINITIONS",
@@ -42,10 +44,12 @@ class TTC:
     reason: str | None
 
 
-def calculate_ttc(distance_m: float, closing_speed_mps: float, collision_course: bool | None) -> TTC:
+def calculate_ttc(
+    distance_m: float, closing_speed_mps: float, collision_course: bool | None
+) -> TTC:
     if not isfinite(distance_m) or not isfinite(closing_speed_mps):
         return TTC(None, "NONFINITE")
-    if collision_course is None:
+    if type(collision_course) is not bool:
         return TTC(None, "COLLISION_COURSE_UNVERIFIED")
     if not collision_course:
         return TTC(None, "NOT_COLLISION_COURSE")
@@ -53,7 +57,8 @@ def calculate_ttc(distance_m: float, closing_speed_mps: float, collision_course:
         return TTC(None, "NONPOSITIVE_CLEARANCE")
     if closing_speed_mps <= 0:
         return TTC(None, "NOT_CLOSING")
-    return TTC(distance_m / closing_speed_mps, None)
+    seconds = distance_m / closing_speed_mps
+    return TTC(seconds, None) if isfinite(seconds) else TTC(None, "NONFINITE_RESULT")
 
 
 class ResponseMetrics:
@@ -73,62 +78,114 @@ class ResponseMetrics:
         self.start_speed_mps: float | None = None
         self.start_distance_m: float | None = None
         self._previous: DriverInput | None = None
+        self._previous_at: float | None = None
 
     @property
     def first_raw_response_t(self) -> float | None:
-        values = [value for value in (self.first_brake_t, self.first_steer_t) if value is not None]
+        values = [
+            value
+            for value in (self.first_brake_t, self.first_steer_t)
+            if value is not None
+        ]
         return min(values) if values else None
 
     @property
     def raw_response_latency_s(self) -> float | None:
         response = self.first_raw_response_t
-        return None if response is None or self.reveal_t is None else response - self.reveal_t
+        return (
+            None
+            if response is None or self.reveal_t is None
+            else response - self.reveal_t
+        )
 
-    def observe_input(self, now: float, current: DriverInput | None) -> tuple[EventKind, ...]:
+    def observe_input(
+        self, now: float, current: DriverInput | None
+    ) -> tuple[EventKind, ...]:
         previous = self._previous
-        self._previous = current
+        previous_at = self._previous_at
+        valid = (
+            current is not None
+            and all(isfinite(v) for v in (current.brake, current.steering))
+            and 0 <= current.brake <= 1
+            and -1 <= current.steering <= 1
+        )
+        self._previous = current if valid else None
+        self._previous_at = now if isfinite(now) else None
         if current is None or previous is None or self.reveal_t is None:
+            return ()
+        if not valid or previous_at is None or not isfinite(now) or now <= previous_at:
+            self._previous = None
+            return ()
+        # Input collected before the newly observed reveal is not a post-reveal
+        # onset. Require a baseline observed at/after reveal and a later edge.
+        if previous_at < self.reveal_t or now <= self.reveal_t:
             return ()
         events = []
         first_before = self.first_raw_response_t
         if self.first_brake_t is None and previous.brake == 0 and current.brake > 0:
             self.first_brake_t = now
             events.append(EventKind.BRAKE)
-        if self.first_steer_t is None and previous.steering == 0 and current.steering != 0:
+        if (
+            self.first_steer_t is None
+            and previous.steering == 0
+            and current.steering != 0
+        ):
             self.first_steer_t = now
             events.append(EventKind.STEER)
         if first_before is None and self.first_raw_response_t is not None:
             self.ttc_at_response = self.current_ttc
             events.append(EventKind.RESPONSE)
-        candidate = ((self.first_brake_t is not None and current.brake >= self.brake_candidate)
-                     or (self.first_steer_t is not None and abs(current.steering) >= self.steer_candidate))
+        candidate = (
+            self.first_brake_t is not None and current.brake >= self.brake_candidate
+        ) or (
+            self.first_steer_t is not None
+            and abs(current.steering) >= self.steer_candidate
+        )
         if self.candidate_response_t is None and candidate:
             self.candidate_response_t = now
             events.append(EventKind.CANDIDATE_RESPONSE)
         return tuple(events)
 
-    def observe_geometry(self, distance: float, closing: float, course: bool | None) -> None:
+    def observe_geometry(
+        self, distance: float, closing: float, course: bool | None
+    ) -> None:
         self.current_ttc = calculate_ttc(distance, closing, course)
         if isfinite(distance):
-            self.min_distance = distance if self.min_distance is None else min(self.min_distance, distance)
+            self.min_distance = (
+                distance
+                if self.min_distance is None
+                else min(self.min_distance, distance)
+            )
         if self.current_ttc.seconds is not None:
-            self.min_ttc = (self.current_ttc.seconds if self.min_ttc is None
-                            else min(self.min_ttc, self.current_ttc.seconds))
+            self.min_ttc = (
+                self.current_ttc.seconds
+                if self.min_ttc is None
+                else min(self.min_ttc, self.current_ttc.seconds)
+            )
 
     def snapshot(self) -> dict[str, Json]:
-        return {"hazard_trigger_t": self.trigger_t, "reveal_t": self.reveal_t,
-                "hazard_visible_t": self.hazard_visible_t, "first_brake_t": self.first_brake_t,
-                "first_steer_t": self.first_steer_t, "first_raw_response_t": self.first_raw_response_t,
-                "first_meaningful_driver_response_t": self.first_meaningful_driver_response_t,
-                "candidate_response_t": self.candidate_response_t,
-                "candidate_response_latency_s": None if self.candidate_response_t is None or self.reveal_t is None else self.candidate_response_t - self.reveal_t,
-                "raw_response_latency_s": self.raw_response_latency_s,
-                "ttc_at_response_s": self.ttc_at_response.seconds,
-                "ttc_at_response_undefined_reason": self.ttc_at_response.reason,
-                "hazard_start_speed_mps": self.start_speed_mps,
-                "hazard_start_distance_m": self.start_distance_m,
-                "latency_reference": "GEOMETRIC_REVEAL_CANDIDATE_NOT_PHOTON_ONSET",
-                "ttc_model": "CONSTANT_VELOCITY_LONGITUDINAL_CLEARANCE",
-                "distance_model": "WORLD_BOUNDING_BOX_LONGITUDINAL_CLEARANCE",
-                "ttc_s": self.current_ttc.seconds, "ttc_undefined_reason": self.current_ttc.reason,
-                "min_ttc_s": self.min_ttc, "min_distance_m": self.min_distance}
+        return {
+            "hazard_trigger_t": self.trigger_t,
+            "reveal_t": self.reveal_t,
+            "hazard_visible_t": self.hazard_visible_t,
+            "first_brake_t": self.first_brake_t,
+            "first_steer_t": self.first_steer_t,
+            "first_raw_response_t": self.first_raw_response_t,
+            "first_meaningful_driver_response_t": self.first_meaningful_driver_response_t,
+            "candidate_response_t": self.candidate_response_t,
+            "candidate_response_latency_s": None
+            if self.candidate_response_t is None or self.reveal_t is None
+            else self.candidate_response_t - self.reveal_t,
+            "raw_response_latency_s": self.raw_response_latency_s,
+            "ttc_at_response_s": self.ttc_at_response.seconds,
+            "ttc_at_response_undefined_reason": self.ttc_at_response.reason,
+            "hazard_start_speed_mps": self.start_speed_mps,
+            "hazard_start_distance_m": self.start_distance_m,
+            "latency_reference": "GEOMETRIC_REVEAL_CANDIDATE_NOT_PHOTON_ONSET",
+            "ttc_model": "CONSTANT_VELOCITY_LONGITUDINAL_CLEARANCE",
+            "distance_model": "WORLD_BOUNDING_BOX_LONGITUDINAL_CLEARANCE",
+            "ttc_s": self.current_ttc.seconds,
+            "ttc_undefined_reason": self.current_ttc.reason,
+            "min_ttc_s": self.min_ttc,
+            "min_distance_m": self.min_distance,
+        }

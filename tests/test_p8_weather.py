@@ -65,7 +65,7 @@ def test_operator_applies_clear_noon_before_each_stage_spawn_and_records_weather
     )
 
 
-def test_weather_application_error_aborts_before_spawn(
+def test_weather_application_error_waits_for_operator_before_spawn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -82,7 +82,10 @@ def test_weather_application_error_aborts_before_spawn(
         controller.execute_training(TrainingRun.MANUAL_NOA, 1.0)
     assert len(observed) == 1
     assert observed[0].spawn_calls == []
-    assert controller.snapshot().stage is Stage.ABORTED
+    assert controller.snapshot().stage is Stage.TRAINING
+    assert not controller.session.closed
+    assert controller._operator_components().runtime_faults
+    controller.abort("TEST_OPERATOR_STOP")
 
 
 def test_nonoperator_runner_does_not_change_weather(

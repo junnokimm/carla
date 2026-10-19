@@ -112,6 +112,16 @@ class OperatorRenderer:
         lines: list[str] = []
         current = ""
         for word in words:
+            if self._body.size(word)[0] > width:
+                if current:
+                    lines.append(current)
+                    current = ""
+                for character in word:
+                    if current and self._body.size(current + character)[0] > width:
+                        lines.append(current)
+                        current = ""
+                    current += character
+                continue
             candidate = word if not current else f"{current} {word}"
             if current and self._body.size(candidate)[0] > width:
                 lines.append(current)

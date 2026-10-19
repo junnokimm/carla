@@ -1,0 +1,46 @@
+FFFFFFF                                                                  [100%]
+================================== FAILURES ===================================
+_____ test_collision_before_hazard_preserves_evidence_and_still_aborts[0] _____
+tests\test_m2_collision_diagnostics.py:41: in test_collision_before_hazard_preserves_evidence_and_still_aborts
+    assert evidence["other_actor_type_id"] == "static.test_barrier"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'other_actor_type_id'
+____ test_collision_before_hazard_preserves_evidence_and_still_aborts[123] ____
+tests\test_m2_collision_diagnostics.py:41: in test_collision_before_hazard_preserves_evidence_and_still_aborts
+    assert evidence["other_actor_type_id"] == "static.test_barrier"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'other_actor_type_id'
+____ test_missing_optional_metadata_and_snapshot_do_not_discard_collision _____
+tests\test_m2_collision_diagnostics.py:66: in test_missing_optional_metadata_and_snapshot_do_not_discard_collision
+    assert evidence["collision_frame_ego"] is None
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'collision_frame_ego'
+__________ test_scene_spans_measure_work_and_preserve_failure[None] ___________
+tests\test_p8_stability_timing.py:56: in test_scene_spans_measure_work_and_preserve_failure
+    assert result["timing"]["active_scene_after_control"]["mean_ms"] == 30
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'active_scene_after_control'
+_ test_scene_spans_measure_work_and_preserve_failure[active_scene_after_control] _
+tests\test_p8_stability_timing.py:56: in test_scene_spans_measure_work_and_preserve_failure
+    assert result["timing"]["active_scene_after_control"]["mean_ms"] == 30
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'active_scene_after_control'
+_ test_scene_spans_measure_work_and_preserve_failure[active_scene_after_display] _
+tests\test_p8_stability_timing.py:56: in test_scene_spans_measure_work_and_preserve_failure
+    assert result["timing"]["active_scene_after_control"]["mean_ms"] == 30
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'active_scene_after_control'
+__ test_loop_percentile_bounds_are_bounded_by_mode_and_exclude_partial_loops __
+tests\test_p8_stability_timing.py:77: in test_loop_percentile_bounds_are_bounded_by_mode_and_exclude_partial_loops
+    result = json.loads(diagnostics.to_json([]))["completed_loop_distribution"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'completed_loop_distribution'
+=========================== short test summary info ===========================
+FAILED tests/test_m2_collision_diagnostics.py::test_collision_before_hazard_preserves_evidence_and_still_aborts[0]
+FAILED tests/test_m2_collision_diagnostics.py::test_collision_before_hazard_preserves_evidence_and_still_aborts[123]
+FAILED tests/test_m2_collision_diagnostics.py::test_missing_optional_metadata_and_snapshot_do_not_discard_collision
+FAILED tests/test_p8_stability_timing.py::test_scene_spans_measure_work_and_preserve_failure[None]
+FAILED tests/test_p8_stability_timing.py::test_scene_spans_measure_work_and_preserve_failure[active_scene_after_control]
+FAILED tests/test_p8_stability_timing.py::test_scene_spans_measure_work_and_preserve_failure[active_scene_after_display]
+FAILED tests/test_p8_stability_timing.py::test_loop_percentile_bounds_are_bounded_by_mode_and_exclude_partial_loops
+7 failed in 0.77s

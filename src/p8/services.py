@@ -24,6 +24,7 @@ from src.experiment.timestamp import HostClockTimestamp, TimestampEnvelope
 from src.logging.csv_logger import ResearchCsvLogger
 from src.logging.research_event import ResearchEvent
 from src.p7.types import Json
+from src.p8.collection_safe_logger import NonfatalResearchCsvLogger
 from src.p8.model import Mode, P8Error, Stage, TimingProfile, VirtualTimeline
 
 if TYPE_CHECKING:
@@ -69,7 +70,8 @@ class SessionServices:
         )
         self.mode, self.stage = mode, Stage.SESSION_CREATED
         self.provenance = provenance
-        self.logger = ResearchCsvLogger(
+        logger_type = NonfatalResearchCsvLogger if provenance == "ACTUAL_BOUNDED_OPERATOR" else ResearchCsvLogger
+        self.logger = logger_type(
             self.context, self.directory, session_clock=self.clock
         )
         self.closed = False
@@ -177,9 +179,19 @@ class SessionServices:
         }
 
     def save_manifest(self, payload: dict[str, Json]) -> None:
+        try:
+            self._save_manifest_disk(payload)
+        except OSError as error:
+            if not isinstance(self.logger, NonfatalResearchCsvLogger):
+                raise
+            self.logger._failure("manifest_write", error)
+
+    def _save_manifest_disk(self, payload: dict[str, Json]) -> None:
         target = self.directory / "session_manifest.json"
         temporary = self.directory / ".session_manifest.tmp"
-        with temporary.open("x", encoding="utf-8") as output:
+        # Retry a failed write to this session-owned temporary file.
+        mode = "w" if isinstance(self.logger, NonfatalResearchCsvLogger) else "x"
+        with temporary.open(mode, encoding="utf-8") as output:
             json.dump(payload, output, indent=2, allow_nan=False)
             output.flush()
             os.fsync(output.fileno())
@@ -219,6 +231,12 @@ class SessionServices:
             "participant_ready": False,
             "hardware_validated": False,
             "analysis_eligible": False,
+            "collection_version": "P8_COLLECTION_V1" if self.provenance == "ACTUAL_BOUNDED_OPERATOR" else None,
+            "logging_health": {
+                "errors": list(getattr(self.logger, "collection_errors", ())),
+                "failure_count": getattr(self.logger, "collection_failure_count", 0),
+                "policy": "DISK_WRITE_FAILURE_RECORD_AND_CONTINUE",
+            },
         }
 
     def borrowed_research_log(self) -> OpenResearchLog:

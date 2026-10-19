@@ -1,0 +1,4919 @@
+{
+  "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+  "manifest": {
+    "schema_version": 1,
+    "participant_id": "PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+    "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+    "study_context": {
+      "study_run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+      "participant_id": "PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+      "module_1_condition": "NO_SURT",
+      "module_2_condition": "MANUAL",
+      "route_id": "town04-exit-47",
+      "scenario_version": "P8_DEV_REHEARSAL",
+      "aoi_file_version": "REAR_DISABLED_UNVALIDATED",
+      "program_version": "P8_OPERATOR_NOT_PARTICIPANT_READY"
+    },
+    "origin": {
+      "monotonic_ns": 312580796000000,
+      "utc_ns": 1792238895711846200
+    },
+    "participant_run": false,
+    "development_mode": true,
+    "execution_mode": "dev-rehearsal",
+    "provenance": "ACTUAL_BOUNDED_OPERATOR",
+    "timing_profile": "V5_NOMINAL",
+    "production_nominal_durations": {
+      "label": "V5_NOMINAL",
+      "module_1_s": 600,
+      "rest_s": 120,
+      "module_2_s": 780
+    },
+    "participant_ready": false,
+    "hardware_validated": false,
+    "analysis_eligible": false,
+    "state": "ABORTED",
+    "completion_status": "ABORTED",
+    "abort_reason": "ACTUAL_MODULE_FAILURE:P7Error:M2_V1_COLLISION",
+    "assigned_conditions": {
+      "m1": "NO_SURT",
+      "m2": "MANUAL"
+    },
+    "readiness": {
+      "eye_tracker_required": true,
+      "eye_tracker_available": false,
+      "eye_tracker_calibrated": false,
+      "screen_aoi_ready": false,
+      "tablet_ready": false,
+      "tablet_aoi_ready": false,
+      "clock_sync_ready": false,
+      "p7_live_validated": false,
+      "p1_p5_matrix_ready": false,
+      "rescue_owner_ready": false,
+      "final_parameters_ready": false,
+      "final_video_ready": false
+    },
+    "stages": [
+      {
+        "stage": "SESSION_CREATED",
+        "status": "DEV_COMPLETED",
+        "entry_attempt_session_s": 0.0,
+        "start_session_s": 0.0,
+        "end_session_s": 0.016,
+        "duration_s": 0.016,
+        "condition": null,
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "reason": "STAGE_CONTRACT_SATISFIED"
+      },
+      {
+        "stage": "CONSENT_AND_ELIGIBILITY",
+        "status": "SKIPPED",
+        "entry_attempt_session_s": 0.016,
+        "start_session_s": 0.016,
+        "end_session_s": 0.016,
+        "duration_s": 0.0,
+        "condition": null,
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "execution_policy_outcome": {
+          "outcome": "SKIPPED",
+          "reason": "software collection not performed; external paper management; completion unverified",
+          "origin": "execution_policy",
+          "operator_approved": false,
+          "external_management": true,
+          "real_completion_inferred": false,
+          "completion_unverified": true,
+          "software_collection_performed": false
+        },
+        "reason": "software collection not performed; external paper management; completion unverified"
+      },
+      {
+        "stage": "TRAINING",
+        "status": "PARTIAL",
+        "entry_attempt_session_s": 0.016,
+        "start_session_s": 0.016,
+        "end_session_s": 13.141,
+        "duration_s": 13.125,
+        "condition": null,
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "execution_policy_outcome": {
+          "outcome": "PARTIAL",
+          "reason": "actual run captured: requested=600.0s, active=6.6s; P5=CONFIGURED_NOT_PRESENTED; skill assessment and SuRT external/unverified",
+          "origin": "execution_policy",
+          "operator_approved": false,
+          "external_management": true,
+          "real_completion_inferred": false,
+          "completion_unverified": true,
+          "skill_assessment": "EXTERNAL_UNVERIFIED",
+          "p5_surt_connected": false
+        },
+        "reason": "actual run captured: requested=600.0s, active=6.6s; P5=CONFIGURED_NOT_PRESENTED; skill assessment and SuRT external/unverified"
+      },
+      {
+        "stage": "EYE_TRACKER_CALIBRATION",
+        "status": "DEV_COMPLETED",
+        "entry_attempt_session_s": 13.141,
+        "start_session_s": 13.141,
+        "end_session_s": 15.797,
+        "duration_s": 2.6560000000000006,
+        "condition": null,
+        "minimum_s": 0,
+        "receipts": {
+          "calibration_boundary": "EXTERNAL_OPERATOR_STEP"
+        },
+        "receipt_values": {
+          "calibration_boundary": null
+        },
+        "reason": "STAGE_CONTRACT_SATISFIED"
+      },
+      {
+        "stage": "MODULE_1_PREPARE",
+        "status": "DEV_COMPLETED",
+        "entry_attempt_session_s": 15.797,
+        "start_session_s": 15.797,
+        "end_session_s": 16.563,
+        "duration_s": 0.7659999999999982,
+        "condition": "NO_SURT",
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "reason": "STAGE_CONTRACT_SATISFIED"
+      },
+      {
+        "stage": "MODULE_1_RUNNING",
+        "status": "PARTIAL",
+        "entry_attempt_session_s": 16.563,
+        "start_session_s": 16.563,
+        "end_session_s": 620.797,
+        "duration_s": 604.234,
+        "condition": "NO_SURT",
+        "minimum_s": 600,
+        "receipts": {},
+        "receipt_values": {},
+        "execution_policy_outcome": {
+          "outcome": "PARTIAL",
+          "reason": "M1 nominal drive window completed; P5=NORMAL_MISSED; P6 remains blocked",
+          "origin": "execution_policy",
+          "operator_approved": false,
+          "external_management": false,
+          "real_completion_inferred": false,
+          "completion_unverified": true
+        },
+        "reason": "M1 nominal drive window completed; P5=NORMAL_MISSED; P6 remains blocked"
+      },
+      {
+        "stage": "MODULE_1_COMPLETE",
+        "status": "DEV_COMPLETED",
+        "entry_attempt_session_s": 620.797,
+        "start_session_s": 620.797,
+        "end_session_s": 620.797,
+        "duration_s": 0.0,
+        "condition": "NO_SURT",
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "reason": "STAGE_CONTRACT_SATISFIED"
+      },
+      {
+        "stage": "REST",
+        "status": "DEV_COMPLETED",
+        "entry_attempt_session_s": 620.797,
+        "start_session_s": 620.797,
+        "end_session_s": 670.25,
+        "duration_s": 49.452999999999975,
+        "condition": null,
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "recommended_duration_s": 120,
+        "reason": "STAGE_CONTRACT_SATISFIED"
+      },
+      {
+        "stage": "MODULE_2_PREPARE",
+        "status": "DEV_COMPLETED",
+        "entry_attempt_session_s": 670.25,
+        "start_session_s": 670.25,
+        "end_session_s": 672.344,
+        "duration_s": 2.094000000000051,
+        "condition": "MANUAL",
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "reason": "STAGE_CONTRACT_SATISFIED"
+      },
+      {
+        "stage": "MODULE_2_RUNNING",
+        "status": "ABORTED",
+        "entry_attempt_session_s": 672.344,
+        "start_session_s": 672.344,
+        "end_session_s": 874.735,
+        "duration_s": 202.39099999999996,
+        "condition": "MANUAL",
+        "minimum_s": 780,
+        "receipts": {},
+        "receipt_values": {},
+        "reason": "ACTUAL_MODULE_FAILURE:P7Error:M2_V1_COLLISION"
+      },
+      {
+        "stage": "ABORTED",
+        "status": "ABORTED",
+        "entry_attempt_session_s": 874.735,
+        "start_session_s": 874.735,
+        "end_session_s": 874.735,
+        "duration_s": 0.0,
+        "condition": null,
+        "minimum_s": 0,
+        "receipts": {},
+        "receipt_values": {},
+        "reason": "ACTUAL_MODULE_FAILURE:P7Error:M2_V1_COLLISION"
+      }
+    ],
+    "components": {
+      "provenance": "ACTUAL_BOUNDED_OPERATOR",
+      "module_runs": [
+        {
+          "stage": "TRAINING",
+          "requested_duration_s": 600.0,
+          "actual_active_drive_s": 6.64100000000326,
+          "initial_mode": "MANUAL",
+          "automation_on_seconds": 0.0,
+          "activation_count": 0,
+          "deactivation_count": 0,
+          "reactivation_count": 0,
+          "first_activation_latency_s": null,
+          "observed_on_proportion": 0.0,
+          "nominal_on_proportion": null,
+          "user_exited": false,
+          "planned_duration_s": 600.0,
+          "actual_active_start_session_s": 5.766,
+          "actual_active_end_session_s": 12.422,
+          "runtime_started_session_s": 0.016,
+          "runtime_closed_session_s": 12.516,
+          "completion_reason": "OPERATOR_EARLY_FINISH",
+          "training_completed_early": true,
+          "nominal_request": false,
+          "window_complete": false,
+          "exit_opportunity": {
+            "classification": "CONFIGURED_NOT_PRESENTED",
+            "configured": true,
+            "lc_event_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f:TRAINING:town04-exit-47",
+            "context": "TRAINING",
+            "manifest_path": "config\\town04_exit_routes_dev_v3.json",
+            "route_id": "town04-exit-47",
+            "route_version": "town04-exits-dev-v3",
+            "coordinator_status": "INTERRUPTED",
+            "decision": null,
+            "physical_outcome": "NOT_REACHED",
+            "termination_reason": "NORMAL",
+            "noa_state_t0": null,
+            "t0_host_monotonic_ns": null,
+            "tL_host_monotonic_ns": null,
+            "terminal_event": "lc_finished",
+            "technical_error": null,
+            "secondary_errors": [],
+            "observed_opportunity": false
+          }
+        },
+        {
+          "stage": "MODULE_1_RUNNING",
+          "requested_duration_s": 600.0,
+          "actual_active_drive_s": 600.1410000000033,
+          "initial_mode": "MANUAL",
+          "automation_on_seconds": 596.812,
+          "activation_count": 1,
+          "deactivation_count": 1,
+          "reactivation_count": 0,
+          "first_activation_latency_s": 3.3290000000000006,
+          "observed_on_proportion": 0.9944264584100493,
+          "nominal_on_proportion": 0.9944516666666667,
+          "user_exited": false,
+          "planned_duration_s": 600.0,
+          "actual_active_start_session_s": 18.375,
+          "actual_active_end_session_s": 618.532,
+          "runtime_started_session_s": 16.579,
+          "runtime_closed_session_s": 618.657,
+          "completion_reason": "TIME_LIMIT_REACHED",
+          "training_completed_early": false,
+          "nominal_request": true,
+          "window_complete": true,
+          "exit_opportunity": {
+            "classification": "NORMAL_MISSED",
+            "configured": true,
+            "lc_event_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f:MODULE_1_RUNNING:town04-exit-47",
+            "context": "MODULE",
+            "manifest_path": "config\\town04_exit_routes_dev_v3.json",
+            "route_id": "town04-exit-47",
+            "route_version": "town04-exits-dev-v3",
+            "coordinator_status": "COMPLETED",
+            "decision": "NORESPONSE",
+            "physical_outcome": "MISSED",
+            "termination_reason": null,
+            "noa_state_t0": "NOA_ACTIVE",
+            "t0_host_monotonic_ns": 312608515000000,
+            "tL_host_monotonic_ns": null,
+            "terminal_event": "lc_completed",
+            "technical_error": null,
+            "secondary_errors": [],
+            "observed_opportunity": true
+          }
+        }
+      ],
+      "exit_slots": {
+        "TRAINING": {
+          "classification": "CONFIGURED_NOT_PRESENTED",
+          "configured": true,
+          "lc_event_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f:TRAINING:town04-exit-47",
+          "context": "TRAINING",
+          "manifest_path": "config\\town04_exit_routes_dev_v3.json",
+          "route_id": "town04-exit-47",
+          "route_version": "town04-exits-dev-v3",
+          "coordinator_status": "INTERRUPTED",
+          "decision": null,
+          "physical_outcome": "NOT_REACHED",
+          "termination_reason": "NORMAL",
+          "noa_state_t0": null,
+          "t0_host_monotonic_ns": null,
+          "tL_host_monotonic_ns": null,
+          "terminal_event": "lc_finished",
+          "technical_error": null,
+          "secondary_errors": [],
+          "observed_opportunity": false
+        },
+        "MODULE_1_RUNNING": {
+          "classification": "NORMAL_MISSED",
+          "configured": true,
+          "lc_event_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f:MODULE_1_RUNNING:town04-exit-47",
+          "context": "MODULE",
+          "manifest_path": "config\\town04_exit_routes_dev_v3.json",
+          "route_id": "town04-exit-47",
+          "route_version": "town04-exits-dev-v3",
+          "coordinator_status": "COMPLETED",
+          "decision": "NORESPONSE",
+          "physical_outcome": "MISSED",
+          "termination_reason": null,
+          "noa_state_t0": "NOA_ACTIVE",
+          "t0_host_monotonic_ns": 312608515000000,
+          "tL_host_monotonic_ns": null,
+          "terminal_event": "lc_completed",
+          "technical_error": null,
+          "secondary_errors": [],
+          "observed_opportunity": true
+        },
+        "MODULE_2_RUNNING": {
+          "classification": "TECHNICAL_ERROR",
+          "configured": true,
+          "lc_event_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f:MODULE_2_RUNNING:town04-exit-47",
+          "context": "MODULE",
+          "manifest_path": "config\\town04_exit_routes_dev_v3.json",
+          "route_id": "town04-exit-47",
+          "route_version": "town04-exits-dev-v3",
+          "coordinator_status": "INTERRUPTED",
+          "decision": "MANUAL_CHANGE_OBSERVED_PROXY",
+          "physical_outcome": "INTERRUPTED",
+          "termination_reason": "ERROR",
+          "noa_state_t0": "MANUAL",
+          "t0_host_monotonic_ns": 313452468000000,
+          "tL_host_monotonic_ns": 313453125000000,
+          "terminal_event": "lc_finished",
+          "technical_error": "P7Error:M2_V1_COLLISION",
+          "secondary_errors": [],
+          "observed_opportunity": false
+        }
+      },
+      "hazard_state": "ABORTED",
+      "hazard_observation": {
+        "parameter_status": "DEV_ONLY",
+        "canonical_status": "UNVALIDATED_RESEARCH_DEFINITIONS",
+        "hazard_visible_t": null,
+        "brake_onset_t": null,
+        "steer_onset_t": null,
+        "ttc_at_response": null,
+        "min_ttc": null,
+        "hazard_start_speed": null,
+        "hazard_start_distance": null,
+        "hazard_outcome": null,
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "program_version": "P8_M2_V1_PLACEMENT_FIX_20261017",
+        "auto_state_at_m2_scene_close": "MANUAL",
+        "execution_scope": "DEV_M2_INTERNAL",
+        "execution_status": "FAILED",
+        "seed": 1231891973571318828,
+        "distribution": "UNIFORM_CLOSED_400_600",
+        "window_s": [
+          400.0,
+          600.0
+        ],
+        "planned_exposure_active_s": 497.05292052712235,
+        "preparation_s": null,
+        "m2_active_origin_monotonic_s": 313268.734,
+        "m2_active_elapsed_s": 185.09399999998277,
+        "hazard_state": "ABORTED",
+        "end_reason": "ERROR",
+        "scene_reason": "COLLISION_AT_SHUTDOWN",
+        "error": "P7Error:M2_V1_COLLISION",
+        "occurrence_reserved": false,
+        "first_geometry": null,
+        "display_candidate": null,
+        "target_ttc_s": 4.0,
+        "display_frames_checked": 2021,
+        "display_frames_unmatched": 2021,
+        "display_status": "NO_VALIDATED_DISPLAY_CANDIDATE",
+        "driver_response_outcome": null,
+        "provenance": {
+          "client": "REAL_CARLA_RPC",
+          "viewer": "REAL_DRIVER_VIEW",
+          "driver_input": "REAL_TSXW_WITH_KEYBOARD_AXIS_OVERRIDE"
+        },
+        "occurrence_result": "NOT_OCCURRED",
+        "cleanup": {
+          "failures": [],
+          "remaining_actor_ids": [],
+          "pending_collisions": [
+            {
+              "actor_id": 0,
+              "frame": 618182,
+              "simulation_seconds": 7557.4489260576665,
+              "receipt_monotonic_ns": 313453781000000
+            }
+          ]
+        },
+        "raw_storage": {
+          "status": "ACKNOWLEDGED",
+          "acknowledged_batch_count": 179,
+          "acknowledged_sample_count": 2022,
+          "pending_sample_count": 0,
+          "pending_batch_id": null,
+          "possible_duplicate_batches": false,
+          "duplicate_detection_key": "batch_id",
+          "write_errors": []
+        },
+        "finalization_errors": [],
+        "partial_data": true
+      },
+      "post": {
+        "survey": "NOT_RECORDED",
+        "debrief": "NOT_RECORDED",
+        "data_use": "NOT_RECORDED",
+        "analysis_eligible": false,
+        "deletion_status": "NOT_REQUESTED"
+      },
+      "owned_resource_tokens": [],
+      "cleanup_completed": true
+    },
+    "initial_components": {
+      "provenance": "ACTUAL_BOUNDED_OPERATOR",
+      "module_runs": [],
+      "exit_slots": {},
+      "hazard_state": "BLOCKED_NOT_RUN",
+      "hazard_observation": null,
+      "post": {
+        "survey": "NOT_RECORDED",
+        "debrief": "NOT_RECORDED",
+        "data_use": "NOT_RECORDED",
+        "analysis_eligible": false,
+        "deletion_status": "NOT_REQUESTED"
+      },
+      "owned_resource_tokens": [],
+      "cleanup_completed": false
+    },
+    "cleanup": {
+      "completed": true,
+      "order": [
+        "LOGGER_FLUSH",
+        "OWNED_RESOURCE_CLEANUP",
+        "SESSION_STATUS_PERSIST"
+      ],
+      "errors": []
+    },
+    "hazard_occurrence_store": "data\\p8_operator\\_dev_occurrences",
+    "hazard_occurrence_store_scope": "DEV_ONLY_SEPARATE_FROM_PARTICIPANT_STORE",
+    "completeness": {
+      "files": [
+        {
+          "path": "research_events_P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f.csv",
+          "bytes": 61200989,
+          "sha256": "4b6e5378e046d0c6f91f354e436c50d33856a3abd06cae2085a21dd74ebdd32f",
+          "data_rows": 50690,
+          "participant_id": "PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+          "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+          "provenance": "ACTUAL_BOUNDED_OPERATOR",
+          "hardware_validation": "NOT_HARDWARE_VALIDATED"
+        },
+        {
+          "path": "research_telemetry_P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f.csv",
+          "bytes": 7937299,
+          "sha256": "a1388b48faf0c753754df76133585c04340358821342ac3e8d06219d624e7c86",
+          "data_rows": 15017,
+          "participant_id": "PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+          "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+          "provenance": "ACTUAL_BOUNDED_OPERATOR",
+          "hardware_validation": "NOT_HARDWARE_VALIDATED"
+        }
+      ],
+      "issues": [],
+      "software_artifacts_complete": false,
+      "physical_completeness": "NOT_HARDWARE_VALIDATED"
+    }
+  },
+  "summaries": [
+    {
+      "line": 319,
+      "module": "",
+      "phase": "TRAINING",
+      "summary": {
+        "cadence": {
+          "completed_display_flips_per_wall_second": 8.88321861832463,
+          "completed_driver_loops_per_wall_second": 8.884204186112187,
+          "scheduler_updates_per_sim_second": 8.864394714335882,
+          "scheduler_updates_per_wall_second": 8.884204186112187,
+          "world_frames_per_sim_second": 42.519045833170416,
+          "world_frames_per_wall_second": 42.614064146944905
+        },
+        "camera": {
+          "active_drive_window": {
+            "completed_display_flip_count": 59,
+            "completed_display_flips_per_wall_second": 8.88321861832463,
+            "definition": "viewer.run entry through exit; callbacks require host receipt within [start, end); callback lifecycle is separate",
+            "end_host_monotonic_seconds": 312594.3706214,
+            "host_elapsed_seconds": 6.6417368,
+            "roles": {
+              "front": {
+                "callback_count": 241,
+                "callback_duration": {
+                  "count": 241,
+                  "max_ms": 0.0595,
+                  "mean_ms": 0.014223
+                },
+                "callbacks_per_wall_second": 36.28568961044468,
+                "host_arrival_interval": {
+                  "count": 240,
+                  "max_ms": 1018.7384,
+                  "mean_ms": 27.572935
+                },
+                "sensor_elapsed_seconds": 6.632895399,
+                "sensor_frame_delta": 282,
+                "sensor_frames_per_sensor_second": 42.51536969019655
+              },
+              "left": {
+                "callback_count": 244,
+                "callback_duration": {
+                  "count": 244,
+                  "max_ms": 0.0316,
+                  "mean_ms": 0.011887
+                },
+                "callbacks_per_wall_second": 36.73737869273237,
+                "host_arrival_interval": {
+                  "count": 243,
+                  "max_ms": 1014.0925,
+                  "mean_ms": 27.142641
+                },
+                "sensor_elapsed_seconds": 6.610624298,
+                "sensor_frame_delta": 281,
+                "sensor_frames_per_sensor_second": 42.50733173049099
+              },
+              "right": {
+                "callback_count": 244,
+                "callback_duration": {
+                  "count": 244,
+                  "max_ms": 0.0644,
+                  "mean_ms": 0.015493
+                },
+                "callbacks_per_wall_second": 36.73737869273237,
+                "host_arrival_interval": {
+                  "count": 243,
+                  "max_ms": 1010.7041,
+                  "mean_ms": 27.156977
+                },
+                "sensor_elapsed_seconds": 6.610624298,
+                "sensor_frame_delta": 281,
+                "sensor_frames_per_sensor_second": 42.50733173049099
+              }
+            },
+            "start_host_monotonic_seconds": 312587.7288846,
+            "status": "COMPLETE"
+          },
+          "clocks": {
+            "cross_clock_subtraction": false,
+            "host": "time.perf_counter seconds",
+            "host_implementation": "QueryPerformanceCounter()",
+            "host_resolution_seconds": 1e-07,
+            "preparation_age": "render preparation host time minus latest callback host receipt",
+            "run_measurements_host_elapsed": "separate duration from the session monotonic clock",
+            "sensor": "CARLA image frame and timestamp seconds",
+            "summary_age": "summary host time minus latest callback host receipt"
+          },
+          "environment": {
+            "map_name": "Carla/Maps/Town04",
+            "weather": {
+              "cloudiness": 5.0,
+              "fog_density": 2.0,
+              "fog_distance": 0.75,
+              "precipitation": 0.0,
+              "precipitation_deposits": 0.0,
+              "sun_altitude_angle": 45.0,
+              "sun_azimuth_angle": -1.0,
+              "wetness": 0.0,
+              "wind_intensity": 10.0
+            },
+            "world_settings": {
+              "fixed_delta_seconds": null,
+              "max_substep_delta_time": 0.01,
+              "max_substeps": 10,
+              "no_rendering_mode": false,
+              "substepping": true,
+              "synchronous_mode": false
+            }
+          },
+          "limitations": {
+            "instrumentation_overhead": "not separately measured",
+            "latency_scope": "host callback receipt to render preparation only",
+            "rounded_zero_duration_is_zero_cost": false,
+            "sensor_to_photon_or_gpu_latency": "not measured",
+            "storage": "scalar counters and summaries only"
+          },
+          "loop_correlation": {
+            "completed_loop_count": 59,
+            "interpretation": "same-loop spans, not independent maxima; absent spans are unmeasured; mode at completion may follow a transition within the loop; not exhaustive or a mode-specific Display FPS measurement; fallback input_collection may nest in manual_control_preparation",
+            "scope": "active viewer window; incomplete/aborted loops excluded",
+            "storage": "one slowest loop and one pending loop; fixed segment names"
+          },
+          "measurement_lifecycle": {
+            "callback_counts": {
+              "definition": "every camera callback received during that lifecycle",
+              "end": "summary snapshot",
+              "start": "sensor attachment and listen registration"
+            },
+            "render_preparations": {
+              "definition": "prepared, updated, repeated, and no-image counters",
+              "end": "last render preparation",
+              "start": "first render preparation"
+            }
+          },
+          "measurement_window": {
+            "definition": "first through last render preparation",
+            "end_host_monotonic_seconds": 312594.2503497,
+            "start_host_monotonic_seconds": 312587.8204862
+          },
+          "roles": {
+            "front": {
+              "callback_count": 271,
+              "first_host_receipt_seconds": 312586.6317268,
+              "first_sensor_frame": 578090,
+              "first_sensor_timestamp_seconds": 6689.180307872593,
+              "last_host_receipt_seconds": 312594.3698551,
+              "last_sensor_frame": 578420,
+              "last_sensor_timestamp_seconds": 6696.913214072585,
+              "latest_host_age_seconds": 0.0175502,
+              "latest_preparation_host_age_seconds": 0.0175502,
+              "latest_receipt_host_age_at_summary_seconds": 0.0193341,
+              "max_host_age_seconds": 0.0217747,
+              "max_preparation_host_age_seconds": 0.0217747,
+              "mean_host_age_seconds": 0.017752137,
+              "mean_preparation_host_age_seconds": 0.017752137,
+              "no_image_count": 0,
+              "prepared_count": 59,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "105.0",
+                "id": 153,
+                "image_size_x": "1280",
+                "image_size_y": "720",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 105.0,
+                  "image_size_x": 1280,
+                  "image_size_y": 720,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 1,
+                    "roll": 0.0,
+                    "x": 0.25,
+                    "y": -0.35,
+                    "yaw": 0.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": 0.9155526757240295,
+                  "roll": -6.105261127231643e-05,
+                  "x": -510.29107666015625,
+                  "y": 163.2985076904297,
+                  "yaw": 90.36685943603516,
+                  "z": 1.198204517364502
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": 0.9155526757240295,
+                  "roll": -6.105261127231643e-05,
+                  "x": -510.29107666015625,
+                  "y": 163.2985076904297,
+                  "yaw": 90.36685943603516,
+                  "z": 1.198204517364502
+                }
+              },
+              "updated_count": 59
+            },
+            "left": {
+              "callback_count": 274,
+              "first_host_receipt_seconds": 312586.6751382,
+              "first_sensor_frame": 578092,
+              "first_sensor_timestamp_seconds": 6689.206934072077,
+              "last_host_receipt_seconds": 312594.3888693,
+              "last_sensor_frame": 578420,
+              "last_sensor_timestamp_seconds": 6696.913214072585,
+              "latest_host_age_seconds": 0.0150661,
+              "latest_preparation_host_age_seconds": 0.0150661,
+              "latest_receipt_host_age_at_summary_seconds": 0.0003199,
+              "max_host_age_seconds": 0.0192299,
+              "max_preparation_host_age_seconds": 0.0192299,
+              "mean_host_age_seconds": 0.015185569,
+              "mean_preparation_host_age_seconds": 0.015185569,
+              "no_image_count": 0,
+              "prepared_count": 59,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "100.0",
+                "id": 154,
+                "image_size_x": "480",
+                "image_size_y": "270",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 100.0,
+                  "image_size_x": 480,
+                  "image_size_y": 270,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 0.0,
+                    "roll": 0.0,
+                    "x": 0.3,
+                    "y": -1.0,
+                    "yaw": -150.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": 0.07309667766094208,
+                  "roll": 0.042273957282304764,
+                  "x": -509.6414489746094,
+                  "y": 163.3526611328125,
+                  "yaw": -59.633052825927734,
+                  "z": 1.1981300115585327
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": 0.07309667766094208,
+                  "roll": 0.042273957282304764,
+                  "x": -509.6414489746094,
+                  "y": 163.3526611328125,
+                  "yaw": -59.633052825927734,
+                  "z": 1.1981300115585327
+                }
+              },
+              "updated_count": 59
+            },
+            "right": {
+              "callback_count": 272,
+              "first_host_receipt_seconds": 312586.7154988,
+              "first_sensor_frame": 578094,
+              "first_sensor_timestamp_seconds": 6689.250150773674,
+              "last_host_receipt_seconds": 312594.3888224,
+              "last_sensor_frame": 578420,
+              "last_sensor_timestamp_seconds": 6696.913214072585,
+              "latest_host_age_seconds": 0.0115882,
+              "latest_preparation_host_age_seconds": 0.0115882,
+              "latest_receipt_host_age_at_summary_seconds": 0.0003668,
+              "max_host_age_seconds": 0.0149844,
+              "max_preparation_host_age_seconds": 0.0149844,
+              "mean_host_age_seconds": 0.012102985,
+              "mean_preparation_host_age_seconds": 0.012102985,
+              "no_image_count": 0,
+              "prepared_count": 59,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "100.0",
+                "id": 155,
+                "image_size_x": "480",
+                "image_size_y": "270",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 100.0,
+                  "image_size_x": 480,
+                  "image_size_y": 270,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 0.0,
+                    "roll": 0.0,
+                    "x": 0.3,
+                    "y": 1.0,
+                    "yaw": 150.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": 0.07315132021903992,
+                  "roll": -0.042168233543634415,
+                  "x": -511.6413879394531,
+                  "y": 163.33985900878906,
+                  "yaw": -119.63314819335938,
+                  "z": 1.1981321573257446
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": 0.07315132021903992,
+                  "roll": -0.042168233543634415,
+                  "x": -511.6413879394531,
+                  "y": 163.33985900878906,
+                  "yaw": -119.63314819335938,
+                  "z": 1.1981321573257446
+                }
+              },
+              "updated_count": 59
+            }
+          },
+          "run": {
+            "composition": "front_left_right_3_rgb",
+            "git_dirty": true,
+            "git_head": "4ab636d383aa5e884427e1db937abf9f829ee09e",
+            "initial_view": "DRIVER",
+            "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f"
+          },
+          "run_measurements": {
+            "final_simulation_seconds": 6696.936159472913,
+            "final_world_frame": 578421,
+            "host_elapsed_seconds": 6.64100000000326,
+            "initial_simulation_seconds": 6690.2803186737,
+            "initial_world_frame": 578138,
+            "loop_count": 59,
+            "simulation_elapsed_seconds": 6.655840799212456,
+            "world_frame_delta": 283
+          },
+          "schema_version": 1,
+          "sensor_count": 3,
+          "slowest_completed_loop": {
+            "completed_loop_index": 14,
+            "duration_ms": 1086.7949000094086,
+            "mode_at_completion": "MANUAL",
+            "segments": {
+              "after_display_flip": {
+                "count": 1,
+                "max_ms": 0.0016,
+                "mean_ms": 0.0016,
+                "total_ms": 0.0016
+              },
+              "audio": {
+                "count": 1,
+                "max_ms": 21.4143,
+                "mean_ms": 21.4143,
+                "total_ms": 21.4143
+              },
+              "display_flip": {
+                "count": 1,
+                "max_ms": 0.5769,
+                "mean_ms": 0.5769,
+                "total_ms": 0.5769
+              },
+              "draw": {
+                "count": 1,
+                "max_ms": 3.5426,
+                "mean_ms": 3.5426,
+                "total_ms": 3.5426
+              },
+              "event_poll_and_presentation": {
+                "count": 1,
+                "max_ms": 996.4004,
+                "mean_ms": 996.4004,
+                "total_ms": 996.4004
+              },
+              "fps_limiter": {
+                "count": 1,
+                "max_ms": 0.0299,
+                "mean_ms": 0.0299,
+                "total_ms": 0.0299
+              },
+              "frame_prepare": {
+                "count": 1,
+                "max_ms": 0.0033,
+                "mean_ms": 0.0033,
+                "total_ms": 0.0033
+              },
+              "input_collection": {
+                "count": 1,
+                "max_ms": 0.2777,
+                "mean_ms": 0.2777,
+                "total_ms": 0.2777
+              },
+              "input_observer": {
+                "count": 1,
+                "max_ms": 0.0373,
+                "mean_ms": 0.0373,
+                "total_ms": 0.0373
+              },
+              "manual_control_delivery": {
+                "count": 1,
+                "max_ms": 18.5921,
+                "mean_ms": 18.5921,
+                "total_ms": 18.5921
+              },
+              "manual_control_preparation": {
+                "count": 1,
+                "max_ms": 0.0254,
+                "mean_ms": 0.0254,
+                "total_ms": 0.0254
+              },
+              "mode_events": {
+                "count": 1,
+                "max_ms": 0.0097,
+                "mean_ms": 0.0097,
+                "total_ms": 0.0097
+              },
+              "post_control": {
+                "count": 1,
+                "max_ms": 45.6057,
+                "mean_ms": 45.6057,
+                "total_ms": 45.6057
+              },
+              "scheduler": {
+                "count": 1,
+                "max_ms": 0.0766,
+                "mean_ms": 0.0766,
+                "total_ms": 0.0766
+              }
+            }
+          },
+          "summary_host_monotonic_seconds": 312594.3891892,
+          "timing": {
+            "after_display_flip": {
+              "count": 59,
+              "max_ms": 0.0148,
+              "mean_ms": 0.00179,
+              "total_ms": 0.1056
+            },
+            "audio": {
+              "count": 59,
+              "max_ms": 28.6415,
+              "mean_ms": 22.416898,
+              "total_ms": 1322.597
+            },
+            "blit.front": {
+              "count": 59,
+              "max_ms": 1.2461,
+              "mean_ms": 0.867336,
+              "total_ms": 51.1728
+            },
+            "blit.left": {
+              "count": 59,
+              "max_ms": 0.0947,
+              "mean_ms": 0.059329,
+              "total_ms": 3.5004
+            },
+            "blit.right": {
+              "count": 59,
+              "max_ms": 0.0801,
+              "mean_ms": 0.048483,
+              "total_ms": 2.8605
+            },
+            "conversion.front": {
+              "count": 59,
+              "max_ms": 0.0508,
+              "mean_ms": 0.01938,
+              "total_ms": 1.1434
+            },
+            "conversion.left": {
+              "count": 59,
+              "max_ms": 0.0215,
+              "mean_ms": 0.013237,
+              "total_ms": 0.781
+            },
+            "conversion.right": {
+              "count": 59,
+              "max_ms": 0.0762,
+              "mean_ms": 0.007642,
+              "total_ms": 0.4509
+            },
+            "display_flip": {
+              "count": 59,
+              "max_ms": 0.9956,
+              "mean_ms": 0.628532,
+              "total_ms": 37.0834
+            },
+            "draw": {
+              "count": 59,
+              "max_ms": 6.134,
+              "mean_ms": 3.817278,
+              "total_ms": 225.2194
+            },
+            "driver_loop": {
+              "count": 59,
+              "max_ms": 1086.7949,
+              "mean_ms": 110.53351,
+              "total_ms": 6521.4771
+            },
+            "event_poll_and_presentation": {
+              "count": 60,
+              "max_ms": 996.4004,
+              "mean_ms": 16.777165,
+              "total_ms": 1006.6299
+            },
+            "fps_limiter": {
+              "count": 59,
+              "max_ms": 0.3995,
+              "mean_ms": 0.039027,
+              "total_ms": 2.3026
+            },
+            "frame_prepare": {
+              "count": 59,
+              "max_ms": 0.0075,
+              "mean_ms": 0.002856,
+              "total_ms": 0.1685
+            },
+            "input_collection": {
+              "count": 59,
+              "max_ms": 0.2777,
+              "mean_ms": 0.157576,
+              "total_ms": 9.297
+            },
+            "input_observer": {
+              "count": 59,
+              "max_ms": 0.1256,
+              "mean_ms": 0.021905,
+              "total_ms": 1.2924
+            },
+            "manual_control_delivery": {
+              "count": 59,
+              "max_ms": 27.923,
+              "mean_ms": 19.569829,
+              "total_ms": 1154.6199
+            },
+            "manual_control_preparation": {
+              "count": 59,
+              "max_ms": 0.0254,
+              "mean_ms": 0.016576,
+              "total_ms": 0.978
+            },
+            "mirror_flip.left": {
+              "count": 59,
+              "max_ms": 0.0671,
+              "mean_ms": 0.026602,
+              "total_ms": 1.5695
+            },
+            "mirror_flip.right": {
+              "count": 59,
+              "max_ms": 0.045,
+              "mean_ms": 0.017073,
+              "total_ms": 1.0073
+            },
+            "mode_events": {
+              "count": 59,
+              "max_ms": 0.0097,
+              "mean_ms": 0.003164,
+              "total_ms": 0.1867
+            },
+            "post_control": {
+              "count": 59,
+              "max_ms": 53.3842,
+              "mean_ms": 46.611339,
+              "total_ms": 2750.069
+            },
+            "resize.front": {
+              "count": 59,
+              "max_ms": 1.6719,
+              "mean_ms": 1.069666,
+              "total_ms": 63.1103
+            },
+            "resize.left": {
+              "count": 59,
+              "max_ms": 0.3778,
+              "mean_ms": 0.237295,
+              "total_ms": 14.0004
+            },
+            "resize.right": {
+              "count": 59,
+              "max_ms": 0.3063,
+              "mean_ms": 0.202505,
+              "total_ms": 11.9478
+            },
+            "scheduler": {
+              "count": 59,
+              "max_ms": 0.1218,
+              "mean_ms": 0.041578,
+              "total_ms": 2.4531
+            },
+            "turn_signal_audio_light_rpc": {
+              "count": 59,
+              "max_ms": 28.6003,
+              "mean_ms": 22.38672,
+              "total_ms": 1320.8165
+            }
+          },
+          "timing_by_mode": {
+            "MANUAL": {
+              "after_display_flip": {
+                "count": 59,
+                "max_ms": 0.0148,
+                "mean_ms": 0.00179,
+                "total_ms": 0.1056
+              },
+              "audio": {
+                "count": 59,
+                "max_ms": 28.6415,
+                "mean_ms": 22.416898,
+                "total_ms": 1322.597
+              },
+              "blit.front": {
+                "count": 59,
+                "max_ms": 1.2461,
+                "mean_ms": 0.867336,
+                "total_ms": 51.1728
+              },
+              "blit.left": {
+                "count": 59,
+                "max_ms": 0.0947,
+                "mean_ms": 0.059329,
+                "total_ms": 3.5004
+              },
+              "blit.right": {
+                "count": 59,
+                "max_ms": 0.0801,
+                "mean_ms": 0.048483,
+                "total_ms": 2.8605
+              },
+              "conversion.front": {
+                "count": 59,
+                "max_ms": 0.0508,
+                "mean_ms": 0.01938,
+                "total_ms": 1.1434
+              },
+              "conversion.left": {
+                "count": 59,
+                "max_ms": 0.0215,
+                "mean_ms": 0.013237,
+                "total_ms": 0.781
+              },
+              "conversion.right": {
+                "count": 59,
+                "max_ms": 0.0762,
+                "mean_ms": 0.007642,
+                "total_ms": 0.4509
+              },
+              "display_flip": {
+                "count": 59,
+                "max_ms": 0.9956,
+                "mean_ms": 0.628532,
+                "total_ms": 37.0834
+              },
+              "draw": {
+                "count": 59,
+                "max_ms": 6.134,
+                "mean_ms": 3.817278,
+                "total_ms": 225.2194
+              },
+              "driver_loop": {
+                "count": 59,
+                "max_ms": 1086.7949,
+                "mean_ms": 110.53351,
+                "total_ms": 6521.4771
+              },
+              "event_poll_and_presentation": {
+                "count": 60,
+                "max_ms": 996.4004,
+                "mean_ms": 16.777165,
+                "total_ms": 1006.6299
+              },
+              "fps_limiter": {
+                "count": 59,
+                "max_ms": 0.3995,
+                "mean_ms": 0.039027,
+                "total_ms": 2.3026
+              },
+              "frame_prepare": {
+                "count": 59,
+                "max_ms": 0.0075,
+                "mean_ms": 0.002856,
+                "total_ms": 0.1685
+              },
+              "input_collection": {
+                "count": 59,
+                "max_ms": 0.2777,
+                "mean_ms": 0.157576,
+                "total_ms": 9.297
+              },
+              "input_observer": {
+                "count": 59,
+                "max_ms": 0.1256,
+                "mean_ms": 0.021905,
+                "total_ms": 1.2924
+              },
+              "manual_control_delivery": {
+                "count": 59,
+                "max_ms": 27.923,
+                "mean_ms": 19.569829,
+                "total_ms": 1154.6199
+              },
+              "manual_control_preparation": {
+                "count": 59,
+                "max_ms": 0.0254,
+                "mean_ms": 0.016576,
+                "total_ms": 0.978
+              },
+              "mirror_flip.left": {
+                "count": 59,
+                "max_ms": 0.0671,
+                "mean_ms": 0.026602,
+                "total_ms": 1.5695
+              },
+              "mirror_flip.right": {
+                "count": 59,
+                "max_ms": 0.045,
+                "mean_ms": 0.017073,
+                "total_ms": 1.0073
+              },
+              "mode_events": {
+                "count": 59,
+                "max_ms": 0.0097,
+                "mean_ms": 0.003164,
+                "total_ms": 0.1867
+              },
+              "post_control": {
+                "count": 59,
+                "max_ms": 53.3842,
+                "mean_ms": 46.611339,
+                "total_ms": 2750.069
+              },
+              "resize.front": {
+                "count": 59,
+                "max_ms": 1.6719,
+                "mean_ms": 1.069666,
+                "total_ms": 63.1103
+              },
+              "resize.left": {
+                "count": 59,
+                "max_ms": 0.3778,
+                "mean_ms": 0.237295,
+                "total_ms": 14.0004
+              },
+              "resize.right": {
+                "count": 59,
+                "max_ms": 0.3063,
+                "mean_ms": 0.202505,
+                "total_ms": 11.9478
+              },
+              "scheduler": {
+                "count": 59,
+                "max_ms": 0.1218,
+                "mean_ms": 0.041578,
+                "total_ms": 2.4531
+              },
+              "turn_signal_audio_light_rpc": {
+                "count": 59,
+                "max_ms": 28.6003,
+                "mean_ms": 22.38672,
+                "total_ms": 1320.8165
+              }
+            }
+          },
+          "timing_definitions": {
+            "after_display_flip": "post-flip hook, including P5 presentation marking",
+            "audio": "turn-signal audio including fresh light RPC; optional vehicle audio when enabled",
+            "blit.<role>": "surface blit to display buffer",
+            "conversion.<role>": "CARLA BGRA buffer to pygame surface",
+            "display_flip": "pygame display flip only",
+            "draw": "complete draw including camera composition and HUD",
+            "driver_loop": "event polling through completed FPS limiter",
+            "event_poll_and_presentation": "pygame event.get and presentation.handle_events",
+            "fps_limiter": "pygame Clock.tick(60) only",
+            "frame_prepare": "pre-draw hook, including P5 preparation",
+            "mirror_flip.<role>": "horizontal mirror flip",
+            "mode_events": "mode/view/indicator event handling, including toggle light RPCs",
+            "resize.<role>": "pygame smoothscale",
+            "rounded_ms_decimal_places": 6,
+            "scheduler": "scheduler.update only",
+            "units": "count and milliseconds"
+          },
+          "timing_mode_definition": "canonical mode at operation completion",
+          "turn_signal_audio_timing": {
+            "audio_update": {
+              "first_call": {
+                "count": 1,
+                "max_ms": 0.0047,
+                "mean_ms": 0.0047
+              },
+              "subsequent_calls": {
+                "count": 58,
+                "max_ms": 0.0042,
+                "mean_ms": 0.002097
+              }
+            },
+            "light_state_rpc": {
+              "first_call": {
+                "count": 1,
+                "max_ms": 22.379,
+                "mean_ms": 22.379
+              },
+              "subsequent_calls": {
+                "count": 58,
+                "max_ms": 28.6003,
+                "mean_ms": 22.386853
+              }
+            }
+          },
+          "turn_signal_audio_timing_definitions": {
+            "audio_update": "TurnSignalAudio.update call only",
+            "first_call": "first observed call for each operation",
+            "light_state_rpc": "hero.get_light_state call only",
+            "subsequent_calls": "all observed calls after the first for each operation",
+            "units": "count and milliseconds"
+          }
+        },
+        "error": null,
+        "limitations": {
+          "missing_measurements": null,
+          "sensor_to_photon": "not measured",
+          "summary_serialization_and_write": "excluded from captured counters"
+        },
+        "mode_definition": "canonical automation control mode at operation completion",
+        "operation_accumulation": {
+          "activation_bounding_box_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1342.9872998967767
+          },
+          "activation_geometry_query": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 3.9025001460686326
+          },
+          "control_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 0.2295002923347056
+          },
+          "event_write": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 10.737199278082699
+          },
+          "indicator_input_light_rpc": {
+            "at_least_100_ms_count": 0,
+            "total_ms": null
+          },
+          "input_collection": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 8.78770009148866
+          },
+          "input_observer": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1.1079000541940331
+          },
+          "json_serialize": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 2.159300202038139
+          },
+          "light_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1345.042300003115
+          },
+          "manual_availability_refresh": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1349.3666000431404
+          },
+          "manual_batch_rpc_wait": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1153.156699903775
+          },
+          "manual_control_delivery": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1154.3924000579864
+          },
+          "manual_control_preparation": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 0.8198001887649298
+          },
+          "map_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 2.6220002910122275
+          },
+          "neighbor_lane_queries": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 0.29220012947916985
+          },
+          "post_control": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 2749.679599481169
+          },
+          "scheduler": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 2.283099922351539
+          },
+          "snapshot_actor_getters": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 0.17309951363131404
+          },
+          "snapshot_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 0.2751997672021389
+          },
+          "telemetry_write": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 4.219899885356426
+          },
+          "traffic_light_actor_lookup": {
+            "at_least_100_ms_count": 0,
+            "total_ms": null
+          },
+          "traffic_light_observation": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 4.092200193554163
+          },
+          "vehicle_audio_update": {
+            "at_least_100_ms_count": 0,
+            "total_ms": null
+          },
+          "waypoint_query": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 2.4823000421747565
+          }
+        },
+        "operation_accumulation_by_mode": {
+          "MANUAL": {
+            "activation_bounding_box_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1342.9872998967767
+            },
+            "activation_geometry_query": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 3.9025001460686326
+            },
+            "control_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.2295002923347056
+            },
+            "event_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 10.737199278082699
+            },
+            "input_collection": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 8.78770009148866
+            },
+            "input_observer": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1.1079000541940331
+            },
+            "json_serialize": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2.159300202038139
+            },
+            "light_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1345.042300003115
+            },
+            "manual_availability_refresh": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1349.3666000431404
+            },
+            "manual_batch_rpc_wait": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1153.156699903775
+            },
+            "manual_control_delivery": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1154.3924000579864
+            },
+            "manual_control_preparation": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.8198001887649298
+            },
+            "map_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2.6220002910122275
+            },
+            "neighbor_lane_queries": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.29220012947916985
+            },
+            "post_control": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2749.679599481169
+            },
+            "scheduler": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2.283099922351539
+            },
+            "snapshot_actor_getters": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.17309951363131404
+            },
+            "snapshot_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.2751997672021389
+            },
+            "telemetry_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 4.219899885356426
+            },
+            "traffic_light_observation": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 4.092200193554163
+            },
+            "waypoint_query": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2.4823000421747565
+            }
+          },
+          "NOA_ACTIVE": {}
+        },
+        "operations": {
+          "activation_bounding_box_getter": {
+            "count": 59,
+            "max_ms": 28.308200009632856,
+            "mean_ms": 22.762496608419944
+          },
+          "activation_geometry_query": {
+            "count": 59,
+            "max_ms": 0.09849999332800508,
+            "mean_ms": 0.0661440702723497
+          },
+          "control_getter": {
+            "count": 59,
+            "max_ms": 0.006799993570894003,
+            "mean_ms": 0.0038898354633000944
+          },
+          "event_write": {
+            "count": 293,
+            "max_ms": 0.13539998326450586,
+            "mean_ms": 0.03664573132451433
+          },
+          "indicator_input_light_rpc": {
+            "count": 0,
+            "max_ms": null,
+            "mean_ms": null
+          },
+          "input_collection": {
+            "count": 59,
+            "max_ms": 0.26429997524246573,
+            "mean_ms": 0.1489440693472654
+          },
+          "input_observer": {
+            "count": 59,
+            "max_ms": 0.12159999459981918,
+            "mean_ms": 0.01877796702023785
+          },
+          "json_serialize": {
+            "count": 59,
+            "max_ms": 0.05849997978657484,
+            "mean_ms": 0.036598308509121005
+          },
+          "light_getter": {
+            "count": 59,
+            "max_ms": 26.415300031658262,
+            "mean_ms": 22.797327118696867
+          },
+          "manual_availability_refresh": {
+            "count": 59,
+            "max_ms": 28.417500026989728,
+            "mean_ms": 22.870620339714243
+          },
+          "manual_batch_rpc_wait": {
+            "count": 59,
+            "max_ms": 27.85559999756515,
+            "mean_ms": 19.545028811928393
+          },
+          "manual_control_delivery": {
+            "count": 59,
+            "max_ms": 27.913799975067377,
+            "mean_ms": 19.56597288233875
+          },
+          "manual_control_preparation": {
+            "count": 59,
+            "max_ms": 0.020600040443241596,
+            "mean_ms": 0.013894918453642878
+          },
+          "map_getter": {
+            "count": 59,
+            "max_ms": 0.08860003435984254,
+            "mean_ms": 0.04444068289851233
+          },
+          "neighbor_lane_queries": {
+            "count": 59,
+            "max_ms": 0.02800003858283162,
+            "mean_ms": 0.004952544567443556
+          },
+          "post_control": {
+            "count": 59,
+            "max_ms": 53.37939999299124,
+            "mean_ms": 46.6047389742571
+          },
+          "scheduler": {
+            "count": 59,
+            "max_ms": 0.11829996947199106,
+            "mean_ms": 0.038696608853415915
+          },
+          "snapshot_actor_getters": {
+            "count": 59,
+            "max_ms": 0.005199981387704611,
+            "mean_ms": 0.0029338900615476955
+          },
+          "snapshot_getter": {
+            "count": 59,
+            "max_ms": 0.007099995855242014,
+            "mean_ms": 0.0046644028339345575
+          },
+          "telemetry_write": {
+            "count": 59,
+            "max_ms": 0.15169999096542597,
+            "mean_ms": 0.0715237268704479
+          },
+          "traffic_light_actor_lookup": {
+            "count": 0,
+            "max_ms": null,
+            "mean_ms": null
+          },
+          "traffic_light_observation": {
+            "count": 59,
+            "max_ms": 0.10030000703409314,
+            "mean_ms": 0.06935932531447735
+          },
+          "vehicle_audio_update": {
+            "count": 0,
+            "max_ms": null,
+            "mean_ms": null
+          },
+          "waypoint_query": {
+            "count": 59,
+            "max_ms": 0.08440000237897038,
+            "mean_ms": 0.042072882070758585
+          }
+        },
+        "operations_by_mode": {
+          "MANUAL": {
+            "activation_bounding_box_getter": {
+              "count": 59,
+              "max_ms": 28.308200009632856,
+              "mean_ms": 22.762496608419944
+            },
+            "activation_geometry_query": {
+              "count": 59,
+              "max_ms": 0.09849999332800508,
+              "mean_ms": 0.0661440702723497
+            },
+            "control_getter": {
+              "count": 59,
+              "max_ms": 0.006799993570894003,
+              "mean_ms": 0.0038898354633000944
+            },
+            "event_write": {
+              "count": 293,
+              "max_ms": 0.13539998326450586,
+              "mean_ms": 0.03664573132451433
+            },
+            "input_collection": {
+              "count": 59,
+              "max_ms": 0.26429997524246573,
+              "mean_ms": 0.1489440693472654
+            },
+            "input_observer": {
+              "count": 59,
+              "max_ms": 0.12159999459981918,
+              "mean_ms": 0.01877796702023785
+            },
+            "json_serialize": {
+              "count": 59,
+              "max_ms": 0.05849997978657484,
+              "mean_ms": 0.036598308509121005
+            },
+            "light_getter": {
+              "count": 59,
+              "max_ms": 26.415300031658262,
+              "mean_ms": 22.797327118696867
+            },
+            "manual_availability_refresh": {
+              "count": 59,
+              "max_ms": 28.417500026989728,
+              "mean_ms": 22.870620339714243
+            },
+            "manual_batch_rpc_wait": {
+              "count": 59,
+              "max_ms": 27.85559999756515,
+              "mean_ms": 19.545028811928393
+            },
+            "manual_control_delivery": {
+              "count": 59,
+              "max_ms": 27.913799975067377,
+              "mean_ms": 19.56597288233875
+            },
+            "manual_control_preparation": {
+              "count": 59,
+              "max_ms": 0.020600040443241596,
+              "mean_ms": 0.013894918453642878
+            },
+            "map_getter": {
+              "count": 59,
+              "max_ms": 0.08860003435984254,
+              "mean_ms": 0.04444068289851233
+            },
+            "neighbor_lane_queries": {
+              "count": 59,
+              "max_ms": 0.02800003858283162,
+              "mean_ms": 0.004952544567443556
+            },
+            "post_control": {
+              "count": 59,
+              "max_ms": 53.37939999299124,
+              "mean_ms": 46.6047389742571
+            },
+            "scheduler": {
+              "count": 59,
+              "max_ms": 0.11829996947199106,
+              "mean_ms": 0.038696608853415915
+            },
+            "snapshot_actor_getters": {
+              "count": 59,
+              "max_ms": 0.005199981387704611,
+              "mean_ms": 0.0029338900615476955
+            },
+            "snapshot_getter": {
+              "count": 59,
+              "max_ms": 0.007099995855242014,
+              "mean_ms": 0.0046644028339345575
+            },
+            "telemetry_write": {
+              "count": 59,
+              "max_ms": 0.15169999096542597,
+              "mean_ms": 0.0715237268704479
+            },
+            "traffic_light_observation": {
+              "count": 59,
+              "max_ms": 0.10030000703409314,
+              "mean_ms": 0.06935932531447735
+            },
+            "waypoint_query": {
+              "count": 59,
+              "max_ms": 0.08440000237897038,
+              "mean_ms": 0.042072882070758585
+            }
+          },
+          "NOA_ACTIVE": {}
+        },
+        "overlap": {
+          "activation_queries": "also measured on activation checks outside post-control; do not subtract whole-run totals from post-control",
+          "draw": "contains camera conversion, resize, mirror flip, blit, and HUD drawing",
+          "driver_loop": "contains input, scheduler, control, render, display flip, and FPS limiter",
+          "input_collection": "contains indicator_input_light_rpc when a Z/X event requires a fresh observation",
+          "manual_availability_refresh": "contains activation_geometry_query, activation_bounding_box_getter and availability events; manual post-control only",
+          "manual_control_delivery": "contains checked manual_batch_rpc_wait and response validation; excludes preparation and post-control",
+          "map_getter": "legacy alias of waypoint_query; do not sum the two labels",
+          "post_control": "contains manual_availability_refresh and persisted observation, including light_getter",
+          "scheduler": "legacy scheduler and operation scheduler timing cover the same update call",
+          "traffic_light_observation": "contains cached traffic-light getters and conditional actor lookup",
+          "turn_signal_audio_light_rpc": "camera.timing_by_mode; subset of audio and alias of turn_signal_audio_timing light_state_rpc; independent of telemetry light_getter",
+          "vehicle_audio_update": "subset of camera audio; cached-state model and preloaded grain launch; excludes pre-drive synthesis and exit fade"
+        },
+        "schema_version": 1,
+        "status": "COMPLETE",
+        "world": {
+          "final_frame": 578421,
+          "final_simulation_seconds": 6696.936159472913,
+          "frame_delta": 283,
+          "initial_frame": 578138,
+          "initial_simulation_seconds": 6690.2803186737,
+          "simulation_elapsed_seconds": 6.655840799212456,
+          "wall_elapsed_seconds": 6.64100000000326
+        }
+      }
+    },
+    {
+      "line": 40304,
+      "module": "MODULE_1",
+      "phase": "MODULE_1",
+      "summary": {
+        "cadence": {
+          "completed_display_flips_per_wall_second": 21.55017522824251,
+          "completed_driver_loops_per_wall_second": 21.549935765095086,
+          "scheduler_updates_per_sim_second": 21.54949584991379,
+          "scheduler_updates_per_wall_second": 21.549935765095086,
+          "world_frames_per_sim_second": 43.22895850384005,
+          "world_frames_per_wall_second": 43.22984098736774
+        },
+        "camera": {
+          "active_drive_window": {
+            "completed_display_flip_count": 12933,
+            "completed_display_flips_per_wall_second": 21.55017522824251,
+            "definition": "viewer.run entry through exit; callbacks require host receipt within [start, end); callback lifecycle is separate",
+            "end_host_monotonic_seconds": 313200.4824655,
+            "host_elapsed_seconds": 600.1343313,
+            "roles": {
+              "front": {
+                "callback_count": 25941,
+                "callback_duration": {
+                  "count": 25941,
+                  "max_ms": 0.2411,
+                  "mean_ms": 0.017332
+                },
+                "callbacks_per_wall_second": 43.225322477061695,
+                "host_arrival_interval": {
+                  "count": 25940,
+                  "max_ms": 91.7258,
+                  "mean_ms": 23.133684
+                },
+                "sensor_elapsed_seconds": 600.109260384,
+                "sensor_frame_delta": 25942,
+                "sensor_frames_per_sensor_second": 43.228794675490306
+              },
+              "left": {
+                "callback_count": 25942,
+                "callback_duration": {
+                  "count": 25942,
+                  "max_ms": 0.3103,
+                  "mean_ms": 0.012421
+                },
+                "callbacks_per_wall_second": 43.22698877066939,
+                "host_arrival_interval": {
+                  "count": 25941,
+                  "max_ms": 90.7665,
+                  "mean_ms": 23.132847
+                },
+                "sensor_elapsed_seconds": 600.109260384,
+                "sensor_frame_delta": 25942,
+                "sensor_frames_per_sensor_second": 43.228794675490306
+              },
+              "right": {
+                "callback_count": 25943,
+                "callback_duration": {
+                  "count": 25943,
+                  "max_ms": 0.2512,
+                  "mean_ms": 0.018011
+                },
+                "callbacks_per_wall_second": 43.22865506427708,
+                "host_arrival_interval": {
+                  "count": 25942,
+                  "max_ms": 84.0381,
+                  "mean_ms": 23.132261
+                },
+                "sensor_elapsed_seconds": 600.109260384,
+                "sensor_frame_delta": 25942,
+                "sensor_frames_per_sensor_second": 43.228794675490306
+              }
+            },
+            "start_host_monotonic_seconds": 312600.3481342,
+            "status": "COMPLETE"
+          },
+          "clocks": {
+            "cross_clock_subtraction": false,
+            "host": "time.perf_counter seconds",
+            "host_implementation": "QueryPerformanceCounter()",
+            "host_resolution_seconds": 1e-07,
+            "preparation_age": "render preparation host time minus latest callback host receipt",
+            "run_measurements_host_elapsed": "separate duration from the session monotonic clock",
+            "sensor": "CARLA image frame and timestamp seconds",
+            "summary_age": "summary host time minus latest callback host receipt"
+          },
+          "environment": {
+            "map_name": "Carla/Maps/Town04",
+            "weather": {
+              "cloudiness": 5.0,
+              "fog_density": 2.0,
+              "fog_distance": 0.75,
+              "precipitation": 0.0,
+              "precipitation_deposits": 0.0,
+              "sun_altitude_angle": 45.0,
+              "sun_azimuth_angle": -1.0,
+              "wetness": 0.0,
+              "wind_intensity": 10.0
+            },
+            "world_settings": {
+              "fixed_delta_seconds": null,
+              "max_substep_delta_time": 0.01,
+              "max_substeps": 10,
+              "no_rendering_mode": false,
+              "substepping": true,
+              "synchronous_mode": false
+            }
+          },
+          "limitations": {
+            "instrumentation_overhead": "not separately measured",
+            "latency_scope": "host callback receipt to render preparation only",
+            "rounded_zero_duration_is_zero_cost": false,
+            "sensor_to_photon_or_gpu_latency": "not measured",
+            "storage": "scalar counters and summaries only"
+          },
+          "loop_correlation": {
+            "completed_loop_count": 12933,
+            "interpretation": "same-loop spans, not independent maxima; absent spans are unmeasured; mode at completion may follow a transition within the loop; not exhaustive or a mode-specific Display FPS measurement; fallback input_collection may nest in manual_control_preparation",
+            "scope": "active viewer window; incomplete/aborted loops excluded",
+            "storage": "one slowest loop and one pending loop; fixed segment names"
+          },
+          "measurement_lifecycle": {
+            "callback_counts": {
+              "definition": "every camera callback received during that lifecycle",
+              "end": "summary snapshot",
+              "start": "sensor attachment and listen registration"
+            },
+            "render_preparations": {
+              "definition": "prepared, updated, repeated, and no-image counters",
+              "end": "last render preparation",
+              "start": "first render preparation"
+            }
+          },
+          "measurement_window": {
+            "definition": "first through last render preparation",
+            "end_host_monotonic_seconds": 313200.368997,
+            "start_host_monotonic_seconds": 312600.4444372
+          },
+          "roles": {
+            "front": {
+              "callback_count": 25979,
+              "first_host_receipt_seconds": 312599.041024,
+              "first_sensor_frame": 578793,
+              "first_sensor_timestamp_seconds": 6701.58821317181,
+              "last_host_receipt_seconds": 313200.50017,
+              "last_sensor_frame": 604792,
+              "last_sensor_timestamp_seconds": 7303.0296933576465,
+              "latest_host_age_seconds": 0.0155185,
+              "latest_preparation_host_age_seconds": 0.0155185,
+              "latest_receipt_host_age_at_summary_seconds": 0.0005082,
+              "max_host_age_seconds": 0.0403614,
+              "max_preparation_host_age_seconds": 0.0403614,
+              "mean_host_age_seconds": 0.016279774,
+              "mean_preparation_host_age_seconds": 0.016279774,
+              "no_image_count": 0,
+              "prepared_count": 12933,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "105.0",
+                "id": 157,
+                "image_size_x": "1280",
+                "image_size_y": "720",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 105.0,
+                  "image_size_x": 1280,
+                  "image_size_y": 720,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 1,
+                    "roll": 0.0,
+                    "x": 0.25,
+                    "y": -0.35,
+                    "yaw": 0.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": 1.1373493671417236,
+                  "roll": 0.0019995425827801228,
+                  "x": 188.24508666992188,
+                  "y": -368.2548828125,
+                  "yaw": 0.401079922914505,
+                  "z": 1.1995588541030884
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": 1.1373493671417236,
+                  "roll": 0.0019995425827801228,
+                  "x": 188.24508666992188,
+                  "y": -368.2548828125,
+                  "yaw": 0.401079922914505,
+                  "z": 1.1995588541030884
+                }
+              },
+              "updated_count": 12933
+            },
+            "left": {
+              "callback_count": 25979,
+              "first_host_receipt_seconds": 312599.0827086,
+              "first_sensor_frame": 578795,
+              "first_sensor_timestamp_seconds": 6701.61525997147,
+              "last_host_receipt_seconds": 313200.5002186,
+              "last_sensor_frame": 604792,
+              "last_sensor_timestamp_seconds": 7303.0296933576465,
+              "latest_host_age_seconds": 0.0166074,
+              "latest_preparation_host_age_seconds": 0.0166074,
+              "latest_receipt_host_age_at_summary_seconds": 0.0004596,
+              "max_host_age_seconds": 0.0426623,
+              "max_preparation_host_age_seconds": 0.0426623,
+              "mean_host_age_seconds": 0.016805874,
+              "mean_preparation_host_age_seconds": 0.016805874,
+              "no_image_count": 0,
+              "prepared_count": 12933,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "100.0",
+                "id": 158,
+                "image_size_x": "480",
+                "image_size_y": "270",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 100.0,
+                  "image_size_x": 480,
+                  "image_size_y": 270,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 0.0,
+                    "roll": 0.0,
+                    "x": 0.3,
+                    "y": -1.0,
+                    "yaw": -150.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": -0.11795052886009216,
+                  "roll": -0.07040897756814957,
+                  "x": 188.2996368408203,
+                  "y": -368.9045104980469,
+                  "yaw": -149.59884643554688,
+                  "z": 1.1997013092041016
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": -0.11795052886009216,
+                  "roll": -0.07040897756814957,
+                  "x": 188.2996368408203,
+                  "y": -368.9045104980469,
+                  "yaw": -149.59884643554688,
+                  "z": 1.1997013092041016
+                }
+              },
+              "updated_count": 12933
+            },
+            "right": {
+              "callback_count": 25978,
+              "first_host_receipt_seconds": 312599.1242979,
+              "first_sensor_frame": 578797,
+              "first_sensor_timestamp_seconds": 6701.657908372581,
+              "last_host_receipt_seconds": 313200.5001294,
+              "last_sensor_frame": 604792,
+              "last_sensor_timestamp_seconds": 7303.0296933576465,
+              "latest_host_age_seconds": 0.010079,
+              "latest_preparation_host_age_seconds": 0.010079,
+              "latest_receipt_host_age_at_summary_seconds": 0.0005488,
+              "max_host_age_seconds": 0.034469,
+              "max_preparation_host_age_seconds": 0.034469,
+              "mean_host_age_seconds": 0.011284638,
+              "mean_preparation_host_age_seconds": 0.011284638,
+              "no_image_count": 0,
+              "prepared_count": 12933,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "100.0",
+                "id": 159,
+                "image_size_x": "480",
+                "image_size_y": "270",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 100.0,
+                  "image_size_x": 480,
+                  "image_size_y": 270,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 0.0,
+                    "roll": 0.0,
+                    "x": 0.3,
+                    "y": 1.0,
+                    "yaw": 150.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": -0.1199517771601677,
+                  "roll": 0.0669463500380516,
+                  "x": 188.28564453125,
+                  "y": -366.9045715332031,
+                  "yaw": 150.4009552001953,
+                  "z": 1.1996315717697144
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": -0.1199517771601677,
+                  "roll": 0.0669463500380516,
+                  "x": 188.28564453125,
+                  "y": -366.9045715332031,
+                  "yaw": 150.4009552001953,
+                  "z": 1.1996315717697144
+                }
+              },
+              "updated_count": 12933
+            }
+          },
+          "run": {
+            "composition": "front_left_right_3_rgb",
+            "git_dirty": true,
+            "git_head": "4ab636d383aa5e884427e1db937abf9f829ee09e",
+            "initial_view": "DRIVER",
+            "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f"
+          },
+          "run_measurements": {
+            "final_simulation_seconds": 7303.0514670573175,
+            "final_world_frame": 604793,
+            "host_elapsed_seconds": 600.1410000000033,
+            "initial_simulation_seconds": 6702.898215673864,
+            "initial_world_frame": 578849,
+            "loop_count": 12933,
+            "simulation_elapsed_seconds": 600.1532513834536,
+            "world_frame_delta": 25944
+          },
+          "schema_version": 1,
+          "sensor_count": 3,
+          "slowest_completed_loop": {
+            "completed_loop_index": 10935,
+            "duration_ms": 102.04440000234172,
+            "mode_at_completion": "NOA_ACTIVE",
+            "segments": {
+              "after_display_flip": {
+                "count": 1,
+                "max_ms": 0.0011,
+                "mean_ms": 0.0011,
+                "total_ms": 0.0011
+              },
+              "audio": {
+                "count": 1,
+                "max_ms": 55.3967,
+                "mean_ms": 55.3967,
+                "total_ms": 55.3967
+              },
+              "display_flip": {
+                "count": 1,
+                "max_ms": 0.4486,
+                "mean_ms": 0.4486,
+                "total_ms": 0.4486
+              },
+              "draw": {
+                "count": 1,
+                "max_ms": 2.8502,
+                "mean_ms": 2.8502,
+                "total_ms": 2.8502
+              },
+              "event_poll_and_presentation": {
+                "count": 1,
+                "max_ms": 0.0201,
+                "mean_ms": 0.0201,
+                "total_ms": 0.0201
+              },
+              "fps_limiter": {
+                "count": 1,
+                "max_ms": 0.0033,
+                "mean_ms": 0.0033,
+                "total_ms": 0.0033
+              },
+              "frame_prepare": {
+                "count": 1,
+                "max_ms": 0.0026,
+                "mean_ms": 0.0026,
+                "total_ms": 0.0026
+              },
+              "input_collection": {
+                "count": 1,
+                "max_ms": 0.1311,
+                "mean_ms": 0.1311,
+                "total_ms": 0.1311
+              },
+              "input_observer": {
+                "count": 1,
+                "max_ms": 0.0189,
+                "mean_ms": 0.0189,
+                "total_ms": 0.0189
+              },
+              "mode_events": {
+                "count": 1,
+                "max_ms": 0.0018,
+                "mean_ms": 0.0018,
+                "total_ms": 0.0018
+              },
+              "post_control": {
+                "count": 1,
+                "max_ms": 43.0361,
+                "mean_ms": 43.0361,
+                "total_ms": 43.0361
+              },
+              "scheduler": {
+                "count": 1,
+                "max_ms": 0.0701,
+                "mean_ms": 0.0701,
+                "total_ms": 0.0701
+              }
+            }
+          },
+          "summary_host_monotonic_seconds": 313200.5006782,
+          "timing": {
+            "after_display_flip": {
+              "count": 12933,
+              "max_ms": 0.188,
+              "mean_ms": 0.003148,
+              "total_ms": 40.711694
+            },
+            "audio": {
+              "count": 12933,
+              "max_ms": 55.3967,
+              "mean_ms": 22.426989,
+              "total_ms": 290048.250304
+            },
+            "blit.front": {
+              "count": 12933,
+              "max_ms": 3.2389,
+              "mean_ms": 0.668639,
+              "total_ms": 8647.508403
+            },
+            "blit.left": {
+              "count": 12933,
+              "max_ms": 0.4966,
+              "mean_ms": 0.046588,
+              "total_ms": 602.527901
+            },
+            "blit.right": {
+              "count": 12933,
+              "max_ms": 0.3078,
+              "mean_ms": 0.043849,
+              "total_ms": 567.102498
+            },
+            "conversion.front": {
+              "count": 12933,
+              "max_ms": 0.1428,
+              "mean_ms": 0.018815,
+              "total_ms": 243.334001
+            },
+            "conversion.left": {
+              "count": 12933,
+              "max_ms": 0.1278,
+              "mean_ms": 0.011037,
+              "total_ms": 142.744096
+            },
+            "conversion.right": {
+              "count": 12933,
+              "max_ms": 0.2727,
+              "mean_ms": 0.005768,
+              "total_ms": 74.6037
+            },
+            "display_flip": {
+              "count": 12933,
+              "max_ms": 1.9399,
+              "mean_ms": 0.564131,
+              "total_ms": 7295.905503
+            },
+            "draw": {
+              "count": 12933,
+              "max_ms": 8.855,
+              "mean_ms": 3.372597,
+              "total_ms": 43617.797999
+            },
+            "driver_loop": {
+              "count": 12933,
+              "max_ms": 102.0444,
+              "mean_ms": 46.384488,
+              "total_ms": 599890.586297
+            },
+            "event_poll_and_presentation": {
+              "count": 12933,
+              "max_ms": 10.171,
+              "mean_ms": 0.022713,
+              "total_ms": 293.752398
+            },
+            "fps_limiter": {
+              "count": 12933,
+              "max_ms": 3.9947,
+              "mean_ms": 0.012058,
+              "total_ms": 155.950901
+            },
+            "frame_prepare": {
+              "count": 12933,
+              "max_ms": 0.1199,
+              "mean_ms": 0.004237,
+              "total_ms": 54.790791
+            },
+            "input_collection": {
+              "count": 12933,
+              "max_ms": 0.5923,
+              "mean_ms": 0.141559,
+              "total_ms": 1830.781405
+            },
+            "input_observer": {
+              "count": 12933,
+              "max_ms": 19.6652,
+              "mean_ms": 0.021588,
+              "total_ms": 279.202598
+            },
+            "manual_control_delivery": {
+              "count": 35,
+              "max_ms": 23.9617,
+              "mean_ms": 20.17768,
+              "total_ms": 706.2188
+            },
+            "manual_control_preparation": {
+              "count": 35,
+              "max_ms": 0.0227,
+              "mean_ms": 0.015574,
+              "total_ms": 0.5451
+            },
+            "mirror_flip.left": {
+              "count": 12933,
+              "max_ms": 0.2116,
+              "mean_ms": 0.026022,
+              "total_ms": 336.547697
+            },
+            "mirror_flip.right": {
+              "count": 12933,
+              "max_ms": 0.2609,
+              "mean_ms": 0.01681,
+              "total_ms": 217.4046
+            },
+            "mode_events": {
+              "count": 12933,
+              "max_ms": 0.0834,
+              "mean_ms": 0.001858,
+              "total_ms": 24.026901
+            },
+            "post_control": {
+              "count": 12933,
+              "max_ms": 53.7135,
+              "mean_ms": 19.650789,
+              "total_ms": 254143.651898
+            },
+            "resize.front": {
+              "count": 12933,
+              "max_ms": 4.3171,
+              "mean_ms": 1.02978,
+              "total_ms": 13318.149402
+            },
+            "resize.left": {
+              "count": 12933,
+              "max_ms": 0.5412,
+              "mean_ms": 0.209981,
+              "total_ms": 2715.678601
+            },
+            "resize.right": {
+              "count": 12933,
+              "max_ms": 1.0988,
+              "mean_ms": 0.191316,
+              "total_ms": 2474.286402
+            },
+            "scheduler": {
+              "count": 12933,
+              "max_ms": 0.4073,
+              "mean_ms": 0.037085,
+              "total_ms": 479.617401
+            },
+            "turn_signal_audio_light_rpc": {
+              "count": 12933,
+              "max_ms": 55.3666,
+              "mean_ms": 22.394005,
+              "total_ms": 289621.664905
+            }
+          },
+          "timing_by_mode": {
+            "MANUAL": {
+              "after_display_flip": {
+                "count": 35,
+                "max_ms": 0.0026,
+                "mean_ms": 0.001406,
+                "total_ms": 0.0492
+              },
+              "audio": {
+                "count": 35,
+                "max_ms": 26.4962,
+                "mean_ms": 22.647397,
+                "total_ms": 792.6589
+              },
+              "blit.front": {
+                "count": 35,
+                "max_ms": 1.0388,
+                "mean_ms": 0.712351,
+                "total_ms": 24.9323
+              },
+              "blit.left": {
+                "count": 35,
+                "max_ms": 0.1445,
+                "mean_ms": 0.062214,
+                "total_ms": 2.1775
+              },
+              "blit.right": {
+                "count": 35,
+                "max_ms": 0.0882,
+                "mean_ms": 0.051437,
+                "total_ms": 1.8003
+              },
+              "conversion.front": {
+                "count": 35,
+                "max_ms": 0.0211,
+                "mean_ms": 0.017871,
+                "total_ms": 0.6255
+              },
+              "conversion.left": {
+                "count": 35,
+                "max_ms": 0.0557,
+                "mean_ms": 0.014366,
+                "total_ms": 0.5028
+              },
+              "conversion.right": {
+                "count": 35,
+                "max_ms": 0.0319,
+                "mean_ms": 0.006511,
+                "total_ms": 0.2279
+              },
+              "display_flip": {
+                "count": 35,
+                "max_ms": 0.8124,
+                "mean_ms": 0.589963,
+                "total_ms": 20.6487
+              },
+              "draw": {
+                "count": 35,
+                "max_ms": 5.62,
+                "mean_ms": 3.595074,
+                "total_ms": 125.8276
+              },
+              "driver_loop": {
+                "count": 35,
+                "max_ms": 101.7688,
+                "mean_ms": 94.362371,
+                "total_ms": 3302.683
+              },
+              "event_poll_and_presentation": {
+                "count": 36,
+                "max_ms": 0.5241,
+                "mean_ms": 0.162867,
+                "total_ms": 5.8632
+              },
+              "fps_limiter": {
+                "count": 35,
+                "max_ms": 0.4088,
+                "mean_ms": 0.04356,
+                "total_ms": 1.5246
+              },
+              "frame_prepare": {
+                "count": 35,
+                "max_ms": 0.0037,
+                "mean_ms": 0.002637,
+                "total_ms": 0.0923
+              },
+              "input_collection": {
+                "count": 36,
+                "max_ms": 0.2677,
+                "mean_ms": 0.153381,
+                "total_ms": 5.5217
+              },
+              "input_observer": {
+                "count": 35,
+                "max_ms": 0.0296,
+                "mean_ms": 0.019111,
+                "total_ms": 0.6689
+              },
+              "manual_control_delivery": {
+                "count": 35,
+                "max_ms": 23.9617,
+                "mean_ms": 20.17768,
+                "total_ms": 706.2188
+              },
+              "manual_control_preparation": {
+                "count": 35,
+                "max_ms": 0.0227,
+                "mean_ms": 0.015574,
+                "total_ms": 0.5451
+              },
+              "mirror_flip.left": {
+                "count": 35,
+                "max_ms": 0.0528,
+                "mean_ms": 0.025126,
+                "total_ms": 0.8794
+              },
+              "mirror_flip.right": {
+                "count": 35,
+                "max_ms": 0.0342,
+                "mean_ms": 0.015974,
+                "total_ms": 0.5591
+              },
+              "mode_events": {
+                "count": 35,
+                "max_ms": 0.0081,
+                "mean_ms": 0.003331,
+                "total_ms": 0.1166
+              },
+              "post_control": {
+                "count": 35,
+                "max_ms": 49.2011,
+                "mean_ms": 46.775206,
+                "total_ms": 1637.1322
+              },
+              "resize.front": {
+                "count": 35,
+                "max_ms": 1.1616,
+                "mean_ms": 0.982623,
+                "total_ms": 34.3918
+              },
+              "resize.left": {
+                "count": 35,
+                "max_ms": 0.2892,
+                "mean_ms": 0.225214,
+                "total_ms": 7.8825
+              },
+              "resize.right": {
+                "count": 35,
+                "max_ms": 0.2724,
+                "mean_ms": 0.195523,
+                "total_ms": 6.8433
+              },
+              "scheduler": {
+                "count": 35,
+                "max_ms": 0.0605,
+                "mean_ms": 0.0369,
+                "total_ms": 1.2915
+              },
+              "turn_signal_audio_light_rpc": {
+                "count": 35,
+                "max_ms": 26.4632,
+                "mean_ms": 22.616,
+                "total_ms": 791.56
+              }
+            },
+            "NOA_ACTIVE": {
+              "after_display_flip": {
+                "count": 12898,
+                "max_ms": 0.188,
+                "mean_ms": 0.003153,
+                "total_ms": 40.662494
+              },
+              "audio": {
+                "count": 12898,
+                "max_ms": 55.3967,
+                "mean_ms": 22.426391,
+                "total_ms": 289255.591405
+              },
+              "blit.front": {
+                "count": 12898,
+                "max_ms": 3.2389,
+                "mean_ms": 0.66852,
+                "total_ms": 8622.576103
+              },
+              "blit.left": {
+                "count": 12898,
+                "max_ms": 0.4966,
+                "mean_ms": 0.046546,
+                "total_ms": 600.350401
+              },
+              "blit.right": {
+                "count": 12898,
+                "max_ms": 0.3078,
+                "mean_ms": 0.043829,
+                "total_ms": 565.302198
+              },
+              "conversion.front": {
+                "count": 12898,
+                "max_ms": 0.1428,
+                "mean_ms": 0.018818,
+                "total_ms": 242.708501
+              },
+              "conversion.left": {
+                "count": 12898,
+                "max_ms": 0.1278,
+                "mean_ms": 0.011028,
+                "total_ms": 142.241296
+              },
+              "conversion.right": {
+                "count": 12898,
+                "max_ms": 0.2727,
+                "mean_ms": 0.005766,
+                "total_ms": 74.3758
+              },
+              "display_flip": {
+                "count": 12898,
+                "max_ms": 1.9399,
+                "mean_ms": 0.564061,
+                "total_ms": 7275.256803
+              },
+              "draw": {
+                "count": 12898,
+                "max_ms": 8.855,
+                "mean_ms": 3.371993,
+                "total_ms": 43491.970399
+              },
+              "driver_loop": {
+                "count": 12898,
+                "max_ms": 102.0444,
+                "mean_ms": 46.254295,
+                "total_ms": 596587.903297
+              },
+              "event_poll_and_presentation": {
+                "count": 12897,
+                "max_ms": 10.171,
+                "mean_ms": 0.022322,
+                "total_ms": 287.889198
+              },
+              "fps_limiter": {
+                "count": 12898,
+                "max_ms": 3.9947,
+                "mean_ms": 0.011973,
+                "total_ms": 154.426301
+              },
+              "frame_prepare": {
+                "count": 12898,
+                "max_ms": 0.1199,
+                "mean_ms": 0.004241,
+                "total_ms": 54.698491
+              },
+              "input_collection": {
+                "count": 12897,
+                "max_ms": 0.5923,
+                "mean_ms": 0.141526,
+                "total_ms": 1825.259705
+              },
+              "input_observer": {
+                "count": 12898,
+                "max_ms": 19.6652,
+                "mean_ms": 0.021595,
+                "total_ms": 278.533698
+              },
+              "mirror_flip.left": {
+                "count": 12898,
+                "max_ms": 0.2116,
+                "mean_ms": 0.026025,
+                "total_ms": 335.668297
+              },
+              "mirror_flip.right": {
+                "count": 12898,
+                "max_ms": 0.2609,
+                "mean_ms": 0.016812,
+                "total_ms": 216.8455
+              },
+              "mode_events": {
+                "count": 12898,
+                "max_ms": 0.0834,
+                "mean_ms": 0.001854,
+                "total_ms": 23.910301
+              },
+              "post_control": {
+                "count": 12898,
+                "max_ms": 53.7135,
+                "mean_ms": 19.577184,
+                "total_ms": 252506.519698
+              },
+              "resize.front": {
+                "count": 12898,
+                "max_ms": 4.3171,
+                "mean_ms": 1.029908,
+                "total_ms": 13283.757602
+              },
+              "resize.left": {
+                "count": 12898,
+                "max_ms": 0.5412,
+                "mean_ms": 0.209939,
+                "total_ms": 2707.796101
+              },
+              "resize.right": {
+                "count": 12898,
+                "max_ms": 1.0988,
+                "mean_ms": 0.191304,
+                "total_ms": 2467.443102
+              },
+              "scheduler": {
+                "count": 12898,
+                "max_ms": 0.4073,
+                "mean_ms": 0.037085,
+                "total_ms": 478.325901
+              },
+              "turn_signal_audio_light_rpc": {
+                "count": 12898,
+                "max_ms": 55.3666,
+                "mean_ms": 22.393402,
+                "total_ms": 288830.104905
+              }
+            }
+          },
+          "timing_definitions": {
+            "after_display_flip": "post-flip hook, including P5 presentation marking",
+            "audio": "turn-signal audio including fresh light RPC; optional vehicle audio when enabled",
+            "blit.<role>": "surface blit to display buffer",
+            "conversion.<role>": "CARLA BGRA buffer to pygame surface",
+            "display_flip": "pygame display flip only",
+            "draw": "complete draw including camera composition and HUD",
+            "driver_loop": "event polling through completed FPS limiter",
+            "event_poll_and_presentation": "pygame event.get and presentation.handle_events",
+            "fps_limiter": "pygame Clock.tick(60) only",
+            "frame_prepare": "pre-draw hook, including P5 preparation",
+            "mirror_flip.<role>": "horizontal mirror flip",
+            "mode_events": "mode/view/indicator event handling, including toggle light RPCs",
+            "resize.<role>": "pygame smoothscale",
+            "rounded_ms_decimal_places": 6,
+            "scheduler": "scheduler.update only",
+            "units": "count and milliseconds"
+          },
+          "timing_mode_definition": "canonical mode at operation completion",
+          "turn_signal_audio_timing": {
+            "audio_update": {
+              "first_call": {
+                "count": 1,
+                "max_ms": 0.0022,
+                "mean_ms": 0.0022
+              },
+              "subsequent_calls": {
+                "count": 12932,
+                "max_ms": 0.0389,
+                "mean_ms": 0.002219
+              }
+            },
+            "light_state_rpc": {
+              "first_call": {
+                "count": 1,
+                "max_ms": 23.4194,
+                "mean_ms": 23.4194
+              },
+              "subsequent_calls": {
+                "count": 12932,
+                "max_ms": 55.3666,
+                "mean_ms": 22.393926
+              }
+            }
+          },
+          "turn_signal_audio_timing_definitions": {
+            "audio_update": "TurnSignalAudio.update call only",
+            "first_call": "first observed call for each operation",
+            "light_state_rpc": "hero.get_light_state call only",
+            "subsequent_calls": "all observed calls after the first for each operation",
+            "units": "count and milliseconds"
+          }
+        },
+        "error": null,
+        "limitations": {
+          "missing_measurements": null,
+          "sensor_to_photon": "not measured",
+          "summary_serialization_and_write": "excluded from captured counters"
+        },
+        "mode_definition": "canonical automation control mode at operation completion",
+        "operation_accumulation": {
+          "activation_bounding_box_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 810.7550001004711
+          },
+          "activation_geometry_query": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 2.4850000627338886
+          },
+          "control_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 31.210805056616664
+          },
+          "event_write": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1635.6287982780486
+          },
+          "indicator_input_light_rpc": {
+            "at_least_100_ms_count": 0,
+            "total_ms": null
+          },
+          "input_collection": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1721.4181041345
+          },
+          "input_observer": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 234.3005965813063
+          },
+          "json_serialize": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 435.3606022777967
+          },
+          "light_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 245520.43780003441
+          },
+          "manual_availability_refresh": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 795.1632997719571
+          },
+          "manual_batch_rpc_wait": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 705.3119000047445
+          },
+          "manual_control_delivery": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 706.0771000105888
+          },
+          "manual_control_preparation": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 0.4587997100315988
+          },
+          "map_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 965.9951995126903
+          },
+          "neighbor_lane_queries": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 58.96750302053988
+          },
+          "post_control": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 254078.4934993717
+          },
+          "scheduler": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 439.98019804712385
+          },
+          "snapshot_actor_getters": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 37.3592019896023
+          },
+          "snapshot_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 54.698998923413455
+          },
+          "telemetry_write": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 903.5823994199745
+          },
+          "traffic_light_actor_lookup": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 34.558000159449875
+          },
+          "traffic_light_observation": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 1106.4531970769167
+          },
+          "vehicle_audio_update": {
+            "at_least_100_ms_count": 0,
+            "total_ms": null
+          },
+          "waypoint_query": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 926.4154999982566
+          }
+        },
+        "operation_accumulation_by_mode": {
+          "MANUAL": {
+            "activation_bounding_box_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 810.7550001004711
+            },
+            "activation_geometry_query": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2.4850000627338886
+            },
+            "control_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.13739982387050986
+            },
+            "event_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 6.359999882988632
+            },
+            "input_collection": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 5.214000062551349
+            },
+            "input_observer": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.567199953366071
+            },
+            "json_serialize": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1.1856000637635589
+            },
+            "light_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 809.5327002229169
+            },
+            "manual_availability_refresh": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 795.1632997719571
+            },
+            "manual_batch_rpc_wait": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 705.3119000047445
+            },
+            "manual_control_delivery": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 706.0771000105888
+            },
+            "manual_control_preparation": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.4587997100315988
+            },
+            "map_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1.5367998275905848
+            },
+            "neighbor_lane_queries": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.14970015035942197
+            },
+            "post_control": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1636.9448999175802
+            },
+            "scheduler": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1.2116000289097428
+            },
+            "snapshot_actor_getters": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.10320014553144574
+            },
+            "snapshot_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 0.1699001295492053
+            },
+            "telemetry_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2.4759002262726426
+            },
+            "traffic_light_observation": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 2.3171997745521367
+            },
+            "waypoint_query": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1.4534000656567514
+            }
+          },
+          "NOA_ACTIVE": {
+            "control_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 31.073405232746154
+            },
+            "event_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1629.26879839506
+            },
+            "input_collection": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1716.2041040719487
+            },
+            "input_observer": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 233.73339662794024
+            },
+            "json_serialize": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 434.17500221403316
+            },
+            "light_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 244710.9050998115
+            },
+            "map_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 964.4583996850997
+            },
+            "neighbor_lane_queries": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 58.81780287018046
+            },
+            "post_control": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 252441.5485994541
+            },
+            "scheduler": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 438.7685980182141
+            },
+            "snapshot_actor_getters": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 37.25600184407085
+            },
+            "snapshot_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 54.52909879386425
+            },
+            "telemetry_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 901.1064991937019
+            },
+            "traffic_light_actor_lookup": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 34.558000159449875
+            },
+            "traffic_light_observation": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 1104.1359973023646
+            },
+            "waypoint_query": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 924.9620999325998
+            }
+          }
+        },
+        "operations": {
+          "activation_bounding_box_getter": {
+            "count": 36,
+            "max_ms": 24.538700003176928,
+            "mean_ms": 22.520972225013086
+          },
+          "activation_geometry_query": {
+            "count": 36,
+            "max_ms": 0.1113000325858593,
+            "mean_ms": 0.0690277795203858
+          },
+          "control_getter": {
+            "count": 12933,
+            "max_ms": 0.09159999899566174,
+            "mean_ms": 0.002413268774191345
+          },
+          "event_write": {
+            "count": 39956,
+            "max_ms": 0.43120002374053,
+            "mean_ms": 0.04093574928116049
+          },
+          "indicator_input_light_rpc": {
+            "count": 0,
+            "max_ms": null,
+            "mean_ms": null
+          },
+          "input_collection": {
+            "count": 12933,
+            "max_ms": 0.5712000420317054,
+            "mean_ms": 0.1331027684322663
+          },
+          "input_observer": {
+            "count": 12933,
+            "max_ms": 19.65959998778999,
+            "mean_ms": 0.01811649242877185
+          },
+          "json_serialize": {
+            "count": 12933,
+            "max_ms": 0.4594000056385994,
+            "mean_ms": 0.03366276983513467
+          },
+          "light_getter": {
+            "count": 12933,
+            "max_ms": 52.74389998521656,
+            "mean_ms": 18.98402828423679
+          },
+          "manual_availability_refresh": {
+            "count": 35,
+            "max_ms": 24.6462999493815,
+            "mean_ms": 22.718951422055916
+          },
+          "manual_batch_rpc_wait": {
+            "count": 35,
+            "max_ms": 23.93829997163266,
+            "mean_ms": 20.15176857156413
+          },
+          "manual_control_delivery": {
+            "count": 35,
+            "max_ms": 23.957900004461408,
+            "mean_ms": 20.173631428873964
+          },
+          "manual_control_preparation": {
+            "count": 35,
+            "max_ms": 0.017700018361210823,
+            "mean_ms": 0.013108563143759966
+          },
+          "map_getter": {
+            "count": 12933,
+            "max_ms": 0.35099999513477087,
+            "mean_ms": 0.07469227553643318
+          },
+          "neighbor_lane_queries": {
+            "count": 12933,
+            "max_ms": 0.16379996668547392,
+            "mean_ms": 0.004559460528921354
+          },
+          "post_control": {
+            "count": 12933,
+            "max_ms": 53.70829999446869,
+            "mean_ms": 19.645750676515245
+          },
+          "scheduler": {
+            "count": 12933,
+            "max_ms": 0.2609000075608492,
+            "mean_ms": 0.034019964281073525
+          },
+          "snapshot_actor_getters": {
+            "count": 12933,
+            "max_ms": 0.07690000347793102,
+            "mean_ms": 0.0028886725423028143
+          },
+          "snapshot_getter": {
+            "count": 12933,
+            "max_ms": 0.11030002497136593,
+            "mean_ms": 0.004229413045960988
+          },
+          "telemetry_write": {
+            "count": 12933,
+            "max_ms": 0.44650002382695675,
+            "mean_ms": 0.06986641919276072
+          },
+          "traffic_light_actor_lookup": {
+            "count": 558,
+            "max_ms": 26.946400001179427,
+            "mean_ms": 0.06193189992732953
+          },
+          "traffic_light_observation": {
+            "count": 12933,
+            "max_ms": 27.405600005295128,
+            "mean_ms": 0.08555270989537746
+          },
+          "vehicle_audio_update": {
+            "count": 0,
+            "max_ms": null,
+            "mean_ms": null
+          },
+          "waypoint_query": {
+            "count": 12933,
+            "max_ms": 0.3464999608695507,
+            "mean_ms": 0.07163191061611819
+          }
+        },
+        "operations_by_mode": {
+          "MANUAL": {
+            "activation_bounding_box_getter": {
+              "count": 36,
+              "max_ms": 24.538700003176928,
+              "mean_ms": 22.520972225013086
+            },
+            "activation_geometry_query": {
+              "count": 36,
+              "max_ms": 0.1113000325858593,
+              "mean_ms": 0.0690277795203858
+            },
+            "control_getter": {
+              "count": 35,
+              "max_ms": 0.006099988240748644,
+              "mean_ms": 0.003925709253443139
+            },
+            "event_write": {
+              "count": 173,
+              "max_ms": 0.13260002015158534,
+              "mean_ms": 0.036763005103980534
+            },
+            "input_collection": {
+              "count": 36,
+              "max_ms": 0.25619997177273035,
+              "mean_ms": 0.14483333507087082
+            },
+            "input_observer": {
+              "count": 35,
+              "max_ms": 0.024500011932104826,
+              "mean_ms": 0.016205712953316312
+            },
+            "json_serialize": {
+              "count": 35,
+              "max_ms": 0.03779999678954482,
+              "mean_ms": 0.03387428753610168
+            },
+            "light_getter": {
+              "count": 35,
+              "max_ms": 25.558100023772568,
+              "mean_ms": 23.12950572065477
+            },
+            "manual_availability_refresh": {
+              "count": 35,
+              "max_ms": 24.6462999493815,
+              "mean_ms": 22.718951422055916
+            },
+            "manual_batch_rpc_wait": {
+              "count": 35,
+              "max_ms": 23.93829997163266,
+              "mean_ms": 20.15176857156413
+            },
+            "manual_control_delivery": {
+              "count": 35,
+              "max_ms": 23.957900004461408,
+              "mean_ms": 20.173631428873964
+            },
+            "manual_control_preparation": {
+              "count": 35,
+              "max_ms": 0.017700018361210823,
+              "mean_ms": 0.013108563143759966
+            },
+            "map_getter": {
+              "count": 35,
+              "max_ms": 0.05859998054802418,
+              "mean_ms": 0.043908566502588134
+            },
+            "neighbor_lane_queries": {
+              "count": 35,
+              "max_ms": 0.00689999433234334,
+              "mean_ms": 0.004277147153126342
+            },
+            "post_control": {
+              "count": 35,
+              "max_ms": 49.1963000386022,
+              "mean_ms": 46.769854283359436
+            },
+            "scheduler": {
+              "count": 35,
+              "max_ms": 0.05760003114119172,
+              "mean_ms": 0.03461714368313551
+            },
+            "snapshot_actor_getters": {
+              "count": 35,
+              "max_ms": 0.004099973011761904,
+              "mean_ms": 0.0029485755866127355
+            },
+            "snapshot_getter": {
+              "count": 35,
+              "max_ms": 0.006799993570894003,
+              "mean_ms": 0.0048542894156915805
+            },
+            "telemetry_write": {
+              "count": 35,
+              "max_ms": 0.11140003334730864,
+              "mean_ms": 0.07074000646493266
+            },
+            "traffic_light_observation": {
+              "count": 35,
+              "max_ms": 0.07419998291879892,
+              "mean_ms": 0.06620570784434676
+            },
+            "waypoint_query": {
+              "count": 35,
+              "max_ms": 0.05440000677481294,
+              "mean_ms": 0.04152571616162147
+            }
+          },
+          "NOA_ACTIVE": {
+            "control_getter": {
+              "count": 12898,
+              "max_ms": 0.09159999899566174,
+              "mean_ms": 0.0024091646172077963
+            },
+            "event_write": {
+              "count": 39783,
+              "max_ms": 0.43120002374053,
+              "mean_ms": 0.04095389483938014
+            },
+            "input_collection": {
+              "count": 12897,
+              "max_ms": 0.5712000420317054,
+              "mean_ms": 0.133070024352326
+            },
+            "input_observer": {
+              "count": 12898,
+              "max_ms": 19.65959998778999,
+              "mean_ms": 0.018121677518060184
+            },
+            "json_serialize": {
+              "count": 12898,
+              "max_ms": 0.4594000056385994,
+              "mean_ms": 0.033662195860911244
+            },
+            "light_getter": {
+              "count": 12898,
+              "max_ms": 52.74389998521656,
+              "mean_ms": 18.972779120779304
+            },
+            "map_getter": {
+              "count": 12898,
+              "max_ms": 0.35099999513477087,
+              "mean_ms": 0.07477581017871761
+            },
+            "neighbor_lane_queries": {
+              "count": 12898,
+              "max_ms": 0.16379996668547392,
+              "mean_ms": 0.004560226614217743
+            },
+            "post_control": {
+              "count": 12898,
+              "max_ms": 53.70829999446869,
+              "mean_ms": 19.572146735885728
+            },
+            "scheduler": {
+              "count": 12898,
+              "max_ms": 0.2609000075608492,
+              "mean_ms": 0.034018343775640725
+            },
+            "snapshot_actor_getters": {
+              "count": 12898,
+              "max_ms": 0.07690000347793102,
+              "mean_ms": 0.0028885099894612226
+            },
+            "snapshot_getter": {
+              "count": 12898,
+              "max_ms": 0.11030002497136593,
+              "mean_ms": 0.004227717382064215
+            },
+            "telemetry_write": {
+              "count": 12898,
+              "max_ms": 0.44650002382695675,
+              "mean_ms": 0.06986404862720592
+            },
+            "traffic_light_actor_lookup": {
+              "count": 558,
+              "max_ms": 26.946400001179427,
+              "mean_ms": 0.06193189992732953
+            },
+            "traffic_light_observation": {
+              "count": 12898,
+              "max_ms": 27.405600005295128,
+              "mean_ms": 0.08560520990094314
+            },
+            "waypoint_query": {
+              "count": 12898,
+              "max_ms": 0.3464999608695507,
+              "mean_ms": 0.07171360675551247
+            }
+          }
+        },
+        "overlap": {
+          "activation_queries": "also measured on activation checks outside post-control; do not subtract whole-run totals from post-control",
+          "draw": "contains camera conversion, resize, mirror flip, blit, and HUD drawing",
+          "driver_loop": "contains input, scheduler, control, render, display flip, and FPS limiter",
+          "input_collection": "contains indicator_input_light_rpc when a Z/X event requires a fresh observation",
+          "manual_availability_refresh": "contains activation_geometry_query, activation_bounding_box_getter and availability events; manual post-control only",
+          "manual_control_delivery": "contains checked manual_batch_rpc_wait and response validation; excludes preparation and post-control",
+          "map_getter": "legacy alias of waypoint_query; do not sum the two labels",
+          "post_control": "contains manual_availability_refresh and persisted observation, including light_getter",
+          "scheduler": "legacy scheduler and operation scheduler timing cover the same update call",
+          "traffic_light_observation": "contains cached traffic-light getters and conditional actor lookup",
+          "turn_signal_audio_light_rpc": "camera.timing_by_mode; subset of audio and alias of turn_signal_audio_timing light_state_rpc; independent of telemetry light_getter",
+          "vehicle_audio_update": "subset of camera audio; cached-state model and preloaded grain launch; excludes pre-drive synthesis and exit fade"
+        },
+        "schema_version": 1,
+        "status": "COMPLETE",
+        "world": {
+          "final_frame": 604793,
+          "final_simulation_seconds": 7303.0514670573175,
+          "frame_delta": 25944,
+          "initial_frame": 578849,
+          "initial_simulation_seconds": 6702.898215673864,
+          "simulation_elapsed_seconds": 600.1532513834536,
+          "wall_elapsed_seconds": 600.1410000000033
+        }
+      }
+    },
+    {
+      "line": 50685,
+      "module": "MODULE_2",
+      "phase": "MODULE_2",
+      "summary": {
+        "cadence": {
+          "completed_display_flips_per_wall_second": 10.9249004917667,
+          "completed_driver_loops_per_wall_second": 10.918776405503086,
+          "scheduler_updates_per_sim_second": 10.924756910313969,
+          "scheduler_updates_per_wall_second": 10.924179065773004,
+          "world_frames_per_sim_second": 43.57475988213757,
+          "world_frames_per_wall_second": 43.57245507688391
+        },
+        "camera": {
+          "active_drive_window": {
+            "completed_display_flip_count": 2021,
+            "completed_display_flips_per_wall_second": 10.9249004917667,
+            "definition": "viewer.run entry through exit; callbacks require host receipt within [start, end); callback lifecycle is separate",
+            "end_host_monotonic_seconds": 313454.9911098,
+            "host_elapsed_seconds": 184.9902433,
+            "roles": {
+              "front": {
+                "callback_count": 8058,
+                "callback_duration": {
+                  "count": 8058,
+                  "max_ms": 0.1314,
+                  "mean_ms": 0.014169
+                },
+                "callbacks_per_wall_second": 43.559054014179154,
+                "host_arrival_interval": {
+                  "count": 8057,
+                  "max_ms": 92.1565,
+                  "mean_ms": 22.955361
+                },
+                "sensor_elapsed_seconds": 184.9686216,
+                "sensor_frame_delta": 8060,
+                "sensor_frames_per_sensor_second": 43.57495844571796
+              },
+              "left": {
+                "callback_count": 8061,
+                "callback_duration": {
+                  "count": 8061,
+                  "max_ms": 0.1017,
+                  "mean_ms": 0.011159
+                },
+                "callbacks_per_wall_second": 43.57527108566619,
+                "host_arrival_interval": {
+                  "count": 8060,
+                  "max_ms": 86.0017,
+                  "mean_ms": 22.94857
+                },
+                "sensor_elapsed_seconds": 184.9686216,
+                "sensor_frame_delta": 8060,
+                "sensor_frames_per_sensor_second": 43.57495844571796
+              },
+              "right": {
+                "callback_count": 8061,
+                "callback_duration": {
+                  "count": 8061,
+                  "max_ms": 0.1155,
+                  "mean_ms": 0.016005
+                },
+                "callbacks_per_wall_second": 43.57527108566619,
+                "host_arrival_interval": {
+                  "count": 8060,
+                  "max_ms": 81.2845,
+                  "mean_ms": 22.948567
+                },
+                "sensor_elapsed_seconds": 184.9686216,
+                "sensor_frame_delta": 8060,
+                "sensor_frames_per_sensor_second": 43.57495844571796
+              }
+            },
+            "start_host_monotonic_seconds": 313270.0008665,
+            "status": "PARTIAL"
+          },
+          "clocks": {
+            "cross_clock_subtraction": false,
+            "host": "time.perf_counter seconds",
+            "host_implementation": "QueryPerformanceCounter()",
+            "host_resolution_seconds": 1e-07,
+            "preparation_age": "render preparation host time minus latest callback host receipt",
+            "run_measurements_host_elapsed": "separate duration from the session monotonic clock",
+            "sensor": "CARLA image frame and timestamp seconds",
+            "summary_age": "summary host time minus latest callback host receipt"
+          },
+          "environment": {
+            "map_name": "Carla/Maps/Town04",
+            "weather": {
+              "cloudiness": 5.0,
+              "fog_density": 2.0,
+              "fog_distance": 0.75,
+              "precipitation": 0.0,
+              "precipitation_deposits": 0.0,
+              "sun_altitude_angle": 45.0,
+              "sun_azimuth_angle": -1.0,
+              "wetness": 0.0,
+              "wind_intensity": 10.0
+            },
+            "world_settings": {
+              "fixed_delta_seconds": null,
+              "max_substep_delta_time": 0.01,
+              "max_substeps": 10,
+              "no_rendering_mode": false,
+              "substepping": true,
+              "synchronous_mode": false
+            }
+          },
+          "limitations": {
+            "instrumentation_overhead": "not separately measured",
+            "latency_scope": "host callback receipt to render preparation only",
+            "rounded_zero_duration_is_zero_cost": false,
+            "sensor_to_photon_or_gpu_latency": "not measured",
+            "storage": "scalar counters and summaries only"
+          },
+          "loop_correlation": {
+            "completed_loop_count": 2021,
+            "interpretation": "same-loop spans, not independent maxima; absent spans are unmeasured; mode at completion may follow a transition within the loop; not exhaustive or a mode-specific Display FPS measurement; fallback input_collection may nest in manual_control_preparation",
+            "scope": "active viewer window; incomplete/aborted loops excluded",
+            "storage": "one slowest loop and one pending loop; fixed segment names"
+          },
+          "measurement_lifecycle": {
+            "callback_counts": {
+              "definition": "every camera callback received during that lifecycle",
+              "end": "summary snapshot",
+              "start": "sensor attachment and listen registration"
+            },
+            "render_preparations": {
+              "definition": "prepared, updated, repeated, and no-image counters",
+              "end": "last render preparation",
+              "start": "first render preparation"
+            }
+          },
+          "measurement_window": {
+            "definition": "first through last render preparation",
+            "end_host_monotonic_seconds": 313454.8029891,
+            "start_host_monotonic_seconds": 313270.0919743
+          },
+          "roles": {
+            "front": {
+              "callback_count": 8610,
+              "first_host_receipt_seconds": 313255.160208,
+              "first_sensor_frame": 609486,
+              "first_sensor_timestamp_seconds": 7357.708849158138,
+              "last_host_receipt_seconds": 313455.0763955,
+              "last_sensor_frame": 618188,
+              "last_sensor_timestamp_seconds": 7557.60021455586,
+              "latest_host_age_seconds": 0.0193419,
+              "latest_preparation_host_age_seconds": 0.0193419,
+              "latest_receipt_host_age_at_summary_seconds": 0.000227,
+              "max_host_age_seconds": 0.027626,
+              "max_preparation_host_age_seconds": 0.027626,
+              "mean_host_age_seconds": 0.016295857,
+              "mean_preparation_host_age_seconds": 0.016295857,
+              "no_image_count": 0,
+              "prepared_count": 2021,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "105.0",
+                "id": 161,
+                "image_size_x": "1280",
+                "image_size_y": "720",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 105.0,
+                  "image_size_x": 1280,
+                  "image_size_y": 720,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 1,
+                    "roll": 0.0,
+                    "x": 0.25,
+                    "y": -0.35,
+                    "yaw": 0.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": 1.3761054277420044,
+                  "roll": -2.4230706691741943,
+                  "x": -505.5921630859375,
+                  "y": 309.6179504394531,
+                  "yaw": 114.38725280761719,
+                  "z": 1.1643887758255005
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": 1.3761054277420044,
+                  "roll": -2.4230706691741943,
+                  "x": -505.5921630859375,
+                  "y": 309.6179504394531,
+                  "yaw": 114.38725280761719,
+                  "z": 1.1643887758255005
+                }
+              },
+              "updated_count": 2021
+            },
+            "left": {
+              "callback_count": 8613,
+              "first_host_receipt_seconds": 313255.2057865,
+              "first_sensor_frame": 609488,
+              "first_sensor_timestamp_seconds": 7357.735103458166,
+              "last_host_receipt_seconds": 313455.076425,
+              "last_sensor_frame": 618188,
+              "last_sensor_timestamp_seconds": 7557.60021455586,
+              "latest_host_age_seconds": 0.014923,
+              "latest_preparation_host_age_seconds": 0.014923,
+              "latest_receipt_host_age_at_summary_seconds": 0.0001975,
+              "max_host_age_seconds": 0.0278452,
+              "max_preparation_host_age_seconds": 0.0278452,
+              "mean_host_age_seconds": 0.016440971,
+              "mean_preparation_host_age_seconds": 0.016440971,
+              "no_image_count": 0,
+              "prepared_count": 2021,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "100.0",
+                "id": 162,
+                "image_size_x": "480",
+                "image_size_y": "270",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 100.0,
+                  "image_size_x": 480,
+                  "image_size_y": 270,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 0.0,
+                    "roll": 0.0,
+                    "x": 0.3,
+                    "y": -1.0,
+                    "yaw": -150.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": -1.5375027656555176,
+                  "roll": 1.9097458124160767,
+                  "x": -505.0216369628906,
+                  "y": 309.9322204589844,
+                  "yaw": -35.58806228637695,
+                  "z": 1.1372450590133667
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": -1.5375027656555176,
+                  "roll": 1.9097458124160767,
+                  "x": -505.0216369628906,
+                  "y": 309.9322204589844,
+                  "yaw": -35.58806228637695,
+                  "z": 1.1372450590133667
+                }
+              },
+              "updated_count": 2021
+            },
+            "right": {
+              "callback_count": 8611,
+              "first_host_receipt_seconds": 313255.2475826,
+              "first_sensor_frame": 609490,
+              "first_sensor_timestamp_seconds": 7357.780775658786,
+              "last_host_receipt_seconds": 313455.076345,
+              "last_sensor_frame": 618188,
+              "last_sensor_timestamp_seconds": 7557.60021455586,
+              "latest_host_age_seconds": 0.0111307,
+              "latest_preparation_host_age_seconds": 0.0111307,
+              "latest_receipt_host_age_at_summary_seconds": 0.0002775,
+              "max_host_age_seconds": 0.0211931,
+              "max_preparation_host_age_seconds": 0.0211931,
+              "mean_host_age_seconds": 0.0114694,
+              "mean_preparation_host_age_seconds": 0.0114694,
+              "no_image_count": 0,
+              "prepared_count": 2021,
+              "repeated_count": 0,
+              "sensor": {
+                "fov": "100.0",
+                "id": 163,
+                "image_size_x": "480",
+                "image_size_y": "270",
+                "requested_configuration": {
+                  "coordinate_frame": "vehicle_relative",
+                  "fov": 100.0,
+                  "image_size_x": 480,
+                  "image_size_y": 270,
+                  "source": "ResearchDriverViewConfig",
+                  "vehicle_relative_mount": {
+                    "pitch": 0.0,
+                    "roll": 0.0,
+                    "x": 0.3,
+                    "y": 1.0,
+                    "yaw": 150.0,
+                    "z": 1.2
+                  }
+                },
+                "sensor_tick": "0.0",
+                "transform": {
+                  "pitch": 0.8843523263931274,
+                  "roll": 2.2865943908691406,
+                  "x": -506.8407287597656,
+                  "y": 309.1053161621094,
+                  "yaw": -95.54480743408203,
+                  "z": 1.2217766046524048
+                },
+                "transform_coordinate_provenance": {
+                  "captured_at": "summary",
+                  "coordinate_frame": "world",
+                  "source": "sensor.get_transform"
+                },
+                "type_id": "sensor.camera.rgb",
+                "world_transform_at_summary": {
+                  "pitch": 0.8843523263931274,
+                  "roll": 2.2865943908691406,
+                  "x": -506.8407287597656,
+                  "y": 309.1053161621094,
+                  "yaw": -95.54480743408203,
+                  "z": 1.2217766046524048
+                }
+              },
+              "updated_count": 2021
+            }
+          },
+          "run": {
+            "composition": "front_left_right_3_rgb",
+            "git_dirty": true,
+            "git_head": "4ab636d383aa5e884427e1db937abf9f829ee09e",
+            "initial_view": "DRIVER",
+            "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f"
+          },
+          "run_measurements": {
+            "final_simulation_seconds": 7557.547017157078,
+            "final_world_frame": 618186,
+            "host_elapsed_seconds": 185.09399999998277,
+            "initial_simulation_seconds": 7372.462807357311,
+            "initial_world_frame": 610121,
+            "loop_count": 2021,
+            "simulation_elapsed_seconds": 185.08420979976654,
+            "world_frame_delta": 8065
+          },
+          "schema_version": 1,
+          "sensor_count": 3,
+          "slowest_completed_loop": {
+            "completed_loop_index": 1613,
+            "duration_ms": 145.61350003350526,
+            "mode_at_completion": "MANUAL",
+            "segments": {
+              "after_display_flip": {
+                "count": 1,
+                "max_ms": 0.0012,
+                "mean_ms": 0.0012,
+                "total_ms": 0.0012
+              },
+              "audio": {
+                "count": 1,
+                "max_ms": 51.9045,
+                "mean_ms": 51.9045,
+                "total_ms": 51.9045
+              },
+              "display_flip": {
+                "count": 1,
+                "max_ms": 0.5301,
+                "mean_ms": 0.5301,
+                "total_ms": 0.5301
+              },
+              "draw": {
+                "count": 1,
+                "max_ms": 2.804,
+                "mean_ms": 2.804,
+                "total_ms": 2.804
+              },
+              "event_poll_and_presentation": {
+                "count": 1,
+                "max_ms": 0.0515,
+                "mean_ms": 0.0515,
+                "total_ms": 0.0515
+              },
+              "fps_limiter": {
+                "count": 1,
+                "max_ms": 0.0043,
+                "mean_ms": 0.0043,
+                "total_ms": 0.0043
+              },
+              "frame_prepare": {
+                "count": 1,
+                "max_ms": 0.0025,
+                "mean_ms": 0.0025,
+                "total_ms": 0.0025
+              },
+              "input_collection": {
+                "count": 1,
+                "max_ms": 0.1415,
+                "mean_ms": 0.1415,
+                "total_ms": 0.1415
+              },
+              "input_observer": {
+                "count": 1,
+                "max_ms": 0.0157,
+                "mean_ms": 0.0157,
+                "total_ms": 0.0157
+              },
+              "manual_control_delivery": {
+                "count": 1,
+                "max_ms": 22.7145,
+                "mean_ms": 22.7145,
+                "total_ms": 22.7145
+              },
+              "manual_control_preparation": {
+                "count": 1,
+                "max_ms": 0.0131,
+                "mean_ms": 0.0131,
+                "total_ms": 0.0131
+              },
+              "mode_events": {
+                "count": 1,
+                "max_ms": 0.012,
+                "mean_ms": 0.012,
+                "total_ms": 0.012
+              },
+              "post_control": {
+                "count": 1,
+                "max_ms": 67.1958,
+                "mean_ms": 67.1958,
+                "total_ms": 67.1958
+              },
+              "scheduler": {
+                "count": 1,
+                "max_ms": 0.0283,
+                "mean_ms": 0.0283,
+                "total_ms": 0.0283
+              }
+            }
+          },
+          "summary_host_monotonic_seconds": 313455.0766225,
+          "timing": {
+            "after_display_flip": {
+              "count": 2021,
+              "max_ms": 0.1294,
+              "mean_ms": 0.001493,
+              "total_ms": 3.017199
+            },
+            "audio": {
+              "count": 2021,
+              "max_ms": 51.9045,
+              "mean_ms": 21.939574,
+              "total_ms": 44339.878501
+            },
+            "blit.front": {
+              "count": 2021,
+              "max_ms": 1.4809,
+              "mean_ms": 0.691004,
+              "total_ms": 1396.5199
+            },
+            "blit.left": {
+              "count": 2021,
+              "max_ms": 0.1879,
+              "mean_ms": 0.049221,
+              "total_ms": 99.4759
+            },
+            "blit.right": {
+              "count": 2021,
+              "max_ms": 0.1768,
+              "mean_ms": 0.043688,
+              "total_ms": 88.292899
+            },
+            "conversion.front": {
+              "count": 2021,
+              "max_ms": 0.0895,
+              "mean_ms": 0.018923,
+              "total_ms": 38.243199
+            },
+            "conversion.left": {
+              "count": 2021,
+              "max_ms": 0.1755,
+              "mean_ms": 0.011206,
+              "total_ms": 22.648301
+            },
+            "conversion.right": {
+              "count": 2021,
+              "max_ms": 0.123,
+              "mean_ms": 0.006931,
+              "total_ms": 14.007698
+            },
+            "display_flip": {
+              "count": 2021,
+              "max_ms": 0.9772,
+              "mean_ms": 0.560909,
+              "total_ms": 1133.597601
+            },
+            "draw": {
+              "count": 2021,
+              "max_ms": 5.5346,
+              "mean_ms": 3.419414,
+              "total_ms": 6910.6356
+            },
+            "driver_loop": {
+              "count": 2021,
+              "max_ms": 145.6135,
+              "mean_ms": 91.43186,
+              "total_ms": 184783.789601
+            },
+            "event_poll_and_presentation": {
+              "count": 2022,
+              "max_ms": 0.2215,
+              "mean_ms": 0.064536,
+              "total_ms": 130.4923
+            },
+            "fps_limiter": {
+              "count": 2021,
+              "max_ms": 0.4313,
+              "mean_ms": 0.012325,
+              "total_ms": 24.9097
+            },
+            "frame_prepare": {
+              "count": 2021,
+              "max_ms": 0.0821,
+              "mean_ms": 0.002939,
+              "total_ms": 5.9402
+            },
+            "input_collection": {
+              "count": 2022,
+              "max_ms": 0.3437,
+              "mean_ms": 0.154054,
+              "total_ms": 311.496201
+            },
+            "input_observer": {
+              "count": 2022,
+              "max_ms": 0.0809,
+              "mean_ms": 0.018781,
+              "total_ms": 37.9753
+            },
+            "manual_control_delivery": {
+              "count": 2022,
+              "max_ms": 38.3833,
+              "mean_ms": 19.493558,
+              "total_ms": 39415.975
+            },
+            "manual_control_preparation": {
+              "count": 2022,
+              "max_ms": 0.1124,
+              "mean_ms": 0.016339,
+              "total_ms": 33.037699
+            },
+            "mirror_flip.left": {
+              "count": 2021,
+              "max_ms": 0.2054,
+              "mean_ms": 0.02931,
+              "total_ms": 59.2347
+            },
+            "mirror_flip.right": {
+              "count": 2021,
+              "max_ms": 0.1633,
+              "mean_ms": 0.017197,
+              "total_ms": 34.7553
+            },
+            "mode_events": {
+              "count": 2022,
+              "max_ms": 0.0816,
+              "mean_ms": 0.01341,
+              "total_ms": 27.115297
+            },
+            "post_control": {
+              "count": 2022,
+              "max_ms": 67.1958,
+              "mean_ms": 45.457694,
+              "total_ms": 91915.458099
+            },
+            "resize.front": {
+              "count": 2021,
+              "max_ms": 1.7138,
+              "mean_ms": 1.030941,
+              "total_ms": 2083.5318
+            },
+            "resize.left": {
+              "count": 2021,
+              "max_ms": 0.4611,
+              "mean_ms": 0.228157,
+              "total_ms": 461.104901
+            },
+            "resize.right": {
+              "count": 2021,
+              "max_ms": 0.4395,
+              "mean_ms": 0.196277,
+              "total_ms": 396.675698
+            },
+            "scheduler": {
+              "count": 2022,
+              "max_ms": 0.1273,
+              "mean_ms": 0.034148,
+              "total_ms": 69.0463
+            },
+            "turn_signal_audio_light_rpc": {
+              "count": 2021,
+              "max_ms": 51.8746,
+              "mean_ms": 21.906243,
+              "total_ms": 44272.517802
+            }
+          },
+          "timing_by_mode": {
+            "MANUAL": {
+              "after_display_flip": {
+                "count": 2021,
+                "max_ms": 0.1294,
+                "mean_ms": 0.001493,
+                "total_ms": 3.017199
+              },
+              "audio": {
+                "count": 2021,
+                "max_ms": 51.9045,
+                "mean_ms": 21.939574,
+                "total_ms": 44339.878501
+              },
+              "blit.front": {
+                "count": 2021,
+                "max_ms": 1.4809,
+                "mean_ms": 0.691004,
+                "total_ms": 1396.5199
+              },
+              "blit.left": {
+                "count": 2021,
+                "max_ms": 0.1879,
+                "mean_ms": 0.049221,
+                "total_ms": 99.4759
+              },
+              "blit.right": {
+                "count": 2021,
+                "max_ms": 0.1768,
+                "mean_ms": 0.043688,
+                "total_ms": 88.292899
+              },
+              "conversion.front": {
+                "count": 2021,
+                "max_ms": 0.0895,
+                "mean_ms": 0.018923,
+                "total_ms": 38.243199
+              },
+              "conversion.left": {
+                "count": 2021,
+                "max_ms": 0.1755,
+                "mean_ms": 0.011206,
+                "total_ms": 22.648301
+              },
+              "conversion.right": {
+                "count": 2021,
+                "max_ms": 0.123,
+                "mean_ms": 0.006931,
+                "total_ms": 14.007698
+              },
+              "display_flip": {
+                "count": 2021,
+                "max_ms": 0.9772,
+                "mean_ms": 0.560909,
+                "total_ms": 1133.597601
+              },
+              "draw": {
+                "count": 2021,
+                "max_ms": 5.5346,
+                "mean_ms": 3.419414,
+                "total_ms": 6910.6356
+              },
+              "driver_loop": {
+                "count": 2021,
+                "max_ms": 145.6135,
+                "mean_ms": 91.43186,
+                "total_ms": 184783.789601
+              },
+              "event_poll_and_presentation": {
+                "count": 2022,
+                "max_ms": 0.2215,
+                "mean_ms": 0.064536,
+                "total_ms": 130.4923
+              },
+              "fps_limiter": {
+                "count": 2021,
+                "max_ms": 0.4313,
+                "mean_ms": 0.012325,
+                "total_ms": 24.9097
+              },
+              "frame_prepare": {
+                "count": 2021,
+                "max_ms": 0.0821,
+                "mean_ms": 0.002939,
+                "total_ms": 5.9402
+              },
+              "input_collection": {
+                "count": 2022,
+                "max_ms": 0.3437,
+                "mean_ms": 0.154054,
+                "total_ms": 311.496201
+              },
+              "input_observer": {
+                "count": 2022,
+                "max_ms": 0.0809,
+                "mean_ms": 0.018781,
+                "total_ms": 37.9753
+              },
+              "manual_control_delivery": {
+                "count": 2022,
+                "max_ms": 38.3833,
+                "mean_ms": 19.493558,
+                "total_ms": 39415.975
+              },
+              "manual_control_preparation": {
+                "count": 2022,
+                "max_ms": 0.1124,
+                "mean_ms": 0.016339,
+                "total_ms": 33.037699
+              },
+              "mirror_flip.left": {
+                "count": 2021,
+                "max_ms": 0.2054,
+                "mean_ms": 0.02931,
+                "total_ms": 59.2347
+              },
+              "mirror_flip.right": {
+                "count": 2021,
+                "max_ms": 0.1633,
+                "mean_ms": 0.017197,
+                "total_ms": 34.7553
+              },
+              "mode_events": {
+                "count": 2022,
+                "max_ms": 0.0816,
+                "mean_ms": 0.01341,
+                "total_ms": 27.115297
+              },
+              "post_control": {
+                "count": 2022,
+                "max_ms": 67.1958,
+                "mean_ms": 45.457694,
+                "total_ms": 91915.458099
+              },
+              "resize.front": {
+                "count": 2021,
+                "max_ms": 1.7138,
+                "mean_ms": 1.030941,
+                "total_ms": 2083.5318
+              },
+              "resize.left": {
+                "count": 2021,
+                "max_ms": 0.4611,
+                "mean_ms": 0.228157,
+                "total_ms": 461.104901
+              },
+              "resize.right": {
+                "count": 2021,
+                "max_ms": 0.4395,
+                "mean_ms": 0.196277,
+                "total_ms": 396.675698
+              },
+              "scheduler": {
+                "count": 2022,
+                "max_ms": 0.1273,
+                "mean_ms": 0.034148,
+                "total_ms": 69.0463
+              },
+              "turn_signal_audio_light_rpc": {
+                "count": 2021,
+                "max_ms": 51.8746,
+                "mean_ms": 21.906243,
+                "total_ms": 44272.517802
+              }
+            }
+          },
+          "timing_definitions": {
+            "after_display_flip": "post-flip hook, including P5 presentation marking",
+            "audio": "turn-signal audio including fresh light RPC; optional vehicle audio when enabled",
+            "blit.<role>": "surface blit to display buffer",
+            "conversion.<role>": "CARLA BGRA buffer to pygame surface",
+            "display_flip": "pygame display flip only",
+            "draw": "complete draw including camera composition and HUD",
+            "driver_loop": "event polling through completed FPS limiter",
+            "event_poll_and_presentation": "pygame event.get and presentation.handle_events",
+            "fps_limiter": "pygame Clock.tick(60) only",
+            "frame_prepare": "pre-draw hook, including P5 preparation",
+            "mirror_flip.<role>": "horizontal mirror flip",
+            "mode_events": "mode/view/indicator event handling, including toggle light RPCs",
+            "resize.<role>": "pygame smoothscale",
+            "rounded_ms_decimal_places": 6,
+            "scheduler": "scheduler.update only",
+            "units": "count and milliseconds"
+          },
+          "timing_mode_definition": "canonical mode at operation completion",
+          "turn_signal_audio_timing": {
+            "audio_update": {
+              "first_call": {
+                "count": 1,
+                "max_ms": 0.0022,
+                "mean_ms": 0.0022
+              },
+              "subsequent_calls": {
+                "count": 2020,
+                "max_ms": 0.0537,
+                "mean_ms": 0.002185
+              }
+            },
+            "light_state_rpc": {
+              "first_call": {
+                "count": 1,
+                "max_ms": 21.9095,
+                "mean_ms": 21.9095
+              },
+              "subsequent_calls": {
+                "count": 2020,
+                "max_ms": 51.8746,
+                "mean_ms": 21.906242
+              }
+            }
+          },
+          "turn_signal_audio_timing_definitions": {
+            "audio_update": "TurnSignalAudio.update call only",
+            "first_call": "first observed call for each operation",
+            "light_state_rpc": "hero.get_light_state call only",
+            "subsequent_calls": "all observed calls after the first for each operation",
+            "units": "count and milliseconds"
+          }
+        },
+        "error": {
+          "message": "M2_V1_COLLISION",
+          "type": "P7Error"
+        },
+        "limitations": {
+          "missing_measurements": null,
+          "sensor_to_photon": "not measured",
+          "summary_serialization_and_write": "excluded from captured counters"
+        },
+        "mode_definition": "canonical automation control mode at operation completion",
+        "operation_accumulation": {
+          "activation_bounding_box_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 44415.409600245766
+          },
+          "activation_geometry_query": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 173.15390123985708
+          },
+          "control_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 8.086598361842334
+          },
+          "event_write": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 363.7370026553981
+          },
+          "indicator_input_light_rpc": {
+            "at_least_100_ms_count": 0,
+            "total_ms": null
+          },
+          "input_collection": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 293.706200318411
+          },
+          "input_observer": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 31.075199716724455
+          },
+          "json_serialize": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 70.17590111354366
+          },
+          "light_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 44989.52640115749
+          },
+          "manual_availability_refresh": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 44678.61099878792
+          },
+          "manual_batch_rpc_wait": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 39361.32820072817
+          },
+          "manual_control_delivery": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 39406.66199987754
+          },
+          "manual_control_preparation": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 26.74939902499318
+          },
+          "map_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 127.75869993492961
+          },
+          "neighbor_lane_queries": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 9.488199139013886
+          },
+          "post_control": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 91902.19809877453
+          },
+          "scheduler": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 62.80839996179566
+          },
+          "snapshot_actor_getters": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 6.0434999177232385
+          },
+          "snapshot_getter": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 8.8082006550394
+          },
+          "telemetry_write": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 141.410197946243
+          },
+          "traffic_light_actor_lookup": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 27.500899974256754
+          },
+          "traffic_light_observation": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 168.02120144711807
+          },
+          "vehicle_audio_update": {
+            "at_least_100_ms_count": 0,
+            "total_ms": null
+          },
+          "waypoint_query": {
+            "at_least_100_ms_count": 0,
+            "total_ms": 121.53920106356964
+          }
+        },
+        "operation_accumulation_by_mode": {
+          "MANUAL": {
+            "activation_bounding_box_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 44415.409600245766
+            },
+            "activation_geometry_query": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 173.15390123985708
+            },
+            "control_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 8.086598361842334
+            },
+            "event_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 363.7370026553981
+            },
+            "input_collection": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 293.706200318411
+            },
+            "input_observer": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 31.075199716724455
+            },
+            "json_serialize": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 70.17590111354366
+            },
+            "light_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 44989.52640115749
+            },
+            "manual_availability_refresh": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 44678.61099878792
+            },
+            "manual_batch_rpc_wait": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 39361.32820072817
+            },
+            "manual_control_delivery": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 39406.66199987754
+            },
+            "manual_control_preparation": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 26.74939902499318
+            },
+            "map_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 127.75869993492961
+            },
+            "neighbor_lane_queries": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 9.488199139013886
+            },
+            "post_control": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 91902.19809877453
+            },
+            "scheduler": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 62.80839996179566
+            },
+            "snapshot_actor_getters": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 6.0434999177232385
+            },
+            "snapshot_getter": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 8.8082006550394
+            },
+            "telemetry_write": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 141.410197946243
+            },
+            "traffic_light_actor_lookup": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 27.500899974256754
+            },
+            "traffic_light_observation": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 168.02120144711807
+            },
+            "waypoint_query": {
+              "at_least_100_ms_count": 0,
+              "total_ms": 121.53920106356964
+            }
+          },
+          "NOA_ACTIVE": {}
+        },
+        "operations": {
+          "activation_bounding_box_getter": {
+            "count": 1990,
+            "max_ms": 47.650599968619645,
+            "mean_ms": 22.319301306656165
+          },
+          "activation_geometry_query": {
+            "count": 1990,
+            "max_ms": 0.6387000321410596,
+            "mean_ms": 0.08701201067329502
+          },
+          "control_getter": {
+            "count": 2022,
+            "max_ms": 0.049099966417998075,
+            "mean_ms": 0.003999306806054567
+          },
+          "event_write": {
+            "count": 10168,
+            "max_ms": 0.35319995367899537,
+            "mean_ms": 0.03577271859317448
+          },
+          "indicator_input_light_rpc": {
+            "count": 0,
+            "max_ms": null,
+            "mean_ms": null
+          },
+          "input_collection": {
+            "count": 2022,
+            "max_ms": 0.3315000212751329,
+            "mean_ms": 0.14525529194777992
+          },
+          "input_observer": {
+            "count": 2022,
+            "max_ms": 0.07609999738633633,
+            "mean_ms": 0.015368545853968572
+          },
+          "json_serialize": {
+            "count": 2022,
+            "max_ms": 0.15219999477267265,
+            "mean_ms": 0.03470618254873573
+          },
+          "light_getter": {
+            "count": 2022,
+            "max_ms": 40.88029998820275,
+            "mean_ms": 22.250013056952273
+          },
+          "manual_availability_refresh": {
+            "count": 2022,
+            "max_ms": 47.76129999663681,
+            "mean_ms": 22.096246784761583
+          },
+          "manual_batch_rpc_wait": {
+            "count": 2022,
+            "max_ms": 38.359600002877414,
+            "mean_ms": 19.466532245661806
+          },
+          "manual_control_delivery": {
+            "count": 2022,
+            "max_ms": 38.37950003799051,
+            "mean_ms": 19.48895252219463
+          },
+          "manual_control_preparation": {
+            "count": 2022,
+            "max_ms": 0.10770000517368317,
+            "mean_ms": 0.013229178548463491
+          },
+          "map_getter": {
+            "count": 2022,
+            "max_ms": 0.26540004182606936,
+            "mean_ms": 0.06318432242083562
+          },
+          "neighbor_lane_queries": {
+            "count": 2022,
+            "max_ms": 0.06130000110715628,
+            "mean_ms": 0.0046924822645963826
+          },
+          "post_control": {
+            "count": 2022,
+            "max_ms": 67.18890002230182,
+            "mean_ms": 45.45113654736624
+          },
+          "scheduler": {
+            "count": 2022,
+            "max_ms": 0.11979998089373112,
+            "mean_ms": 0.031062512345101708
+          },
+          "snapshot_actor_getters": {
+            "count": 2022,
+            "max_ms": 0.03530003596097231,
+            "mean_ms": 0.0029888723628700487
+          },
+          "snapshot_getter": {
+            "count": 2022,
+            "max_ms": 0.0323000131174922,
+            "mean_ms": 0.004356182321977943
+          },
+          "telemetry_write": {
+            "count": 2022,
+            "max_ms": 0.2039000391960144,
+            "mean_ms": 0.0699358051168363
+          },
+          "traffic_light_actor_lookup": {
+            "count": 1,
+            "max_ms": 27.500899974256754,
+            "mean_ms": 27.500899974256754
+          },
+          "traffic_light_observation": {
+            "count": 2022,
+            "max_ms": 27.939699997659773,
+            "mean_ms": 0.0830965387967943
+          },
+          "vehicle_audio_update": {
+            "count": 0,
+            "max_ms": null,
+            "mean_ms": null
+          },
+          "waypoint_query": {
+            "count": 2022,
+            "max_ms": 0.2506000455468893,
+            "mean_ms": 0.06010840804330843
+          }
+        },
+        "operations_by_mode": {
+          "MANUAL": {
+            "activation_bounding_box_getter": {
+              "count": 1990,
+              "max_ms": 47.650599968619645,
+              "mean_ms": 22.319301306656165
+            },
+            "activation_geometry_query": {
+              "count": 1990,
+              "max_ms": 0.6387000321410596,
+              "mean_ms": 0.08701201067329502
+            },
+            "control_getter": {
+              "count": 2022,
+              "max_ms": 0.049099966417998075,
+              "mean_ms": 0.003999306806054567
+            },
+            "event_write": {
+              "count": 10168,
+              "max_ms": 0.35319995367899537,
+              "mean_ms": 0.03577271859317448
+            },
+            "input_collection": {
+              "count": 2022,
+              "max_ms": 0.3315000212751329,
+              "mean_ms": 0.14525529194777992
+            },
+            "input_observer": {
+              "count": 2022,
+              "max_ms": 0.07609999738633633,
+              "mean_ms": 0.015368545853968572
+            },
+            "json_serialize": {
+              "count": 2022,
+              "max_ms": 0.15219999477267265,
+              "mean_ms": 0.03470618254873573
+            },
+            "light_getter": {
+              "count": 2022,
+              "max_ms": 40.88029998820275,
+              "mean_ms": 22.250013056952273
+            },
+            "manual_availability_refresh": {
+              "count": 2022,
+              "max_ms": 47.76129999663681,
+              "mean_ms": 22.096246784761583
+            },
+            "manual_batch_rpc_wait": {
+              "count": 2022,
+              "max_ms": 38.359600002877414,
+              "mean_ms": 19.466532245661806
+            },
+            "manual_control_delivery": {
+              "count": 2022,
+              "max_ms": 38.37950003799051,
+              "mean_ms": 19.48895252219463
+            },
+            "manual_control_preparation": {
+              "count": 2022,
+              "max_ms": 0.10770000517368317,
+              "mean_ms": 0.013229178548463491
+            },
+            "map_getter": {
+              "count": 2022,
+              "max_ms": 0.26540004182606936,
+              "mean_ms": 0.06318432242083562
+            },
+            "neighbor_lane_queries": {
+              "count": 2022,
+              "max_ms": 0.06130000110715628,
+              "mean_ms": 0.0046924822645963826
+            },
+            "post_control": {
+              "count": 2022,
+              "max_ms": 67.18890002230182,
+              "mean_ms": 45.45113654736624
+            },
+            "scheduler": {
+              "count": 2022,
+              "max_ms": 0.11979998089373112,
+              "mean_ms": 0.031062512345101708
+            },
+            "snapshot_actor_getters": {
+              "count": 2022,
+              "max_ms": 0.03530003596097231,
+              "mean_ms": 0.0029888723628700487
+            },
+            "snapshot_getter": {
+              "count": 2022,
+              "max_ms": 0.0323000131174922,
+              "mean_ms": 0.004356182321977943
+            },
+            "telemetry_write": {
+              "count": 2022,
+              "max_ms": 0.2039000391960144,
+              "mean_ms": 0.0699358051168363
+            },
+            "traffic_light_actor_lookup": {
+              "count": 1,
+              "max_ms": 27.500899974256754,
+              "mean_ms": 27.500899974256754
+            },
+            "traffic_light_observation": {
+              "count": 2022,
+              "max_ms": 27.939699997659773,
+              "mean_ms": 0.0830965387967943
+            },
+            "waypoint_query": {
+              "count": 2022,
+              "max_ms": 0.2506000455468893,
+              "mean_ms": 0.06010840804330843
+            }
+          },
+          "NOA_ACTIVE": {}
+        },
+        "overlap": {
+          "activation_queries": "also measured on activation checks outside post-control; do not subtract whole-run totals from post-control",
+          "draw": "contains camera conversion, resize, mirror flip, blit, and HUD drawing",
+          "driver_loop": "contains input, scheduler, control, render, display flip, and FPS limiter",
+          "input_collection": "contains indicator_input_light_rpc when a Z/X event requires a fresh observation",
+          "manual_availability_refresh": "contains activation_geometry_query, activation_bounding_box_getter and availability events; manual post-control only",
+          "manual_control_delivery": "contains checked manual_batch_rpc_wait and response validation; excludes preparation and post-control",
+          "map_getter": "legacy alias of waypoint_query; do not sum the two labels",
+          "post_control": "contains manual_availability_refresh and persisted observation, including light_getter",
+          "scheduler": "legacy scheduler and operation scheduler timing cover the same update call",
+          "traffic_light_observation": "contains cached traffic-light getters and conditional actor lookup",
+          "turn_signal_audio_light_rpc": "camera.timing_by_mode; subset of audio and alias of turn_signal_audio_timing light_state_rpc; independent of telemetry light_getter",
+          "vehicle_audio_update": "subset of camera audio; cached-state model and preloaded grain launch; excludes pre-drive synthesis and exit fade"
+        },
+        "schema_version": 1,
+        "status": "PARTIAL",
+        "world": {
+          "final_frame": 618186,
+          "final_simulation_seconds": 7557.547017157078,
+          "frame_delta": 8065,
+          "initial_frame": 610121,
+          "initial_simulation_seconds": 7372.462807357311,
+          "simulation_elapsed_seconds": 185.08420979976654,
+          "wall_elapsed_seconds": 185.09399999998277
+        }
+      }
+    }
+  ],
+  "hazard": {
+    "m2_hazard_scheduled": {
+      "line": 40332,
+      "event": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 0.0,
+        "program_version": "P8_M2_V1_PLACEMENT_FIX_20261017",
+        "auto_state": "MANUAL",
+        "scene_state": "SCHEDULED",
+        "seed": 1231891973571318828,
+        "distribution": "UNIFORM_CLOSED_400_600",
+        "planned_exposure_active_s": 497.05292052712235,
+        "window_s": [
+          400.0,
+          600.0
+        ],
+        "m2_active_origin_monotonic_s": 313268.734,
+        "origin_record_monotonic_ns": 313268765000000,
+        "target_ttc_s": 4.0,
+        "preparation_range_s": [
+          3.0,
+          6.0
+        ],
+        "tuning": {
+          "seed": 1231891973571318828,
+          "preparation_s": 6.0,
+          "lane_change_s": 3.0,
+          "lead_headway_s": 1.5,
+          "minimum_lead_gap_m": 12.0,
+          "route_step_m": 4.0,
+          "retry_s": 1.0,
+          "cleanup_behind_m": 80.0,
+          "speed_gain": 0.35,
+          "gap_gain": 0.15,
+          "steering_gain": 1.5,
+          "steering_slew_per_s": 0.5,
+          "lead_blueprint": "vehicle.mercedes.coupe_2020",
+          "cargo_blueprint": "static.prop.box01"
+        },
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "response_thresholds": "UNDECIDED",
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    "m2_hazard_unexpected_failure": {
+      "line": 50680,
+      "event": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 184.96899999998277,
+        "program_version": "P8_M2_V1_PLACEMENT_FIX_20261017",
+        "auto_state": "MANUAL",
+        "scene_state": "ABORTED",
+        "reason": "COLLISION",
+        "collisions": [
+          {
+            "actor_id": 0,
+            "frame": 618181,
+            "simulation_seconds": 7557.42433475703,
+            "receipt_monotonic_ns": 313453687000000
+          }
+        ],
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    },
+    "m2_hazard_end": {
+      "line": 50683,
+      "event": {
+        "scenario_version": "M2_MOVING_HAZARD_V1_20261017",
+        "m2_active_elapsed_s": 185.09399999998277,
+        "program_version": "P8_M2_V1_PLACEMENT_FIX_20261017",
+        "auto_state": "MANUAL",
+        "scene_state": "ABORTED",
+        "parameter_status": "DEV_ONLY",
+        "canonical_status": "UNVALIDATED_RESEARCH_DEFINITIONS",
+        "hazard_visible_t": null,
+        "brake_onset_t": null,
+        "steer_onset_t": null,
+        "ttc_at_response": null,
+        "min_ttc": null,
+        "hazard_start_speed": null,
+        "hazard_start_distance": null,
+        "hazard_outcome": null,
+        "auto_state_at_m2_scene_close": "MANUAL",
+        "execution_scope": "DEV_M2_INTERNAL",
+        "execution_status": "FAILED",
+        "seed": 1231891973571318828,
+        "distribution": "UNIFORM_CLOSED_400_600",
+        "window_s": [
+          400.0,
+          600.0
+        ],
+        "planned_exposure_active_s": 497.05292052712235,
+        "preparation_s": null,
+        "m2_active_origin_monotonic_s": 313268.734,
+        "hazard_state": "ABORTED",
+        "end_reason": "ERROR",
+        "scene_reason": "COLLISION_AT_SHUTDOWN",
+        "error": "P7Error:M2_V1_COLLISION",
+        "occurrence_reserved": false,
+        "first_geometry": null,
+        "display_candidate": null,
+        "target_ttc_s": 4.0,
+        "display_frames_checked": 2021,
+        "display_frames_unmatched": 2021,
+        "display_status": "NO_VALIDATED_DISPLAY_CANDIDATE",
+        "driver_response_outcome": null,
+        "provenance": "ACTUAL_BOUNDED_OPERATOR",
+        "occurrence_result": "NOT_OCCURRED",
+        "cleanup": {
+          "failures": [],
+          "remaining_actor_ids": [],
+          "pending_collisions": [
+            {
+              "actor_id": 0,
+              "frame": 618182,
+              "simulation_seconds": 7557.4489260576665,
+              "receipt_monotonic_ns": 313453781000000
+            }
+          ]
+        },
+        "raw_storage": {
+          "status": "ACKNOWLEDGED",
+          "acknowledged_batch_count": 179,
+          "acknowledged_sample_count": 2022,
+          "pending_sample_count": 0,
+          "pending_batch_id": null,
+          "possible_duplicate_batches": false,
+          "duplicate_detection_key": "batch_id",
+          "write_errors": []
+        },
+        "finalization_errors": [],
+        "partial_data": true,
+        "orchestration_stage": "MODULE_2_RUNNING",
+        "participant_run": false,
+        "development_mode": true,
+        "hardware_validation": "NOT_HARDWARE_VALIDATED",
+        "timing_profile": "V5_NOMINAL"
+      }
+    }
+  },
+  "counts": {
+    "stage_start": 14,
+    "assignment": 1,
+    "stage_end": 12,
+    "stage_start_attempt": 12,
+    "execution_policy_stage_outcome": 3,
+    "p8_weather_applied": 3,
+    "tm_runtime_attestation": 3,
+    "p5_exit_manifest": 3,
+    "telemetry_schema": 3,
+    "control_authority": 3,
+    "tsxw_device_opened": 3,
+    "tsxw_input_preparation_started": 3,
+    "tsxw_input_preparation_ready": 3,
+    "initial_state": 3,
+    "lc_active_drive_started": 3,
+    "tsxw_input_sample": 15014,
+    "traffic_manager_speed_limit_observation": 15014,
+    "tsxw_manual_control": 2116,
+    "traffic_light_observation": 15014,
+    "lc_observation_gap": 3185,
+    "tsxw_device_closed": 3,
+    "lc_finished": 2,
+    "performance_summary": 3,
+    "p8_actual_bounded_run": 2,
+    "calibration_boundary_status": 1,
+    "auto_request": 1,
+    "auto_state": 2,
+    "lc_draft": 2,
+    "lc_presented": 2,
+    "lc_decision": 1,
+    "lc_lateral_reference_invalidated": 6,
+    "lc_lateral_reference_acquired": 4,
+    "lc_navigation_unavailable": 2,
+    "lc_completed": 1,
+    "disengagement": 1,
+    "m2_hazard_scheduled": 1,
+    "m2_hazard_camera_basis": 1,
+    "m2_hazard_raw_samples": 179,
+    "availability": 53,
+    "lc_maneuver_start": 1,
+    "lc_boundary_crossing": 1,
+    "m2_hazard_unexpected_failure": 1,
+    "m2_hazard_end": 1,
+    "stage_abort": 2,
+    "p8_logs_flushed_before_cleanup": 1,
+    "p8_cleanup_end": 1
+  },
+  "last_event": [
+    50691,
+    {
+      "study_run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+      "run_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+      "participant_id": "PILOT-bdb31eb6b3874f43b93a3313b4b9822f",
+      "session_elapsed_s": "874.735",
+      "module_1_condition": "NO_SURT",
+      "module_2_condition": "MANUAL",
+      "assignment_route_id": "town04-exit-47",
+      "scenario_version": "P8_DEV_REHEARSAL",
+      "aoi_file_version": "REAR_DISABLED_UNVALIDATED",
+      "program_version": "P8_OPERATOR_NOT_PARTICIPANT_READY",
+      "segment_id": "P8-PILOT-bdb31eb6b3874f43b93a3313b4b9822f:ABORTED",
+      "phase": "POST_EXPERIMENT",
+      "module": "",
+      "block": "",
+      "condition": "",
+      "order": "",
+      "route": "town04-exit-47",
+      "outcome_family": "",
+      "host_monotonic_ns": "313455531000000",
+      "host_utc_ns": "1792239770442279200",
+      "carla_simulation_seconds": "",
+      "carla_frame": "",
+      "carla_capture_started_host_monotonic_ns": "",
+      "carla_capture_completed_host_monotonic_ns": "",
+      "external_timestamps_json": "",
+      "event_type": "p8_cleanup_end",
+      "event_value": "{\"errors\": [], \"orchestration_stage\": \"ABORTED\", \"participant_run\": false, \"development_mode\": true, \"provenance\": \"ACTUAL_BOUNDED_OPERATOR\", \"hardware_validation\": \"NOT_HARDWARE_VALIDATED\", \"timing_profile\": \"V5_NOMINAL\"}"
+    }
+  ],
+  "last_raw_sample": {
+    "poll_started_monotonic_ns": 313453640000000,
+    "poll_completed_monotonic_ns": 313453640000000,
+    "input": {
+      "throttle": 0.591796875,
+      "brake": 0.0,
+      "steering": 0.0,
+      "steering_engaged": false,
+      "hand_brake": false,
+      "activation_requested": false,
+      "deactivation_requested": false,
+      "exit_confirm_requested": false,
+      "exit_reject_requested": false,
+      "lane_change_direction": null,
+      "lane_change_in_progress": false,
+      "stage": null
+    },
+    "m2_active_elapsed_s": 184.96899999998277,
+    "observation_monotonic_ns": 313453703000000,
+    "frame": 618180,
+    "simulation_seconds": 7557.400339558721,
+    "auto_state": "MANUAL",
+    "ego_speed_mps": 23.712005208200207,
+    "applied_control_readback": {
+      "throttle": 0.591796875,
+      "brake": 0.0,
+      "steer": 0.0
+    },
+    "scene_state": "SCHEDULED"
+  }
+}

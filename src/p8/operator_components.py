@@ -48,6 +48,7 @@ class OperatorComponents:
             "deletion_status": "NOT_REQUESTED",
         }
         self.clean = False
+        self.runtime_faults = []
         self.hazard_observation: dict[str, Json] | None = None
         self.hazard_loop: OperatorHazardLoop | None = None
         self.continuity = OperatorRuntimeContinuity()
@@ -55,7 +56,11 @@ class OperatorComponents:
     def enter(self, stage: Stage) -> None:
         if stage is not self.services.stage:
             raise P8Error("COMPONENT_STAGE_CONTEXT_MISMATCH")
-        if stage is Stage.FINAL_HAZARD and self.hazard_observation is None:
+        if (
+            stage is Stage.FINAL_HAZARD
+            and self.hazard_observation is None
+            and self.hazard_loop is None
+        ):
             timestamp = self.services.stamp()
             identities = (
                 self.continuity.bind_final_hazard(self.services)
@@ -134,6 +139,8 @@ class OperatorComponents:
                         assert_never(unreachable)
             return "FULL_ROUTE_EXIT_AND_NOMINAL_WINDOW_BLOCKED"
         if stage is Stage.FINAL_HAZARD:
+            if self.runtime.m2_hazard_v1 is not None:
+                return "PHYSICAL_HAZARD_AND_DATA_VALIDATION_PENDING"
             if (
                 self.hazard_observation is not None
                 and self.hazard_observation.get("execution_status")
@@ -220,6 +227,9 @@ class OperatorComponents:
             self.exit_slots,
             self.continuity,
             self.nominal_m2_handoff,
+            self.occurrences,
+            self._store_hazard_record,
+            self.runtime_faults,
         ).execute(
             OperatorRunRequest(
                 module,
@@ -255,6 +265,7 @@ class OperatorComponents:
                 else dict(self.hazard_observation)
             ),
             "post": dict(self.post),
+            "runtime_faults": list(self.runtime_faults),
             "owned_resource_tokens": list(self.continuity.tokens()),
             "cleanup_completed": self.clean,
         }

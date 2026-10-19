@@ -621,6 +621,10 @@ class ResearchNoARunner:
                     steering_target=bundle.steering_target,
                     config=self._config.automation_interaction.policy,
                     event_sink=record_event,
+                    diagnostics=diagnostics,
+                    # This gate belongs to this spawned ego only. Its actor-local
+                    # box is fixed; actual activation still refreshes the box.
+                    cache_static_bounds=traffic_manager is not None,
                 )
                 if persistence is not None:
                     interaction = PersistedInteractionObserver(
@@ -798,6 +802,15 @@ class ResearchNoARunner:
             if interaction is not None
             else None
         )
+        audio_source = None
+        if self._config.vehicle_audio and persistence is not None:
+            from src.scenario.vehicle_audio_runtime import CachedVehicleAudioSource
+
+            audio_source = CachedVehicleAudioSource(
+                persistence,
+                hero.id,
+                lambda: automation_state_source().control_mode.value,
+            )
         config = ResearchDriverViewConfig(
             initial_driving_mode=DrivingMode.MANUAL,
             front_camera_only=self._config.front_camera_only,
@@ -810,6 +823,19 @@ class ResearchNoARunner:
             training_early_finish=self._config.operator_training,
             traffic_manager_port=self._config.traffic_manager_port,
             control_sender=control_sender,
+            vehicle_audio_source=audio_source,
+            iteration_light_state=(
+                None if persistence is None else persistence.source.iteration_lights
+            ),
+            vehicle_audio_status_sink=(
+                None
+                if audio_source is None
+                else lambda payload: persistence.record_phase2_event(
+                    "vehicle_audio_summary",
+                    payload,
+                    persistence.source.get_host_timestamp(),
+                )
+            ),
             tsxw_config=self._config.tsxw_config,
             tsxw_event_sink=(
                 None

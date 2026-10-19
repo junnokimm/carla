@@ -15,6 +15,7 @@ class Preparation:
     monitor_label: str
     ready: bool
     confirmed: bool
+    total: int = 5
 
 
 class ValidationKeys:
@@ -50,10 +51,12 @@ class PreparationOverlay:
         if not preparation.ready:
             instruction = "카메라와 실제 gaze 데이터 준비 중 (ESC: 중단)"
         lines = (
-            (self.title, f"PREPARE {preparation.index + 1}/5  {preparation.target}", HUD_FOREGROUND),
+            (self.title, f"PREPARE {preparation.index + 1}/{preparation.total}  {preparation.target}", HUD_FOREGROUND),
             (self.body, instruction, HUD_FOREGROUND),
             (self.detail, "측정 2초 동안 안내가 숨겨집니다. 언제든 ESC로 중단", HUD_SECONDARY),
             (self.detail, preparation.monitor_label, HUD_SECONDARY),
+            (self.detail, "C 확인 후 화면 크기 고정" if preparation.confirmed
+             else "F11: 전체화면 / 창 모드 전환 · 주행 모니터에서 C로 확인", HUD_SECONDARY),
         )
         for index, (font, text, color) in enumerate(lines):
             image = font.render(text, True, color)

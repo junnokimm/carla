@@ -22,6 +22,22 @@ class CameraFeedSnapshot:
     last_host_receipt_seconds: float | None
 
 
+@dataclass(frozen=True, slots=True)
+class DisplayedCameraFrame:
+    """Selected front image after successful blit/present/flip, not photon onset.
+
+    Receipt seconds retain the camera perf_counter clock. Flip completion uses
+    host monotonic_ns; do not subtract the two clocks. No image buffer is retained.
+    """
+
+    sensor_actor_id: int
+    frame: int | None
+    simulation_seconds: float | None
+    receipt_perf_counter_seconds: float | None
+    flip_completed_monotonic_ns: int
+    camera_transform: carla.Transform | None = None
+
+
 class DriverViewPerformanceObserver(Protocol):
     def timestamp(self) -> float: ...
 

@@ -49,6 +49,16 @@ class AssistedLaneChangeInteraction(LaneChangeInteraction, Protocol):
     def submit_confirmed_p5(self) -> bool: ...
 
 
+@runtime_checkable
+class GeneralSignalInteraction(Protocol):
+    @property
+    def signal_request_count(self) -> int: ...
+
+    def request_general(self, direction: LaneChangeDirection) -> None: ...
+
+    def take_failed_p5_submission(self) -> TimestampEnvelope | None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ResearchExitObservationSource:
     route: ExitRoute
@@ -83,8 +93,12 @@ class ResearchExitObservationSource:
         matched = projection is not None
         if projection is not None:
             object.__setattr__(self, "cursor", projection)
-        target_transform = sample.lane_transform
-        target_width = sample.lane_width_m
+        # A source-lane centre is not a substitute for an unobserved target.
+        target_transform = None
+        target_width = None
+        if sample.lane_id == self.route.target_lane_id:
+            target_transform = sample.lane_transform
+            target_width = sample.lane_width_m
         if (
             sample.lane_id == self.route.source_lane_id
             and sample.right_lane_id == self.route.target_lane_id
@@ -106,6 +120,8 @@ class ResearchExitObservationSource:
         boundary_valid = (
             projection is not None
             and target_transform is not None
+            and target_width is not None
+            and target_width > 0.0
             and sample.road_id == self.route.points[projection.point_index].road_id
             and sample.section_id
             == self.route.points[projection.point_index].section_id
@@ -193,6 +209,8 @@ class ResearchExitInteractionObserver:
     def update(self, driver_input: DriverInput) -> AutomationState:
         receipt_timestamp = self._persistence.source.get_host_timestamp()
         assisted = self._assisted_interaction
+        general = assisted if isinstance(assisted, GeneralSignalInteraction) else None
+        request_count = None if general is None else general.signal_request_count
         p5_candidate = (
             assisted is not None
             and driver_input.exit_confirm_requested
@@ -220,10 +238,25 @@ class ResearchExitInteractionObserver:
             receipt_timestamp,
             commit_timestamp,
         )
+        # An exit recommendation may expire/reject its confirmation on this
+        # iteration. That must not swallow an otherwise ordinary NoA signal.
+        # An attempted P5 submission (even a blocked one) consumes the edge once.
+        if (p5_candidate and general is not None and assisted is not None
+                and state.control_mode is DrivingControlMode.NOA_ACTIVE
+                and not assisted.lane_change_in_progress
+                and not driver_input.activation_requested
+                and not driver_input.exit_reject_requested
+                and general.signal_request_count == request_count):
+            general.request_general(LaneChangeDirection.RIGHT)
         return state
 
     def after_control_applied(self) -> None:
         self._interaction.after_control_applied()
+        assisted = self._assisted_interaction
+        if isinstance(assisted, GeneralSignalInteraction):
+            failure = assisted.take_failed_p5_submission()
+            if failure is not None:
+                self.coordinator.fail_assisted_submission(failure)
         observation = self._observations.observe()
         self.coordinator.observe(observation)
         if self.coordinator.status is ExitAssistanceStatus.WAITING:

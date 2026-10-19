@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import assert_never
 
+from src.experiment.context import Module2Condition
 from src.p8.model import P8Error, Stage
 from src.p8.operator_copy import MODULE_1_INSTRUCTION, MODULE_2_INSTRUCTION
 from src.p8.operator_model import OperatorSnapshot
@@ -32,11 +33,22 @@ def stage_page(snapshot: OperatorSnapshot, status: str) -> OperatorPage:
             )
             controls = ("SPACE — Module 2 안내로 이동",)
         case Stage.MODULE_2_PREPARE:
-            title = "Module 2 안내"
+            match snapshot.module_2_condition:
+                case Module2Condition.MANUAL:
+                    title = "Module 2 안내 — 배정: 수동 (MANUAL)"
+                case Module2Condition.NOA_L2:
+                    title = "Module 2 안내 — 배정: NoA형 (NOA_L2)"
+                case _:
+                    title = "Module 2 안내"
             body = MODULE_2_INSTRUCTION
             controls = ("SPACE  안내 완료 후 Module 2 시작",)
         case Stage.SESSION_COMPLETE:
-            title = "세션 저장 완료"
+            title = (
+                "원자료 저장 · ZIP 내보내기 실패"
+                if snapshot.result_export is not None
+                and snapshot.result_export.error is not None
+                else "세션 저장 완료"
+            )
             module_runs = tuple(
                 run
                 for run in snapshot.module_runs
@@ -60,13 +72,15 @@ def stage_page(snapshot: OperatorSnapshot, status: str) -> OperatorPage:
                     else "실행된 부분 주행 구간이 저장되었습니다."
                 ),
                 f"P5 단계별 결과: {exit_summary or '실행 기록 없음'}.",
-                "P6 시선 및 hazard 통합은 차단 상태이며 전체 결과는 PARTIAL입니다.",
+                f"위험사건 기록: {snapshot.hazard_status or '실행 기록 없음'}.",
+                "P6 시선 수집과 위험사건 물리·데이터 검증은 미완료이며 전체 결과는 PARTIAL입니다.",
                 "참가자 실험 완료나 분석 가능 상태를 뜻하지 않습니다.",
+                *_result_paths(snapshot),
             )
             controls = ("창을 닫아 종료",)
         case Stage.ABORTED:
             title = "세션 중단"
-            body = ("부분 기록과 중단 사유를 저장했습니다.",)
+            body = ("부분 기록과 중단 사유를 저장했습니다.", *_result_paths(snapshot))
             controls = ("창을 닫아 종료",)
         case (
             Stage.SESSION_CREATED
@@ -82,3 +96,15 @@ def stage_page(snapshot: OperatorSnapshot, status: str) -> OperatorPage:
         case unreachable:
             assert_never(unreachable)
     return OperatorPage(header, title, body, controls, status)
+
+
+def _result_paths(snapshot: OperatorSnapshot) -> tuple[str, ...]:
+    result = snapshot.result_export
+    if result is None:
+        return ()
+    lines = [f"원자료 폴더: {result.directory}"]
+    if result.archive is not None:
+        lines.append(f"결과 ZIP: {result.archive}")
+    if result.error is not None:
+        lines.append(f"ZIP 내보내기 실패: {result.error}")
+    return tuple(lines)

@@ -105,10 +105,32 @@ class LaneChangeTracker(LaneChangeObservationResultFactory):
         bounding_box: ActivationVehicleBoundingBox,
         config: AutomationInteractionConfig,
     ) -> LaneChangeObservationResult:
-        if self.unverified:
+        # A missing sample is a gap in evidence, not a permanent execution lock.
+        # Re-evaluate later samples against the ORIGINAL lane-pair topology and
+        # submission boundary. Never reinterpret an unrelated lane as success.
+        previous_unverified = self.unverified_reason
+        recoverable = previous_unverified in {
+            "MISSING_POST_CONTROL_SNAPSHOT", "MISSING_CARLA_FRAME",
+            "GEOMETRY_CONTINUITY_UNAVAILABLE", "GEOMETRY_NONFINITE",
+        }
+        if self.unverified and not recoverable:
             return self._result(
                 LaneChangeObservationStatus.IGNORED, "ALREADY_UNVERIFIED"
             )
+        if recoverable:
+            self.unverified_reason = None
+        result = self._observe_sample(sample, bounding_box, config)
+        if recoverable and result.status is LaneChangeObservationStatus.IGNORED:
+            # A duplicate/pre-submission frame is not evidence of recovery.
+            self.unverified_reason = previous_unverified
+        return result
+
+    def _observe_sample(
+        self,
+        sample: ResearchSnapshotSample,
+        bounding_box: ActivationVehicleBoundingBox,
+        config: AutomationInteractionConfig,
+    ) -> LaneChangeObservationResult:
         if not self.submitted:
             return self._result(LaneChangeObservationStatus.IGNORED, "NOT_SUBMITTED")
         carla_timestamp = sample.timestamp.carla_snapshot

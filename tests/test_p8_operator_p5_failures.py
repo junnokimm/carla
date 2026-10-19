@@ -42,13 +42,15 @@ def test_live_evidence_failure_cannot_mask_run_error_or_disappear(
     with pytest.raises(expected_type, match=expected_message):
         controller.execute_current_module()
 
-    assert controller.session.closed
+    assert not controller.session.closed
+    assert controller._operator_components().runtime_faults
     assert len(controller.snapshot().module_runs) == 1
     exit_result = controller._operator_components().exit_slots[Stage.MODULE_1_RUNNING]
     assert exit_result.classification.value == "TECHNICAL_ERROR"
     assert expected_message in exit_result.technical_error
     assert evidence.vehicles[-1].destroy_count == 1
     assert evidence.viewers[-1].close_count == 1
+    controller.abort("TEST_OPERATOR_STOP")
 
 
 def test_activation_with_steering_after_manual_t0_keeps_shared_clock_order(

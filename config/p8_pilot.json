@@ -1,0 +1,8 @@
+{
+  "m1": "NO_SURT",
+  "m2": "MANUAL",
+  "m1_exit_open_s": 0.0,
+  "m1_exit_close_s": 600.0,
+  "m2_exit_open_s": 100.0,
+  "m2_exit_close_s": 500.0
+}

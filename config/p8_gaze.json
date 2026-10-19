@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "tobii_python": ".venv-tobii/Scripts/python.exe",
+  "serial": null,
+  "display_confirmed": true,
+  "calibration_status": "USER_REPORTED_ETM_CALIBRATED_20261019",
+  "monitor_name": null,
+  "aoi_validation_status": "NOT_VALIDATED",
+  "tablet_status": "PROVISIONAL_PARTIAL_EMPIRICAL_MAPPING",
+  "tablet_profile": "p8_external_tablet_20261019_070521.json"
+}

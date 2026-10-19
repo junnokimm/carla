@@ -30,7 +30,7 @@ def test_candidate_matches_current_mirrors_without_claiming_measured_accuracy() 
     assert candidate.classify(0.5, 0.5) is Aoi.INVALID_LAYOUT
 
 
-def test_rear_disabled_candidate_keeps_region_unavailable_without_reassignment() -> None:
+def test_rear_disabled_candidate_follows_visible_front_and_raised_side_mirrors() -> None:
     candidate = load_aoi_layout(
         Path(__file__).resolve().parents[1]
         / "config/p6_aoi_rear_disabled_candidate_v1.json"
@@ -44,9 +44,9 @@ def test_rear_disabled_candidate_keeps_region_unavailable_without_reassignment()
         ),
     )
 
-    assert candidate.version == "p6-rear-disabled-candidate-unvalidated-1"
+    assert candidate.version == "pilot-render-layout-v1"
     assert candidate.rear_available is False
-    assert verified.classify(0.875, 0.2) is Aoi.NO_AOI
-    assert candidate_aoi(Point(1120, 144), candidate) == "NO_AOI"
-    assert verified.classify(0.1, 0.85) is Aoi.LEFT_MIRROR
-    assert verified.classify(0.9, 0.85) is Aoi.RIGHT_MIRROR
+    assert verified.classify(0.875, 0.2) is Aoi.FORWARD
+    assert candidate_aoi(Point(1120, 144), candidate) == "FORWARD"
+    assert verified.classify(0.1, 0.72) is Aoi.LEFT_MIRROR
+    assert verified.classify(0.9, 0.72) is Aoi.RIGHT_MIRROR

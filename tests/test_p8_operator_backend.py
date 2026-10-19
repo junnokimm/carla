@@ -1069,7 +1069,7 @@ def test_native_tm_status_is_emitted_after_real_runner_cleanup(tmp_path: Path) -
     assert payload["trace_session"] == 9
 
 
-def test_actual_runner_error_aborts_and_cleans_owned_resources(tmp_path: Path) -> None:
+def test_actual_runner_error_keeps_session_open_and_cleans_owned_resources(tmp_path: Path) -> None:
     clock = StrictClock()
     controller, evidence = register_dev(tmp_path, clock)
     advance_to(controller, Stage.MODULE_1_RUNNING)
@@ -1078,11 +1078,13 @@ def test_actual_runner_error_aborts_and_cleans_owned_resources(tmp_path: Path) -
     with pytest.raises(RuntimeError, match="operator module failed"):
         controller.execute_current_module(1.0)
 
-    assert controller.session.closed
-    assert controller.session.result["completion_status"] == "ABORTED"
+    assert not controller.session.closed
+    assert controller.session.state is Stage.MODULE_1_RUNNING
+    assert controller._operator_components().runtime_faults[-1]["status"] == "AWAITING_OPERATOR_RUNTIME_UNAVAILABLE"
     assert [viewer.close_count for viewer in evidence.viewers] == [1, 1]
     assert [vehicle.destroy_count for vehicle in evidence.vehicles] == [1, 1]
-    assert controller.session.services.closed
+    assert not controller.session.services.closed
+    controller.abort("TEST_OPERATOR_STOP")
 
 
 def test_p5_runner_error_preserves_technical_stage_evidence(tmp_path: Path) -> None:

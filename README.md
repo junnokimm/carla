@@ -2,6 +2,8 @@
 
 # CARLA Mobility UX Experiment
 
+> **현재 P8 개발 파일럿 (2026-10-17):** 고정 실행 명령과 수정본 적용은 [README_PILOT_FIX.md](README_PILOT_FIX.md), 입력 원인·검증·개발 상태는 [상세 안내서](docs/P8_Pilot_Fix_20261017.md)를 참고한다. 아래 초기 개요의 실행·위험사건 설명보다 최신 사용자 지정 개발 v1과 해당 안내서를 우선한다.
+
 CARLA 기반 SAE Level 2 / NoA-like 주행 실험 환경 개발 프로젝트 - Junho Kim
 
 본 프로젝트는 자율주행 및 지능형 모빌리티 환경에서

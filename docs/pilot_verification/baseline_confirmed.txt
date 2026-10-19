@@ -1,0 +1,1397 @@
+Original archive baseline confirmation
+UTC: 2026-10-17T07:48:25.964500+00:00
+Platform: Linux-6.18.55-x86_64-with-glibc2.39
+Python: 3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]
+Working directory: /workspace/scratch/7ec199e3f2c1/work/baseline_source
+Current-suite evidence: /workspace/scratch/7ec199e3f2c1/work/verification/full_suite.txt
+Selection: exact ten FAILED node IDs from current-suite evidence; no test/source edits
+Bytecode writes disabled; pytest cache provider disabled
+Command (argv): ["/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python", "-m", "pytest", "-p", "no:cacheprovider", "-vv", "--tb=long", "--color=no", "tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged", "tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps", "tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size", "tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors", "tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform", "tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy", "tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare", "tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash", "tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1]", "tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1]"]
+
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.4.2, pluggy-1.7.0 -- /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python
+rootdir: /workspace/scratch/7ec199e3f2c1/work/baseline_source
+collecting ... collected 10 items
+
+tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged FAILED [ 10%]
+tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps FAILED [ 20%]
+tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size FAILED [ 30%]
+tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors FAILED [ 40%]
+tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform FAILED [ 50%]
+tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy FAILED [ 60%]
+tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare FAILED [ 70%]
+tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash FAILED [ 80%]
+tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1] FAILED [ 90%]
+tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1] FAILED [100%]
+
+=================================== FAILURES ===================================
+_______ test_protected_front_cockpit_and_hud_configuration_is_unchanged ________
+
+    def test_protected_front_cockpit_and_hud_configuration_is_unchanged() -> None:
+        from src.scenario.driver_view import CameraTransform, DriverViewConfig
+    
+        config = DriverViewConfig()
+    
+        assert config.front_resolution == (1280, 720)
+        assert config.fov == 100.0
+        assert config.front_transform == CameraTransform(x=1.4, y=0.0, z=1.3, pitch=-2.0)
+        assert config.cockpit_fov == 105.0
+>       assert config.cockpit_transform == CameraTransform(
+            x=0.10, y=-0.35, z=1.20, pitch=-1.5
+        )
+E       AssertionError: assert CameraTransform(x=0.25, y=-0.35, z=1.2, pitch=1, yaw=0.0, roll=0.0) == CameraTransform(x=0.1, y=-0.35, z=1.2, pitch=-1.5, yaw=0.0, roll=0.0)
+E         
+E         Matching attributes:
+E         ['y', 'z', 'yaw', 'roll']
+E         Differing attributes:
+E         ['x', 'pitch']
+E         
+E         Drill down into differing attribute x:
+E           x: 0.25 != 0.1
+E         
+E         Drill down into differing attribute pitch:
+E           pitch: 1 != -1.5
+
+tests/test_driver_view.py:213: AssertionError
+_____ test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps _____
+
+    def test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps() -> None:
+        from src.scenario.driver_view import DriverViewConfig, calculate_layout
+    
+        config = DriverViewConfig(window_size=(1280, 720))
+    
+        layout = calculate_layout(config)
+    
+        assert layout.front_position == (0, 0)
+        assert layout.rear_mirror.bounds == (960, 100, 320, 90)
+>       assert layout.left_mirror.bounds == (24, 561, 240, 135)
+E       assert (24, 453.0, 240, 135) == (24, 561, 240, 135)
+E         
+E         At index 1 diff: 453.0 != 561
+E         
+E         Full diff:
+E           (
+E               24,
+E         -     561,
+E         +     453.0,
+E               240,
+E               135,
+E           )
+
+tests/test_driver_view.py:255: AssertionError
+________ test_layout_recomputes_from_custom_window_and_legacy_side_size ________
+
+    def test_layout_recomputes_from_custom_window_and_legacy_side_size() -> None:
+        from src.scenario.driver_view import DriverViewConfig, calculate_layout
+    
+        config = DriverViewConfig(
+            window_size=(1600, 900),
+            mirror_size=(300, 168),
+            mirror_margin=32,
+        )
+    
+        layout = calculate_layout(config)
+    
+        assert layout.rear_mirror.bounds == (1120, 125, 320, 90)
+>       assert layout.left_mirror.bounds == (32, 700, 300, 168)
+E       assert (32, 565.5999999999999, 300, 168) == (32, 700, 300, 168)
+E         
+E         At index 1 diff: 565.5999999999999 != 700
+E         
+E         Full diff:
+E           (
+E               32,
+E         -     700,
+E         +     565.5999999999999,
+E               300,
+E               168,
+E           )
+
+tests/test_driver_view.py:273: AssertionError
+____________ test_draw_keeps_front_raw_and_flips_all_three_mirrors _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f5b375de780>
+
+    def test_draw_keeps_front_raw_and_flips_all_three_mirrors(monkeypatch) -> None:
+        from src.scenario import driver_view
+        from src.scenario.driver_view import CameraFeed, DriverView, DriverViewConfig
+    
+        class FakeImage:
+            raw_data = bytes(4)
+            width = 1
+            height = 1
+    
+        class FakeScreen:
+            def __init__(self) -> None:
+                self.blits: list[
+                    tuple[tuple[str, str, tuple[int, int]], tuple[int, int]]
+                ] = []
+    
+            def blit(
+                self,
+                surface: tuple[str, str, tuple[int, int]],
+                position: tuple[int, int],
+            ) -> None:
+                self.blits.append((surface, position))
+    
+        surfaces = iter(("front", "rear", "left", "right"))
+        flip_calls: list[tuple[tuple[str, str, tuple[int, int]], bool, bool]] = []
+        monkeypatch.setattr(
+            driver_view.pygame.image,
+            "frombuffer",
+            lambda raw_data, size, format_name: next(surfaces),
+        )
+        monkeypatch.setattr(
+            driver_view.pygame.transform,
+            "smoothscale",
+            lambda surface, size: ("scaled", surface, size),
+        )
+        monkeypatch.setattr(
+            driver_view.pygame.transform,
+            "flip",
+            lambda surface, flip_x, flip_y: (
+                flip_calls.append((surface, flip_x, flip_y))
+                or ("flipped", surface[1], surface[2])
+            ),
+        )
+        viewer = DriverView(
+            FakeWorld(),
+            FakeHero(),
+            DriverViewConfig(rear_mirror_enabled=True),
+        )
+        viewer._feeds = [
+            CameraFeed("front", FakeSensor(), FakeImage()),
+            CameraFeed("rear", FakeSensor(), FakeImage()),
+            CameraFeed("left", FakeSensor(), FakeImage()),
+            CameraFeed("right", FakeSensor(), FakeImage()),
+        ]
+        screen = FakeScreen()
+    
+        viewer._draw(screen)
+    
+        assert flip_calls == [
+            (("scaled", "rear", (320, 90)), True, False),
+            (("scaled", "left", (240, 135)), True, False),
+            (("scaled", "right", (240, 135)), True, False),
+        ]
+>       assert screen.blits == [
+            (("scaled", "front", (1280, 720)), (0, 0)),
+            (("flipped", "rear", (320, 90)), (960, 100)),
+            (("flipped", "left", (240, 135)), (24, 561)),
+            (("flipped", "right", (240, 135)), (1016, 561)),
+        ]
+E       AssertionError: assert [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 453.0)), (('flipped', 'right', (240, 135)), (1016, 453.0))] == [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 561)), (('flipped', 'right', (240, 135)), (1016, 561))]
+E         
+E         At index 2 diff: (('flipped', 'left', (240, 135)), (24, 453.0)) != (('flipped', 'left', (240, 135)), (24, 561))
+E         
+E         Full diff:
+E           [
+E               (
+E                   (
+E                       'scaled',
+E                       'front',
+E                       (
+E                           1280,
+E                           720,
+E                       ),
+E                   ),
+E                   (
+E                       0,
+E                       0,
+E                   ),
+E               ),
+E               (
+E                   (
+E                       'flipped',
+E                       'rear',
+E                       (
+E                           320,
+E                           90,
+E                       ),
+E                   ),
+E                   (
+E                       960,
+E                       100,
+E                   ),
+E               ),
+E               (
+E                   (
+E                       'flipped',
+E                       'left',
+E                       (
+E                           240,
+E                           135,
+E                       ),
+E                   ),
+E                   (
+E                       24,
+E         -             561,
+E         ?              ^^
+E         +             453.0,
+E         ?             + ^^^
+E                   ),
+E               ),
+E               (
+E                   (
+E                       'flipped',
+E                       'right',
+E                       (
+E                           240,
+E                           135,
+E                       ),
+E                   ),
+E                   (
+E                       1016,
+E         -             561,
+E         ?              ^^
+E         +             453.0,
+E         ?             + ^^^
+E                   ),
+E               ),
+E           ]
+
+tests/test_driver_view.py:468: AssertionError
+______ test_v_respawns_only_front_sensor_with_cockpit_relative_transform _______
+
+    def test_v_respawns_only_front_sensor_with_cockpit_relative_transform() -> None:
+        from src.scenario.driver_view import DriverView, DriverViewConfig
+        from src.vehicle.driving_mode import DrivingMode
+    
+        hero = FakeHero()
+        world = FakeWorld()
+        viewer = DriverView(world, hero, DriverViewConfig(rear_mirror_enabled=True))
+        viewer.attach()
+        front_feed = viewer.feeds[0]
+        old_front, rear_mirror, left_mirror, right_mirror = viewer.sensors
+        viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_p)])
+        autopilot_calls = tuple(hero.autopilot_calls)
+    
+        viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_v)])
+    
+        new_front, current_rear, current_left, current_right = viewer.sensors
+        spawn = world.spawn_calls[-1]
+        assert old_front.stop_count == 1
+        assert old_front.destroy_count == 1
+        assert old_front.transforms == []
+        assert new_front is not old_front
+        assert new_front.callback == front_feed.receive
+        assert spawn.attributes["fov"] == "105.0"
+>       assert spawn.transform.location.x == pytest.approx(0.10)
+E       assert 0.25 == 0.1 ± 1.0e-07
+E         
+E         comparison failed
+E         Obtained: 0.25
+E         Expected: 0.1 ± 1.0e-07
+
+tests/test_driver_view_cockpit.py:52: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[driver-view] driving-mode=MANUAL
+[driver-view] view=COCKPIT
+__ test_candidate_matches_current_mirrors_without_claiming_measured_accuracy ___
+
+    def test_candidate_matches_current_mirrors_without_claiming_measured_accuracy() -> None:
+        # Given the approved +480 layout and the unmeasured candidate configuration.
+        layout = calculate_mirror_layout(
+            MirrorLayoutSpec((1280, 720), (240, 135), (320, 90), 24, 100 / 720)
+        )
+        candidate = load_aoi_layout(
+            Path(__file__).resolve().parents[1] / "config/p6_aoi_candidate.json"
+        )
+    
+        # When checking geometry independently of physical calibration.
+        report = candidate.validate()
+    
+        # Then all mirror rectangles agree, but classification remains unapproved.
+        assert astuple(candidate.rear) == layout.rear_mirror.bounds == (960, 100, 320, 90)
+>       assert astuple(candidate.left) == layout.left_mirror.bounds
+E       assert (24.0, 561.0, 240.0, 135.0) == (24, 453.0, 240, 135)
+E         
+E         At index 1 diff: 561.0 != 453.0
+E         
+E         Full diff:
+E           (
+E         -     24,
+E         -     453.0,
+E         -     240,
+E         +     24.0,
+E         ?       +
+E         +     561.0,
+E         +     240.0,
+E         -     135,
+E         +     135.0,
+E         ?        ++
+E           )
+
+tests/test_p6_candidate_aoi.py:24: AssertionError
+________ test_space_at_previous_segment_end_must_not_skip_next_prepare _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f5b3713c740>
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-17/test_space_at_previous_segment0')
+
+    def test_space_at_previous_segment_end_must_not_skip_next_prepare(monkeypatch, tmp_path) -> None:
+        monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+        current = [0]
+        monkeypatch.setattr(live.time, "monotonic_ns", lambda: current[0])
+        monkeypatch.setattr(live.time, "perf_counter", lambda: current[0] / 1e9)
+        monkeypatch.setattr("src.scenario.camera_feed.perf_counter", lambda: current[0] / 1e9)
+        hero, world = FakeHero(), FakeWorld()
+        hero.type_id = "vehicle.fake"
+        world.get_settings = lambda: SimpleNamespace(synchronous_mode=False)
+        world.get_actor = lambda actor_id: hero
+        client = SimpleNamespace(set_timeout=lambda seconds: None, get_world=lambda: world)
+        monkeypatch.setattr(live.carla, "Client", lambda host, port: client)
+        image = SimpleNamespace(width=1, height=1, frame=1, timestamp=0.0, raw_data=bytes((20, 30, 40, 255)))
+        spawn = world.spawn_actor
+    
+        def spawn_with_image(*args, **kwargs):
+            sensor = spawn(*args, **kwargs)
+            def listen(callback):
+                sensor.callback = callback
+                callback(image)
+            sensor.listen = listen
+            return sensor
+    
+        world.spawn_actor = spawn_with_image
+        observed = WindowGeometry(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080),
+                                  Rect(100, 100, 1280, 720), (1280, 720), 1, "FAKE", 96)
+        probe = SimpleNamespace(snapshot=lambda hwnd, size: observed, focused=lambda hwnd: True,
+                                close=lambda: None)
+        monkeypatch.setattr(live, "WindowProbe", lambda: probe)
+        monkeypatch.setattr(pygame.display, "get_wm_info", lambda: {"window": 1})
+        callback = []
+        sample = TobiiSampleDecoder().decode(json.dumps(gaze_record())).sample
+    
+        def subscribe(sink):
+            callback.append(sink)
+            sink(sample)
+    
+        source = SimpleNamespace(finished=threading.Event(), subscribe=subscribe,
+                                 unsubscribe=lambda: None, last_error=None)
+    
+        def tick(rate):
+            current[0] += 1_000_000_000
+            for sensor in world.sensors:
+                sensor.callback(image)
+            callback[0](sample)
+    
+        monkeypatch.setattr(pygame.time, "Clock", lambda: SimpleNamespace(tick=tick))
+        def down(key):
+            return pygame.event.Event(pygame.KEYDOWN, key=key)
+    
+        def up(key):
+            return pygame.event.Event(pygame.KEYUP, key=key)
+        frames = iter(([down(pygame.K_c), up(pygame.K_c)],
+                       [down(pygame.K_SPACE), up(pygame.K_SPACE)], [],
+                       [down(pygame.K_SPACE), up(pygame.K_SPACE)], [down(pygame.K_ESCAPE)]))
+        monkeypatch.setattr(pygame.event, "get", lambda: next(frames))
+        run = ValidationRun(tmp_path / "fake-loop", load_aoi_layout("config/p6_aoi_candidate.json"))
+        try:
+>           live.execute(run, source, live.LiveOptions("fake", 2000, 1, 20))
+
+tests/test_p6_validation_loop.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = <src.p6.validation.run.ValidationRun object at 0x7f5b371087a0>
+source = namespace(finished=<threading.Event at 0x7f5b37108b00: unset>, subscribe=<function test_space_at_previous_segment_end_...on test_space_at_previous_segment_end_must_not_skip_next_prepare.<locals>.<lambda> at 0x7f5b371fc4a0>, last_error=None)
+options = LiveOptions(host='fake', port=2000, actor_id=1, max_seconds=20)
+
+    def execute(run: ValidationRun, source: TobiiProcessSource, options: LiveOptions) -> None:
+        base = DriverViewConfig()
+        config = replace(base, front_transform=base.cockpit_transform, fov=base.cockpit_fov)
+>       validate_geometry(run, config)
+
+src/p6/validation/live.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = <src.p6.validation.run.ValidationRun object at 0x7f5b371087a0>
+config = DriverViewConfig(window_size=(1280, 720), front_resolution=(1280, 720), mirror_resolution=(480, 270), mirror_size=(240....0, yaw=-150.0, roll=0.0), right_mirror_transform=CameraTransform(x=0.3, y=1.0, z=1.2, pitch=0.0, yaw=150.0, roll=0.0))
+
+    def validate_geometry(run: ValidationRun, config: DriverViewConfig) -> None:
+        layout = calculate_layout(config)
+        for candidate, rendered in ((run.layout.rear, layout.rear_mirror),
+                                    (run.layout.left, layout.left_mirror),
+                                    (run.layout.right, layout.right_mirror)):
+            if astuple(candidate) != rendered.bounds:
+>               raise ValidationError("Candidate mirrors differ from current production layout")
+E               src.p6.validation.mapping.ValidationError: Candidate mirrors differ from current production layout
+
+src/p6/validation/live.py:33: ValidationError
+
+During handling of the above exception, another exception occurred:
+
+self = <contextlib._GeneratorContextManager object at 0x7f5b3713ef90>
+typ = <class 'src.p6.validation.mapping.ValidationError'>
+value = ValidationError(detail='Candidate mirrors differ from current production layout')
+traceback = <traceback object at 0x7f5b3717b280>
+
+    def __exit__(self, typ, value, traceback):
+        if typ is None:
+            try:
+                next(self.gen)
+            except StopIteration:
+                return False
+            else:
+                try:
+                    raise RuntimeError("generator didn't stop")
+                finally:
+                    self.gen.close()
+        else:
+            if value is None:
+                # Need to force instantiation so we can reliably
+                # tell if we get the same exception back
+                value = typ()
+            try:
+                self.gen.throw(value)
+            except StopIteration as exc:
+                # Suppress StopIteration *unless* it's the same exception that
+                # was passed to throw().  This prevents a StopIteration
+                # raised inside the "with" statement from being suppressed.
+                return exc is not value
+            except RuntimeError as exc:
+                # Don't re-raise the passed in exception. (issue27122)
+                if exc is value:
+>                   exc.__traceback__ = traceback
+                    ^^^^^^^^^^^^^^^^^
+E                   TypeError: super(type, obj): obj must be an instance or subtype of type
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/contextlib.py:167: TypeError
+_______ test_diagnostic_profile_requires_exact_candidate_j_path_and_hash _______
+
+    def test_diagnostic_profile_requires_exact_candidate_j_path_and_hash() -> None:
+        attestor = TrafficManagerRuntimeAttestor.for_profile(
+            TrafficManagerBinaryProfile.NATIVE_DIAGNOSTIC_DEV,
+            hash_file=lambda path: DIAGNOSTIC_LIBCARLA_SHA256,
+            library_path=lambda: DIAGNOSTIC_LIBCARLA_PATH,
+            listener_pids=lambda port: frozenset(),
+            process_id=lambda: 41,
+        )
+    
+        prepared = attestor.verify_before_creation(8123)
+    
+>       assert prepared.libcarla_path == DIAGNOSTIC_LIBCARLA_PATH
+E       AssertionError: assert PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') == PosixPath('C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd')
+E        +  where PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') = PreparedRuntimeAttestation(port=8123, owner_pid=41, libcarla_path=PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd'), libcarla_sha256='E4B2BAD4D70DF255C1123E7064602B1B010E34F740638B19BC2608478D479721').libcarla_path
+
+tests/test_p8_runtime_attestation.py:36: AssertionError
+__________ test_real_windows_listener_pid_without_carla[2-127.0.0.1] ___________
+
+family = <AddressFamily.AF_INET: 2>, address = '127.0.0.1'
+
+    @pytest.mark.parametrize(
+        "family,address", [(socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")]
+    )
+    def test_real_windows_listener_pid_without_carla(family: int, address: str) -> None:
+>       with socket.socket(family, socket.SOCK_STREAM) as listener:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_p8_runtime_attestation.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <socket.socket fd=-1, family=0, type=0, proto=0>
+family = <AddressFamily.AF_INET: 2>, type = <SocketKind.SOCK_STREAM: 1>
+proto = 0, fileno = None
+
+    def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+        # For user code address family and type values are IntEnum members, but
+        # for the underlying _socket.socket they're just integers. The
+        # constructor of _socket.socket converts the given argument to an
+        # integer automatically.
+        if fileno is None:
+            if family == -1:
+                family = AF_INET
+            if type == -1:
+                type = SOCK_STREAM
+            if proto == -1:
+                proto = 0
+>       _socket.socket.__init__(self, family, type, proto, fileno)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: PermissionError
+_____________ test_real_windows_listener_pid_without_carla[10-::1] _____________
+
+family = <AddressFamily.AF_INET6: 10>, address = '::1'
+
+    @pytest.mark.parametrize(
+        "family,address", [(socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")]
+    )
+    def test_real_windows_listener_pid_without_carla(family: int, address: str) -> None:
+>       with socket.socket(family, socket.SOCK_STREAM) as listener:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_p8_runtime_attestation.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <socket.socket fd=-1, family=0, type=0, proto=0>
+family = <AddressFamily.AF_INET6: 10>, type = <SocketKind.SOCK_STREAM: 1>
+proto = 0, fileno = None
+
+    def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+        # For user code address family and type values are IntEnum members, but
+        # for the underlying _socket.socket they're just integers. The
+        # constructor of _socket.socket converts the given argument to an
+        # integer automatically.
+        if fileno is None:
+            if family == -1:
+                family = AF_INET
+            if type == -1:
+                type = SOCK_STREAM
+            if proto == -1:
+                proto = 0
+>       _socket.socket.__init__(self, family, type, proto, fileno)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: PermissionError
+=========================== short test summary info ============================
+FAILED tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged - AssertionError: assert CameraTransform(x=0.25, y=-0.35, z=1.2, pitch=1, yaw=0.0, roll=0.0) == CameraTransform(x=0.1, y=-0.35, z=1.2, pitch=-1.5, yaw=0.0, roll=0.0)
+  
+  Matching attributes:
+  ['y', 'z', 'yaw', 'roll']
+  Differing attributes:
+  ['x', 'pitch']
+  
+  Drill down into differing attribute x:
+    x: 0.25 != 0.1
+  
+  Drill down into differing attribute pitch:
+    pitch: 1 != -1.5
+FAILED tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps - assert (24, 453.0, 240, 135) == (24, 561, 240, 135)
+  
+  At index 1 diff: 453.0 != 561
+  
+  Full diff:
+    (
+        24,
+  -     561,
+  +     453.0,
+        240,
+        135,
+    )
+FAILED tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size - assert (32, 565.5999999999999, 300, 168) == (32, 700, 300, 168)
+  
+  At index 1 diff: 565.5999999999999 != 700
+  
+  Full diff:
+    (
+        32,
+  -     700,
+  +     565.5999999999999,
+        300,
+        168,
+    )
+FAILED tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors - AssertionError: assert [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 453.0)), (('flipped', 'right', (240, 135)), (1016, 453.0))] == [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 561)), (('flipped', 'right', (240, 135)), (1016, 561))]
+  
+  At index 2 diff: (('flipped', 'left', (240, 135)), (24, 453.0)) != (('flipped', 'left', (240, 135)), (24, 561))
+  
+  Full diff:
+    [
+        (
+            (
+                'scaled',
+                'front',
+                (
+                    1280,
+                    720,
+                ),
+            ),
+            (
+                0,
+                0,
+            ),
+        ),
+        (
+            (
+                'flipped',
+                'rear',
+                (
+                    320,
+                    90,
+                ),
+            ),
+            (
+                960,
+                100,
+            ),
+        ),
+        (
+            (
+                'flipped',
+                'left',
+                (
+                    240,
+                    135,
+                ),
+            ),
+            (
+                24,
+  -             561,
+  ?              ^^
+  +             453.0,
+  ?             + ^^^
+            ),
+        ),
+        (
+            (
+                'flipped',
+                'right',
+                (
+                    240,
+                    135,
+                ),
+            ),
+            (
+                1016,
+  -             561,
+  ?              ^^
+  +             453.0,
+  ?             + ^^^
+            ),
+        ),
+    ]
+FAILED tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform - assert 0.25 == 0.1 ± 1.0e-07
+  
+  comparison failed
+  Obtained: 0.25
+  Expected: 0.1 ± 1.0e-07
+FAILED tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy - assert (24.0, 561.0, 240.0, 135.0) == (24, 453.0, 240, 135)
+  
+  At index 1 diff: 561.0 != 453.0
+  
+  Full diff:
+    (
+  -     24,
+  -     453.0,
+  -     240,
+  +     24.0,
+  ?       +
+  +     561.0,
+  +     240.0,
+  -     135,
+  +     135.0,
+  ?        ++
+    )
+FAILED tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare - TypeError: super(type, obj): obj must be an instance or subtype of type
+FAILED tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash - AssertionError: assert PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') == PosixPath('C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd')
+ +  where PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') = PreparedRuntimeAttestation(port=8123, owner_pid=41, libcarla_path=PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd'), libcarla_sha256='E4B2BAD4D70DF255C1123E7064602B1B010E34F740638B19BC2608478D479721').libcarla_path
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1] - PermissionError: [Errno 1] Operation not permitted
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1] - PermissionError: [Errno 1] Operation not permitted
+============================== 10 failed in 0.40s ==============================
+
+Baseline pytest exit code: 1
+
+
+LOCAL-SOCKET-PERMITTED REPEAT: definitive same-cause baseline comparison
+UTC: 2026-10-17T07:48:55.772522+00:00
+Reason: restricted attempt stopped two loopback listener tests at socket creation; permit local sockets to reach the same platform API path as the current full suite.
+Command (argv): ["/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python", "-m", "pytest", "-p", "no:cacheprovider", "-vv", "--tb=long", "--color=no", "tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged", "tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps", "tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size", "tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors", "tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform", "tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy", "tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare", "tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash", "tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1]", "tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1]"]
+
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.4.2, pluggy-1.7.0 -- /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python
+rootdir: /workspace/scratch/7ec199e3f2c1/work/baseline_source
+collecting ... collected 10 items
+
+tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged FAILED [ 10%]
+tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps FAILED [ 20%]
+tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size FAILED [ 30%]
+tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors FAILED [ 40%]
+tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform FAILED [ 50%]
+tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy FAILED [ 60%]
+tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare FAILED [ 70%]
+tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash FAILED [ 80%]
+tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1] FAILED [ 90%]
+tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1] FAILED [100%]
+
+=================================== FAILURES ===================================
+_______ test_protected_front_cockpit_and_hud_configuration_is_unchanged ________
+
+    def test_protected_front_cockpit_and_hud_configuration_is_unchanged() -> None:
+        from src.scenario.driver_view import CameraTransform, DriverViewConfig
+    
+        config = DriverViewConfig()
+    
+        assert config.front_resolution == (1280, 720)
+        assert config.fov == 100.0
+        assert config.front_transform == CameraTransform(x=1.4, y=0.0, z=1.3, pitch=-2.0)
+        assert config.cockpit_fov == 105.0
+>       assert config.cockpit_transform == CameraTransform(
+            x=0.10, y=-0.35, z=1.20, pitch=-1.5
+        )
+E       AssertionError: assert CameraTransform(x=0.25, y=-0.35, z=1.2, pitch=1, yaw=0.0, roll=0.0) == CameraTransform(x=0.1, y=-0.35, z=1.2, pitch=-1.5, yaw=0.0, roll=0.0)
+E         
+E         Matching attributes:
+E         ['y', 'z', 'yaw', 'roll']
+E         Differing attributes:
+E         ['x', 'pitch']
+E         
+E         Drill down into differing attribute x:
+E           x: 0.25 != 0.1
+E         
+E         Drill down into differing attribute pitch:
+E           pitch: 1 != -1.5
+
+tests/test_driver_view.py:213: AssertionError
+_____ test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps _____
+
+    def test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps() -> None:
+        from src.scenario.driver_view import DriverViewConfig, calculate_layout
+    
+        config = DriverViewConfig(window_size=(1280, 720))
+    
+        layout = calculate_layout(config)
+    
+        assert layout.front_position == (0, 0)
+        assert layout.rear_mirror.bounds == (960, 100, 320, 90)
+>       assert layout.left_mirror.bounds == (24, 561, 240, 135)
+E       assert (24, 453.0, 240, 135) == (24, 561, 240, 135)
+E         
+E         At index 1 diff: 453.0 != 561
+E         
+E         Full diff:
+E           (
+E               24,
+E         -     561,
+E         +     453.0,
+E               240,
+E               135,
+E           )
+
+tests/test_driver_view.py:255: AssertionError
+________ test_layout_recomputes_from_custom_window_and_legacy_side_size ________
+
+    def test_layout_recomputes_from_custom_window_and_legacy_side_size() -> None:
+        from src.scenario.driver_view import DriverViewConfig, calculate_layout
+    
+        config = DriverViewConfig(
+            window_size=(1600, 900),
+            mirror_size=(300, 168),
+            mirror_margin=32,
+        )
+    
+        layout = calculate_layout(config)
+    
+        assert layout.rear_mirror.bounds == (1120, 125, 320, 90)
+>       assert layout.left_mirror.bounds == (32, 700, 300, 168)
+E       assert (32, 565.5999999999999, 300, 168) == (32, 700, 300, 168)
+E         
+E         At index 1 diff: 565.5999999999999 != 700
+E         
+E         Full diff:
+E           (
+E               32,
+E         -     700,
+E         +     565.5999999999999,
+E               300,
+E               168,
+E           )
+
+tests/test_driver_view.py:273: AssertionError
+____________ test_draw_keeps_front_raw_and_flips_all_three_mirrors _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8d97117ce0>
+
+    def test_draw_keeps_front_raw_and_flips_all_three_mirrors(monkeypatch) -> None:
+        from src.scenario import driver_view
+        from src.scenario.driver_view import CameraFeed, DriverView, DriverViewConfig
+    
+        class FakeImage:
+            raw_data = bytes(4)
+            width = 1
+            height = 1
+    
+        class FakeScreen:
+            def __init__(self) -> None:
+                self.blits: list[
+                    tuple[tuple[str, str, tuple[int, int]], tuple[int, int]]
+                ] = []
+    
+            def blit(
+                self,
+                surface: tuple[str, str, tuple[int, int]],
+                position: tuple[int, int],
+            ) -> None:
+                self.blits.append((surface, position))
+    
+        surfaces = iter(("front", "rear", "left", "right"))
+        flip_calls: list[tuple[tuple[str, str, tuple[int, int]], bool, bool]] = []
+        monkeypatch.setattr(
+            driver_view.pygame.image,
+            "frombuffer",
+            lambda raw_data, size, format_name: next(surfaces),
+        )
+        monkeypatch.setattr(
+            driver_view.pygame.transform,
+            "smoothscale",
+            lambda surface, size: ("scaled", surface, size),
+        )
+        monkeypatch.setattr(
+            driver_view.pygame.transform,
+            "flip",
+            lambda surface, flip_x, flip_y: (
+                flip_calls.append((surface, flip_x, flip_y))
+                or ("flipped", surface[1], surface[2])
+            ),
+        )
+        viewer = DriverView(
+            FakeWorld(),
+            FakeHero(),
+            DriverViewConfig(rear_mirror_enabled=True),
+        )
+        viewer._feeds = [
+            CameraFeed("front", FakeSensor(), FakeImage()),
+            CameraFeed("rear", FakeSensor(), FakeImage()),
+            CameraFeed("left", FakeSensor(), FakeImage()),
+            CameraFeed("right", FakeSensor(), FakeImage()),
+        ]
+        screen = FakeScreen()
+    
+        viewer._draw(screen)
+    
+        assert flip_calls == [
+            (("scaled", "rear", (320, 90)), True, False),
+            (("scaled", "left", (240, 135)), True, False),
+            (("scaled", "right", (240, 135)), True, False),
+        ]
+>       assert screen.blits == [
+            (("scaled", "front", (1280, 720)), (0, 0)),
+            (("flipped", "rear", (320, 90)), (960, 100)),
+            (("flipped", "left", (240, 135)), (24, 561)),
+            (("flipped", "right", (240, 135)), (1016, 561)),
+        ]
+E       AssertionError: assert [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 453.0)), (('flipped', 'right', (240, 135)), (1016, 453.0))] == [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 561)), (('flipped', 'right', (240, 135)), (1016, 561))]
+E         
+E         At index 2 diff: (('flipped', 'left', (240, 135)), (24, 453.0)) != (('flipped', 'left', (240, 135)), (24, 561))
+E         
+E         Full diff:
+E           [
+E               (
+E                   (
+E                       'scaled',
+E                       'front',
+E                       (
+E                           1280,
+E                           720,
+E                       ),
+E                   ),
+E                   (
+E                       0,
+E                       0,
+E                   ),
+E               ),
+E               (
+E                   (
+E                       'flipped',
+E                       'rear',
+E                       (
+E                           320,
+E                           90,
+E                       ),
+E                   ),
+E                   (
+E                       960,
+E                       100,
+E                   ),
+E               ),
+E               (
+E                   (
+E                       'flipped',
+E                       'left',
+E                       (
+E                           240,
+E                           135,
+E                       ),
+E                   ),
+E                   (
+E                       24,
+E         -             561,
+E         ?              ^^
+E         +             453.0,
+E         ?             + ^^^
+E                   ),
+E               ),
+E               (
+E                   (
+E                       'flipped',
+E                       'right',
+E                       (
+E                           240,
+E                           135,
+E                       ),
+E                   ),
+E                   (
+E                       1016,
+E         -             561,
+E         ?              ^^
+E         +             453.0,
+E         ?             + ^^^
+E                   ),
+E               ),
+E           ]
+
+tests/test_driver_view.py:468: AssertionError
+______ test_v_respawns_only_front_sensor_with_cockpit_relative_transform _______
+
+    def test_v_respawns_only_front_sensor_with_cockpit_relative_transform() -> None:
+        from src.scenario.driver_view import DriverView, DriverViewConfig
+        from src.vehicle.driving_mode import DrivingMode
+    
+        hero = FakeHero()
+        world = FakeWorld()
+        viewer = DriverView(world, hero, DriverViewConfig(rear_mirror_enabled=True))
+        viewer.attach()
+        front_feed = viewer.feeds[0]
+        old_front, rear_mirror, left_mirror, right_mirror = viewer.sensors
+        viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_p)])
+        autopilot_calls = tuple(hero.autopilot_calls)
+    
+        viewer._handle_mode_events([pygame.event.Event(pygame.KEYDOWN, key=pygame.K_v)])
+    
+        new_front, current_rear, current_left, current_right = viewer.sensors
+        spawn = world.spawn_calls[-1]
+        assert old_front.stop_count == 1
+        assert old_front.destroy_count == 1
+        assert old_front.transforms == []
+        assert new_front is not old_front
+        assert new_front.callback == front_feed.receive
+        assert spawn.attributes["fov"] == "105.0"
+>       assert spawn.transform.location.x == pytest.approx(0.10)
+E       assert 0.25 == 0.1 ± 1.0e-07
+E         
+E         comparison failed
+E         Obtained: 0.25
+E         Expected: 0.1 ± 1.0e-07
+
+tests/test_driver_view_cockpit.py:52: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[driver-view] driving-mode=MANUAL
+[driver-view] view=COCKPIT
+__ test_candidate_matches_current_mirrors_without_claiming_measured_accuracy ___
+
+    def test_candidate_matches_current_mirrors_without_claiming_measured_accuracy() -> None:
+        # Given the approved +480 layout and the unmeasured candidate configuration.
+        layout = calculate_mirror_layout(
+            MirrorLayoutSpec((1280, 720), (240, 135), (320, 90), 24, 100 / 720)
+        )
+        candidate = load_aoi_layout(
+            Path(__file__).resolve().parents[1] / "config/p6_aoi_candidate.json"
+        )
+    
+        # When checking geometry independently of physical calibration.
+        report = candidate.validate()
+    
+        # Then all mirror rectangles agree, but classification remains unapproved.
+        assert astuple(candidate.rear) == layout.rear_mirror.bounds == (960, 100, 320, 90)
+>       assert astuple(candidate.left) == layout.left_mirror.bounds
+E       assert (24.0, 561.0, 240.0, 135.0) == (24, 453.0, 240, 135)
+E         
+E         At index 1 diff: 561.0 != 453.0
+E         
+E         Full diff:
+E           (
+E         -     24,
+E         -     453.0,
+E         -     240,
+E         +     24.0,
+E         ?       +
+E         +     561.0,
+E         +     240.0,
+E         -     135,
+E         +     135.0,
+E         ?        ++
+E           )
+
+tests/test_p6_candidate_aoi.py:24: AssertionError
+________ test_space_at_previous_segment_end_must_not_skip_next_prepare _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8d97116690>
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-18/test_space_at_previous_segment0')
+
+    def test_space_at_previous_segment_end_must_not_skip_next_prepare(monkeypatch, tmp_path) -> None:
+        monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+        current = [0]
+        monkeypatch.setattr(live.time, "monotonic_ns", lambda: current[0])
+        monkeypatch.setattr(live.time, "perf_counter", lambda: current[0] / 1e9)
+        monkeypatch.setattr("src.scenario.camera_feed.perf_counter", lambda: current[0] / 1e9)
+        hero, world = FakeHero(), FakeWorld()
+        hero.type_id = "vehicle.fake"
+        world.get_settings = lambda: SimpleNamespace(synchronous_mode=False)
+        world.get_actor = lambda actor_id: hero
+        client = SimpleNamespace(set_timeout=lambda seconds: None, get_world=lambda: world)
+        monkeypatch.setattr(live.carla, "Client", lambda host, port: client)
+        image = SimpleNamespace(width=1, height=1, frame=1, timestamp=0.0, raw_data=bytes((20, 30, 40, 255)))
+        spawn = world.spawn_actor
+    
+        def spawn_with_image(*args, **kwargs):
+            sensor = spawn(*args, **kwargs)
+            def listen(callback):
+                sensor.callback = callback
+                callback(image)
+            sensor.listen = listen
+            return sensor
+    
+        world.spawn_actor = spawn_with_image
+        observed = WindowGeometry(Rect(0, 0, 1920, 1080), Rect(0, 0, 1920, 1080),
+                                  Rect(100, 100, 1280, 720), (1280, 720), 1, "FAKE", 96)
+        probe = SimpleNamespace(snapshot=lambda hwnd, size: observed, focused=lambda hwnd: True,
+                                close=lambda: None)
+        monkeypatch.setattr(live, "WindowProbe", lambda: probe)
+        monkeypatch.setattr(pygame.display, "get_wm_info", lambda: {"window": 1})
+        callback = []
+        sample = TobiiSampleDecoder().decode(json.dumps(gaze_record())).sample
+    
+        def subscribe(sink):
+            callback.append(sink)
+            sink(sample)
+    
+        source = SimpleNamespace(finished=threading.Event(), subscribe=subscribe,
+                                 unsubscribe=lambda: None, last_error=None)
+    
+        def tick(rate):
+            current[0] += 1_000_000_000
+            for sensor in world.sensors:
+                sensor.callback(image)
+            callback[0](sample)
+    
+        monkeypatch.setattr(pygame.time, "Clock", lambda: SimpleNamespace(tick=tick))
+        def down(key):
+            return pygame.event.Event(pygame.KEYDOWN, key=key)
+    
+        def up(key):
+            return pygame.event.Event(pygame.KEYUP, key=key)
+        frames = iter(([down(pygame.K_c), up(pygame.K_c)],
+                       [down(pygame.K_SPACE), up(pygame.K_SPACE)], [],
+                       [down(pygame.K_SPACE), up(pygame.K_SPACE)], [down(pygame.K_ESCAPE)]))
+        monkeypatch.setattr(pygame.event, "get", lambda: next(frames))
+        run = ValidationRun(tmp_path / "fake-loop", load_aoi_layout("config/p6_aoi_candidate.json"))
+        try:
+>           live.execute(run, source, live.LiveOptions("fake", 2000, 1, 20))
+
+tests/test_p6_validation_loop.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = <src.p6.validation.run.ValidationRun object at 0x7f8d971216a0>
+source = namespace(finished=<threading.Event at 0x7f8d9d563920: unset>, subscribe=<function test_space_at_previous_segment_end_...on test_space_at_previous_segment_end_must_not_skip_next_prepare.<locals>.<lambda> at 0x7f8d971704a0>, last_error=None)
+options = LiveOptions(host='fake', port=2000, actor_id=1, max_seconds=20)
+
+    def execute(run: ValidationRun, source: TobiiProcessSource, options: LiveOptions) -> None:
+        base = DriverViewConfig()
+        config = replace(base, front_transform=base.cockpit_transform, fov=base.cockpit_fov)
+>       validate_geometry(run, config)
+
+src/p6/validation/live.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = <src.p6.validation.run.ValidationRun object at 0x7f8d971216a0>
+config = DriverViewConfig(window_size=(1280, 720), front_resolution=(1280, 720), mirror_resolution=(480, 270), mirror_size=(240....0, yaw=-150.0, roll=0.0), right_mirror_transform=CameraTransform(x=0.3, y=1.0, z=1.2, pitch=0.0, yaw=150.0, roll=0.0))
+
+    def validate_geometry(run: ValidationRun, config: DriverViewConfig) -> None:
+        layout = calculate_layout(config)
+        for candidate, rendered in ((run.layout.rear, layout.rear_mirror),
+                                    (run.layout.left, layout.left_mirror),
+                                    (run.layout.right, layout.right_mirror)):
+            if astuple(candidate) != rendered.bounds:
+>               raise ValidationError("Candidate mirrors differ from current production layout")
+E               src.p6.validation.mapping.ValidationError: Candidate mirrors differ from current production layout
+
+src/p6/validation/live.py:33: ValidationError
+
+During handling of the above exception, another exception occurred:
+
+self = <contextlib._GeneratorContextManager object at 0x7f8d97116540>
+typ = <class 'src.p6.validation.mapping.ValidationError'>
+value = ValidationError(detail='Candidate mirrors differ from current production layout')
+traceback = <traceback object at 0x7f8d97107240>
+
+    def __exit__(self, typ, value, traceback):
+        if typ is None:
+            try:
+                next(self.gen)
+            except StopIteration:
+                return False
+            else:
+                try:
+                    raise RuntimeError("generator didn't stop")
+                finally:
+                    self.gen.close()
+        else:
+            if value is None:
+                # Need to force instantiation so we can reliably
+                # tell if we get the same exception back
+                value = typ()
+            try:
+                self.gen.throw(value)
+            except StopIteration as exc:
+                # Suppress StopIteration *unless* it's the same exception that
+                # was passed to throw().  This prevents a StopIteration
+                # raised inside the "with" statement from being suppressed.
+                return exc is not value
+            except RuntimeError as exc:
+                # Don't re-raise the passed in exception. (issue27122)
+                if exc is value:
+>                   exc.__traceback__ = traceback
+                    ^^^^^^^^^^^^^^^^^
+E                   TypeError: super(type, obj): obj must be an instance or subtype of type
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/contextlib.py:167: TypeError
+_______ test_diagnostic_profile_requires_exact_candidate_j_path_and_hash _______
+
+    def test_diagnostic_profile_requires_exact_candidate_j_path_and_hash() -> None:
+        attestor = TrafficManagerRuntimeAttestor.for_profile(
+            TrafficManagerBinaryProfile.NATIVE_DIAGNOSTIC_DEV,
+            hash_file=lambda path: DIAGNOSTIC_LIBCARLA_SHA256,
+            library_path=lambda: DIAGNOSTIC_LIBCARLA_PATH,
+            listener_pids=lambda port: frozenset(),
+            process_id=lambda: 41,
+        )
+    
+        prepared = attestor.verify_before_creation(8123)
+    
+>       assert prepared.libcarla_path == DIAGNOSTIC_LIBCARLA_PATH
+E       AssertionError: assert PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') == PosixPath('C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd')
+E        +  where PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') = PreparedRuntimeAttestation(port=8123, owner_pid=41, libcarla_path=PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd'), libcarla_sha256='E4B2BAD4D70DF255C1123E7064602B1B010E34F740638B19BC2608478D479721').libcarla_path
+
+tests/test_p8_runtime_attestation.py:36: AssertionError
+__________ test_real_windows_listener_pid_without_carla[2-127.0.0.1] ___________
+
+family = <AddressFamily.AF_INET: 2>, address = '127.0.0.1'
+
+    @pytest.mark.parametrize(
+        "family,address", [(socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")]
+    )
+    def test_real_windows_listener_pid_without_carla(family: int, address: str) -> None:
+        with socket.socket(family, socket.SOCK_STREAM) as listener:
+            listener.bind((address, 0))
+            listener.listen(1)
+>           assert windows_listener_pids(listener.getsockname()[1]) == frozenset(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                {os.getpid()}
+            )
+
+tests/test_p8_runtime_attestation.py:156: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+port = 54371
+
+    def windows_listener_pids(port: int) -> frozenset[int]:
+        owners: set[int] = set()
+        for family, row_size, port_offset, pid_offset in (
+            (socket.AF_INET, 24, 8, 20),
+            (socket.AF_INET6, 56, 20, 52),
+        ):
+>           table = _tcp_table(family)
+                    ^^^^^^^^^^^^^^^^^^
+
+src/p8/tm_runtime_attestation.py:198: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+family = <AddressFamily.AF_INET: 2>
+
+    def _tcp_table(family: int) -> bytes:
+>       iphlpapi = ctypes.WinDLL("iphlpapi")
+                   ^^^^^^^^^^^^^
+E       AttributeError: module 'ctypes' has no attribute 'WinDLL'
+
+src/p8/tm_runtime_attestation.py:209: AttributeError
+_____________ test_real_windows_listener_pid_without_carla[10-::1] _____________
+
+family = <AddressFamily.AF_INET6: 10>, address = '::1'
+
+    @pytest.mark.parametrize(
+        "family,address", [(socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")]
+    )
+    def test_real_windows_listener_pid_without_carla(family: int, address: str) -> None:
+        with socket.socket(family, socket.SOCK_STREAM) as listener:
+            listener.bind((address, 0))
+            listener.listen(1)
+>           assert windows_listener_pids(listener.getsockname()[1]) == frozenset(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                {os.getpid()}
+            )
+
+tests/test_p8_runtime_attestation.py:156: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+port = 44235
+
+    def windows_listener_pids(port: int) -> frozenset[int]:
+        owners: set[int] = set()
+        for family, row_size, port_offset, pid_offset in (
+            (socket.AF_INET, 24, 8, 20),
+            (socket.AF_INET6, 56, 20, 52),
+        ):
+>           table = _tcp_table(family)
+                    ^^^^^^^^^^^^^^^^^^
+
+src/p8/tm_runtime_attestation.py:198: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+family = <AddressFamily.AF_INET: 2>
+
+    def _tcp_table(family: int) -> bytes:
+>       iphlpapi = ctypes.WinDLL("iphlpapi")
+                   ^^^^^^^^^^^^^
+E       AttributeError: module 'ctypes' has no attribute 'WinDLL'
+
+src/p8/tm_runtime_attestation.py:209: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged - AssertionError: assert CameraTransform(x=0.25, y=-0.35, z=1.2, pitch=1, yaw=0.0, roll=0.0) == CameraTransform(x=0.1, y=-0.35, z=1.2, pitch=-1.5, yaw=0.0, roll=0.0)
+  
+  Matching attributes:
+  ['y', 'z', 'yaw', 'roll']
+  Differing attributes:
+  ['x', 'pitch']
+  
+  Drill down into differing attribute x:
+    x: 0.25 != 0.1
+  
+  Drill down into differing attribute pitch:
+    pitch: 1 != -1.5
+FAILED tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps - assert (24, 453.0, 240, 135) == (24, 561, 240, 135)
+  
+  At index 1 diff: 453.0 != 561
+  
+  Full diff:
+    (
+        24,
+  -     561,
+  +     453.0,
+        240,
+        135,
+    )
+FAILED tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size - assert (32, 565.5999999999999, 300, 168) == (32, 700, 300, 168)
+  
+  At index 1 diff: 565.5999999999999 != 700
+  
+  Full diff:
+    (
+        32,
+  -     700,
+  +     565.5999999999999,
+        300,
+        168,
+    )
+FAILED tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors - AssertionError: assert [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 453.0)), (('flipped', 'right', (240, 135)), (1016, 453.0))] == [(('scaled', 'front', (1280, 720)), (0, 0)), (('flipped', 'rear', (320, 90)), (960, 100)), (('flipped', 'left', (240, 135)), (24, 561)), (('flipped', 'right', (240, 135)), (1016, 561))]
+  
+  At index 2 diff: (('flipped', 'left', (240, 135)), (24, 453.0)) != (('flipped', 'left', (240, 135)), (24, 561))
+  
+  Full diff:
+    [
+        (
+            (
+                'scaled',
+                'front',
+                (
+                    1280,
+                    720,
+                ),
+            ),
+            (
+                0,
+                0,
+            ),
+        ),
+        (
+            (
+                'flipped',
+                'rear',
+                (
+                    320,
+                    90,
+                ),
+            ),
+            (
+                960,
+                100,
+            ),
+        ),
+        (
+            (
+                'flipped',
+                'left',
+                (
+                    240,
+                    135,
+                ),
+            ),
+            (
+                24,
+  -             561,
+  ?              ^^
+  +             453.0,
+  ?             + ^^^
+            ),
+        ),
+        (
+            (
+                'flipped',
+                'right',
+                (
+                    240,
+                    135,
+                ),
+            ),
+            (
+                1016,
+  -             561,
+  ?              ^^
+  +             453.0,
+  ?             + ^^^
+            ),
+        ),
+    ]
+FAILED tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform - assert 0.25 == 0.1 ± 1.0e-07
+  
+  comparison failed
+  Obtained: 0.25
+  Expected: 0.1 ± 1.0e-07
+FAILED tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy - assert (24.0, 561.0, 240.0, 135.0) == (24, 453.0, 240, 135)
+  
+  At index 1 diff: 561.0 != 453.0
+  
+  Full diff:
+    (
+  -     24,
+  -     453.0,
+  -     240,
+  +     24.0,
+  ?       +
+  +     561.0,
+  +     240.0,
+  -     135,
+  +     135.0,
+  ?        ++
+    )
+FAILED tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare - TypeError: super(type, obj): obj must be an instance or subtype of type
+FAILED tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash - AssertionError: assert PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') == PosixPath('C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd')
+ +  where PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd') = PreparedRuntimeAttestation(port=8123, owner_pid=41, libcarla_path=PosixPath('/workspace/scratch/7ec199e3f2c1/work/baseline_source/C:\\dev\\carla-native-tm-cancel-20261012\\.venv-p8-diagnostic\\Lib\\site-packages\\carla\\libcarla.cp312-win_amd64.pyd'), libcarla_sha256='E4B2BAD4D70DF255C1123E7064602B1B010E34F740638B19BC2608478D479721').libcarla_path
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1] - AttributeError: module 'ctypes' has no attribute 'WinDLL'
+FAILED tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1] - AttributeError: module 'ctypes' has no attribute 'WinDLL'
+============================== 10 failed in 0.39s ==============================
+
+Socket-permitted baseline pytest exit code: 1
+
+
+CONFIRMED COMPARISON
+The exact ten failed node IDs in the current full suite also fail in the unmodified original baseline, with the same assertion values or exception cause.
+Definitive original baseline: 10 failed in 0.39s, pytest exit code 1.
+Current full suite: 2059 passed, 10 failed, 1 skipped in 24.22s.
+Loopback-socket-permitted run is definitive for the two Windows listener tests; the preceding restricted run is retained to document its sandbox PermissionError.
+Exact failed-node sequence comparison: MATCH (10/10).
+MATCH | tests/test_driver_view.py::test_protected_front_cockpit_and_hud_configuration_is_unchanged | Camera cockpit configuration | common evidence: ['0.25', '0.1']
+MATCH | tests/test_driver_view.py::test_layout_places_rear_above_road_and_sides_in_lower_dashboard_gaps | Default mirror layout | common evidence: ['453.0', '561']
+MATCH | tests/test_driver_view.py::test_layout_recomputes_from_custom_window_and_legacy_side_size | Custom window mirror layout | common evidence: ['565.5999', '700']
+MATCH | tests/test_driver_view.py::test_draw_keeps_front_raw_and_flips_all_three_mirrors | Mirror drawing positions | common evidence: ["'flipped', 'left'", '453.0']
+MATCH | tests/test_driver_view_cockpit.py::test_v_respawns_only_front_sensor_with_cockpit_relative_transform | Cockpit front sensor | common evidence: ['0.25', '0.1']
+MATCH | tests/test_p6_candidate_aoi.py::test_candidate_matches_current_mirrors_without_claiming_measured_accuracy | P6 candidate AOI mirror mismatch | common evidence: ['561.0', '453.0']
+MATCH | tests/test_p6_validation_loop.py::test_space_at_previous_segment_end_must_not_skip_next_prepare | P6 validation geometry then traceback assignment | common evidence: ['Candidate mirrors differ from current production layout', 'super(type, obj): obj must be an instance or subtype of type']
+MATCH | tests/test_p8_runtime_attestation.py::test_diagnostic_profile_requires_exact_candidate_j_path_and_hash | Windows diagnostic path interpreted as POSIX relative path | common evidence: ['PosixPath(', 'libcarla.cp312-win_amd64.pyd']
+MATCH | tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[2-127.0.0.1] | Windows IPv4 API unavailable on Linux | common evidence: ["module 'ctypes' has no attribute 'WinDLL'", 'test_real_windows_listener_pid_without_carla[2-127.0.0.1]']
+MATCH | tests/test_p8_runtime_attestation.py::test_real_windows_listener_pid_without_carla[10-::1] | Windows IPv6 API unavailable on Linux | common evidence: ["module 'ctypes' has no attribute 'WinDLL'", 'test_real_windows_listener_pid_without_carla[10-::1]']
+Original ZIP byte equality verified for 9 selected test and implementation files:
+UNCHANGED_FROM_ORIGINAL_ZIP | src/p6/validation/live.py
+UNCHANGED_FROM_ORIGINAL_ZIP | src/p6/validation/mapping.py
+UNCHANGED_FROM_ORIGINAL_ZIP | src/p8/tm_runtime_attestation.py
+UNCHANGED_FROM_ORIGINAL_ZIP | src/scenario/driver_view.py
+UNCHANGED_FROM_ORIGINAL_ZIP | tests/test_driver_view.py
+UNCHANGED_FROM_ORIGINAL_ZIP | tests/test_driver_view_cockpit.py
+UNCHANGED_FROM_ORIGINAL_ZIP | tests/test_p6_candidate_aoi.py
+UNCHANGED_FROM_ORIGINAL_ZIP | tests/test_p6_validation_loop.py
+UNCHANGED_FROM_ORIGINAL_ZIP | tests/test_p8_runtime_attestation.py

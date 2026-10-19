@@ -1,0 +1,66 @@
+M2 장애물 충돌 안내 및 확인 종료 — 2026-10-19
+
+적용 범위
+M2 위험사건에서 생성한 장애물(cargo)의 actor ID와 실제 충돌 센서 콜백이
+일치할 때만 적용한다. Manual / NoA 모두 동일하게 작동한다.
+다른 차량과의 접촉, 도로 이탈, 위험사건 준비 실패의 기존 처리 정책은 유지한다.
+일반 주행, 핸들 입력, NoA 활성화/운전자 해제 조건 및 native DLL은 변경하지 않는다.
+
+진행
+1. 첫 장애물 충돌의 시점, actor ID, frame, 충격량 등 기존 센서 증거를 보존한다.
+2. 해당 M2 주행 기록 구간을 HAZARD_COLLISION으로 종료한다.
+3. 기존 종료용 제어 경로로 Traffic Manager에서 참가자 차량을 해제한다.
+   브레이크 및 주차 브레이크를 요청하고, 일반 주행 입력 루프는 더 이상 실행하지 않는다.
+   차량은 이 시점에 삭제하지 않으며 TM 정지 차량 자동 제거 대상에서도 빠진다.
+4. 같은 pygame 창에 다음 내용을 표시한다.
+   장애물과 충돌하여 실험을 종료합니다
+   스페이스 바를 누르면 데이터 수집을 종료하고 결과를 저장합니다.
+5. 새 Space 입력 후 수집기를 닫고 잔여 로그/부분 결과를 저장하고 자원을 정리한다.
+   충돌 전부터 Space를 누르고 있던 경우에는 놓았다가 다시 눌러야 한다.
+   ESC 또는 창 닫기는 명시적 관리자 종료로 계속 지원하며 확인 방법을 따로 기록한다.
+
+기록
+session_manifest.json:
+  completion_status = ENDED_AFTER_HAZARD_COLLISION
+  abort_reason = HAZARD_COLLISION
+  state = ABORTED (780초 전체 프로토콜을 마친 정상 완료와 구분하는 기존 종결 상태)
+  components.module_runs[M2].completion_reason = HAZARD_COLLISION
+  components.module_runs[M2].window_complete = false
+  components.module_runs[M2].collision_stop:
+    충돌 증거, 당시 NoA 상태, M2 주행 시간, 확인 입력 종류, 대기 시간, 처리 오류
+  components.hazard_observation.driver_response_outcome = COLLISION
+  components.hazard_observation.execution_status = CONTROLLED_COLLISION_STOP
+    (별도 기술적 실패가 있으면 FAILED와 오류 상세를 보존)
+
+이벤트 CSV:
+  m2_hazard_driving_event / session_action = AWAIT_COLLISION_CONFIRMATION
+  m2_hazard_collision_stop_wait
+  m2_hazard_collision_stop_confirmed
+  m2_hazard_end
+  p8_actual_bounded_run
+
+대기 시간은 M2 주행 시간, NoA 사용 시간, 성능 측정 구간에 포함하지 않는다.
+충돌 종료를 운전자가 브레이크/조향으로 NoA를 해제한 횟수에 더하지 않는다.
+원시 주행 로그는 충돌 경계까지 보존하며, 대기 중 정상 주행 샘플은 생성하지 않는다.
+충돌 센서 listener는 대기 진입 시 멈춰 무기한 대기로 콜백 메모리가 증가하지 않게 한다.
+기존 가동 중 수집기는 Space 이후 닫으며 대기 경계 이벤트로 분석 구간을 구분한다.
+검증되지 않은 TTC/반응 시간 등 연구 지표를 임의로 확정하지 않는다.
+
+저장 위치
+data/p8_operator/<Run ID>/session_manifest.json
+data/p8_operator/<Run ID>/research_events_<Run ID>.csv
+data/p8_operator/<Run ID>/research_telemetry_<Run ID>.csv
+data/p8_operator/_exports/<Run ID>.zip
+
+실차 시뮬레이터 확인 절차
+1. run_pilot.cmd로 실행하고 Manual 또는 NoA 배정에서 M2 장애물과 충돌한다.
+2. 창이 닫히지 않고 위 문구가 표시되며 차가 계속 가속하지 않는지 확인한다.
+3. 90초 이상 기다려도 차량 삭제 오류나 자동 종료가 발생하지 않는지 확인한다.
+4. Space를 새로 눌러 종료한다. 콘솔의 RESULTS_EXPORTED, export_error=null,
+   end_reason=HAZARD_COLLISION 및 위의 결과 파일을 확인한다.
+5. 충돌하지 않는 주행과 핸들/페달 입력, NoA 운전자 해제를 종전처럼 확인한다.
+
+검증 한계
+오프라인 회귀 테스트 및 pygame 더미 화면 렌더링만 실행했다.
+실제 CARLA 서버, 실제 핸들, 실제 아이트래커의 동작은 이번 변경에서 구동하지 않았다.
+TTC 노출 조건 조정과 Manual 성능 최적화는 이번 변경 범위에 포함하지 않는다.

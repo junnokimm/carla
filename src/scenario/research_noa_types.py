@@ -20,6 +20,7 @@ from src.vehicle.carla_noa_control import CarlaVelocity
 __all__ = ["ResearchPostControlObserver"]
 
 if TYPE_CHECKING:
+    from src.scenario.active_scene import ActiveDriveScene
     from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
     from src.scenario.research_exit_view import ExitViewBinding
     from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
@@ -34,6 +35,8 @@ class ResearchNoAViewer(Protocol):
     def set_exit_view_binding(self, binding: ExitViewBinding | None) -> None: ...
 
     def attach(self) -> None: ...
+
+    def prepare_input(self) -> None: ...
 
     def capture_camera_diagnostics_environment(
         self,
@@ -54,6 +57,7 @@ class ResearchNoAViewer(Protocol):
         diagnostics: ResearchNoADiagnostics | None = None,
         input_observer: RuntimeDriverInputObserver | None = None,
         continuation_factory: RuntimeContinuationFactory | None = None,
+        active_scene: ActiveDriveScene | None = None,
     ) -> bool: ...
 
     def close(self) -> None: ...

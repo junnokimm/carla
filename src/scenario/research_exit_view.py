@@ -84,6 +84,9 @@ class ResearchExitViewController:
         if prepared.lc_event_id not in self._presented_event_ids:
             self._binding.mark_presented(prepared)
             self._presented_event_ids.add(prepared.lc_event_id)
+        elif self._binding.prepare_presentation() != prepared:
+            self._active_recommendation = None
+            return
         self._active_recommendation = prepared if prepared.recommendation else None
 
     def requests(
@@ -93,6 +96,14 @@ class ResearchExitViewController:
     ) -> tuple[bool, bool]:
         if self._binding is None:
             return False, False
+        if self._active_recommendation is not None:
+            current = self._binding.prepare_presentation()
+            if (
+                current is None
+                or not current.recommendation
+                or current.lc_event_id != self._active_recommendation.lc_event_id
+            ):
+                self._active_recommendation = None
         confirm_key = ord(self._binding.config.confirm_key)
         reject_key = ord(self._binding.config.reject_key)
         exit_keys = (confirm_key, reject_key)

@@ -458,6 +458,9 @@ class FakeDriverView:
     def attach(self) -> None:
         self.attach_count += 1
 
+    def prepare_input(self) -> None:
+        return
+
     def capture_camera_diagnostics_environment(
         self,
         world: FakeResearchWorld,
