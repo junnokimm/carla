@@ -1,5 +1,6 @@
 {
   "version": "p8-noa-lane-change-rpc-guard-v2",
+  "automatic_exit_route": "single-right-action-empty-route-cancel-v1",
   "rpc_guard": {
     "rpc_library_sha256": "f78f889a616baed0b339aca96573b0891b6e05a8cb6612c16ba5c8dac39bab79",
     "upstream_sha256": "bd3c02338cf1e722bcf9a51eb1d70a4ad22923a6187d284b8db14fcfe9a29ff2",
@@ -13,6 +14,6 @@
     "install/lib/carla_client.lib": "863522ca6acbebbad8ce4f283a830c415df0a92e0c420d3c3740cedf447bea7b",
     "install/include/carla/trafficmanager/LocalizationStage.cpp": "ccab6fdc945054bd6633bc57254aafa472c30b0c4a92612132bc4493c6fbf549"
   },
-  "libcarla_sha256": "2af89add3e333ffcca316a5d99ece6313677c14fee3af35f89bed41a353a59e3",
-  "patch_sha256": "fe5d52117628ca18f21e932c8ee275605df4732dfd7bba9d883b951096293d59"
+  "libcarla_sha256": "f69e59a5298414f68ec1a27d2d5f820961fc0a7d3a9f0195c4dac6977e43a0b5",
+  "patch_sha256": "a09fe3349affee9770b1b67f4058d2e96e2d45ae41d318cc9234a31665533d59"
 }

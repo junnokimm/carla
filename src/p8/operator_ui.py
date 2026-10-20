@@ -15,6 +15,7 @@ from src.p8.operator_model import (
 from src.p8.operator_pages import stage_page
 from src.p8.operator_render import OperatorPage, OperatorRenderer
 from src.p8.operator_ui_types import OperatorControl, OperatorUiConfig
+from src.p8.warning_sound_practice import WarningSoundPractice
 
 
 class OperatorApp:
@@ -28,6 +29,7 @@ class OperatorApp:
         self.awaiting_space_release = False
         self.status = "시작 대기"
         self.runtime_error = None
+        self.warning_practice = None
         self.renderer = OperatorRenderer(config.window_size)
         self.frame_clock = pygame.time.Clock()
 
@@ -40,6 +42,12 @@ class OperatorApp:
             "software collection not performed; external paper management; completion unverified",
         )
         self.controller.advance()
+        if getattr(getattr(self.controller, "runtime", None), "m2_hazard_v1", None) is not None:
+            self.warning_practice = WarningSoundPractice(self.controller)
+            return
+        self._run_training()
+
+    def _run_training(self) -> None:
         result = self.controller.execute_training(
             TrainingRun.MANUAL_NOA,
             self.config.training_duration_s,
@@ -111,7 +119,19 @@ class OperatorApp:
                 "오류 발생 · 관리자 확인 대기",
             ))
             return
-        self.renderer.draw(surface, stage_page(self.controller.snapshot(), self.status))
+        if self.warning_practice is not None:
+            self.renderer.draw(surface, self.warning_practice.page())
+            self.warning_practice.drawn = True
+        else:
+            self.renderer.draw(surface, stage_page(self.controller.snapshot(), self.status))
+
+    def after_display_flip(self) -> None:
+        if self.warning_practice is not None and self.runtime_error is None:
+            self.warning_practice.after_display_flip()
+
+    def close_warning_practice(self, reason="OPERATOR_UI_CLOSED") -> None:
+        if self.warning_practice is not None:
+            self.warning_practice.close(reason)
 
     def hold_runtime_error(self, error):
         if self.registered and self.controller.snapshot().closed:
@@ -122,6 +142,17 @@ class OperatorApp:
         self.running = True
 
     def _handle_key(self, key: int) -> None:
+        if self.warning_practice is not None:
+            if key == pygame.K_r:
+                self.warning_practice.play("R_REPLAY")
+            elif key == pygame.K_SPACE and self.warning_practice.acknowledge():
+                self.warning_practice = None
+                self._run_training()
+                # Do not forward the acknowledgement or a queued repeat into
+                # the post-training stage when the drive returns.
+                self.discard_key_batch = True
+                self.awaiting_space_release = True
+            return
         if key != pygame.K_SPACE:
             return
         stage = self.controller.snapshot().stage
@@ -132,7 +163,13 @@ class OperatorApp:
                 )
                 self._advance()
             case Stage.MODULE_1_PREPARE:
-                self._run_module(stage)
+                from src.p8.m2_gaze_check import prepare_module_gaze
+
+                ready = prepare_module_gaze(self.controller, module="M1")
+                if getattr(getattr(self.controller, "runtime", None), "gaze_config", None) is not None:
+                    self._restore_display(require_space_release=True)
+                if ready:
+                    self._run_module(stage)
             case Stage.MODULE_2_PREPARE:
                 from src.p8.m2_gaze_check import prepare_m2_gaze
 
@@ -231,6 +268,7 @@ class OperatorApp:
                 assert_never(unreachable)
 
     def _abort(self, reason: str) -> None:
+        self.close_warning_practice(reason)
         if self.registered and not self.controller.snapshot().closed:
             self.controller.abort(reason)
         self.running = False

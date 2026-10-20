@@ -33,10 +33,27 @@ def is_navigation_observation(
     route = config.route
     return (
         navigation_distance_m(config, observation) is not None
-        and observation.lane_id == route.source_lane_id
+        and (
+            guidance_approach_lane(config, observation)
+            if config.signal_guided_exit
+            else observation.lane_id == route.source_lane_id
+        )
         and route.navigation_start
         <= observation.route_distance_m
         <= route.navigation_end
+    )
+
+
+def guidance_approach_lane(config: ExitAssistanceConfig, observation: ExitObservation) -> bool:
+    """Only the same-direction, same-road approach lanes of this route."""
+    route = config.route
+    index = observation.route_point_index
+    if not 0 <= index < len(route.points) or observation.lane_id is None:
+        return False
+    point = route.points[index]
+    return (
+        (observation.road_id, observation.section_id) == (point.road_id, point.section_id)
+        and route.target_lane_id <= observation.lane_id < 0
     )
 
 
@@ -53,6 +70,8 @@ def is_confirmation_observation(
 
 
 def is_automated_branch(config: ExitAssistanceConfig, mode: DrivingControlMode) -> bool:
+    if config.signal_guided_exit:
+        return mode is DrivingControlMode.NOA_ACTIVE
     match config.module:
         case ExperimentModule.MODULE_1:
             return mode is DrivingControlMode.NOA_ACTIVE
@@ -87,11 +106,16 @@ def draft_presentation(
     distance_m = max(remaining_m, 0.0)
     return ExitPresentation(
         config.lc_event_id,
-        f"{distance_m / 1000.0:.1f} km 앞 출구, 우측 차로로",
+        (
+            f"전방 {distance_m / 1000.0:.1f} km, 오른쪽 출구입니다"
+            if config.signal_guided_exit
+            else f"{distance_m / 1000.0:.1f} km 앞 출구, 우측 차로로"
+        ),
         recommendation,
         distance_m,
         observation_frame,
         route_point_index,
+        signal_guided_exit=config.signal_guided_exit,
     )
 
 

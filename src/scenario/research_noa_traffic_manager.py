@@ -70,6 +70,8 @@ class TrafficManager(Protocol):
         self, actor: CarlaNoARuntimeVehicle, direction: bool
     ) -> None: ...
 
+    def set_route(self, actor: CarlaNoARuntimeVehicle, path: list[str], empty_buffer: bool) -> None: ...
+
 
 class TrafficManagerNoAControlBackend:
     def __init__(
@@ -85,6 +87,7 @@ class TrafficManagerNoAControlBackend:
         self._traffic_manager = traffic_manager
         self._port = traffic_manager.get_port()
         self._active = False
+        self._automatic_exit_route_owned = False
         self._hazard_pairs: dict[int, object] = {}
         self.hazard_pair_revision = 0
         self._lane_changes = TrafficManagerLaneChangeExecutor(
@@ -119,6 +122,8 @@ class TrafficManagerNoAControlBackend:
         return None
 
     def enter_noa_control(self) -> None:
+        if not self.cancel_automatic_exit_route():
+            raise RuntimeError("previous automatic exit route cancellation unverified")
         try:
             self._traffic_manager.ignore_lights_percentage(self._vehicle, 0.0)
             self._vehicle.set_autopilot(True, self._port)
@@ -143,6 +148,35 @@ class TrafficManagerNoAControlBackend:
         self._vehicle.set_autopilot(False, self._port)
         self._lane_changes.confirm_deactivation()
         self._active = False
+        self.cancel_automatic_exit_route()
+
+    def submit_automatic_exit_route(self) -> bool:
+        """Choose the fork only after an accepted driver signal and outer lane."""
+        return self._submit_exit_choice("Right")
+
+    def submit_exit_through_route(self) -> bool:
+        """Keep the mainline after NORESPONSE, including late ordinary signals."""
+        return self._submit_exit_choice("Straight")
+
+    def _submit_exit_choice(self, choice: str) -> bool:
+        if not self._active or self.lane_change_in_flight is not None:
+            return False
+        self._automatic_exit_route_owned = True
+        try:
+            self._traffic_manager.set_route(self._vehicle, [choice], True)
+        except RuntimeError:
+            return False
+        return True
+
+    def cancel_automatic_exit_route(self) -> bool:
+        if not self._automatic_exit_route_owned:
+            return True
+        try:
+            self._traffic_manager.set_route(self._vehicle, [], True)
+        except RuntimeError:
+            return False
+        self._automatic_exit_route_owned = False
+        return True
 
     def ensure_manual_control(self) -> None:
         self.enter_manual_control()

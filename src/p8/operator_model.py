@@ -144,7 +144,7 @@ class OperatorRuntimeConfig:
             if not exit_config.indicator_confirmation:
                 raise ResearchSpeedPolicyError(
                     field,
-                    "must enable indicator confirmation",
+                    "requires indicator confirmation",
                 )
         module_windows = (self.module_1_exit_window, self.module_2_exit_window)
         if self.module_exit is not None and any(

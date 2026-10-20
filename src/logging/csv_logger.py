@@ -49,6 +49,9 @@ RESEARCH_COMMON_HEADER: Final = (
     "carla_capture_started_host_monotonic_ns",
     "carla_capture_completed_host_monotonic_ns",
     "external_timestamps_json",
+    "host_perf_counter_ns",
+    "carla_capture_started_perf_counter_ns",
+    "carla_capture_completed_perf_counter_ns",
 )
 
 RESEARCH_TELEMETRY_HEADER: Final = RESEARCH_COMMON_HEADER + (
@@ -255,4 +258,9 @@ class ResearchCsvLogger:
             "" if carla is None else carla.host_capture_started_monotonic_ns,
             "" if carla is None else carla.host_capture_completed_monotonic_ns,
             external_timestamps,
+            timestamp.host.perf_counter_ns if timestamp.host.perf_counter_ns is not None else "",
+            "" if carla is None or carla.host_capture_started_perf_counter_ns is None
+            else carla.host_capture_started_perf_counter_ns,
+            "" if carla is None or carla.host_capture_completed_perf_counter_ns is None
+            else carla.host_capture_completed_perf_counter_ns,
         )

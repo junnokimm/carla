@@ -32,6 +32,7 @@ from src.experiment.events import ResearchEventRecorder
 from src.experiment.exit_assistance import ExitAssistanceEvent, ExitContext
 from src.experiment.exit_route import ExitRoute
 from src.experiment.noa_runtime import NoAControlConfig
+from src.experiment.observation_clock import observation_ns
 from src.experiment.session_clock import SessionClockError
 from src.experiment.timestamp import (
     CarlaSnapshotTimestamp,
@@ -178,15 +179,17 @@ class ResearchNoAObservationSource:
 
     def get_host_timestamp(self) -> TimestampEnvelope:
         return TimestampEnvelope(
-            host=HostClockTimestamp(self._monotonic_ns(), self._utc_ns())
+            host=HostClockTimestamp(self._monotonic_ns(), self._utc_ns(), observation_ns())
         )
 
     def get_observation(self) -> VehicleObservation:
         self.iteration_lights.invalidate()
         started_ns = self._monotonic_ns()
         operation_started_at = self._started_at()
+        started_qpc_ns = observation_ns()
         try:
             snapshot = self._world.get_snapshot()
+            snapshot_completed_qpc_ns = observation_ns()
         finally:
             self._record_duration("snapshot_getter", operation_started_at)
         snapshot_completed_ns = self._monotonic_ns()
@@ -231,12 +234,14 @@ class ResearchNoAObservationSource:
         right = bool(lights & carla.VehicleLightState.RightBlinker)
         completed_ns = self._monotonic_ns()
         timestamp = TimestampEnvelope(
-            host=HostClockTimestamp(completed_ns, self._utc_ns()),
+            host=HostClockTimestamp(completed_ns, self._utc_ns(), observation_ns()),
             carla_snapshot=CarlaSnapshotTimestamp(
                 simulation_seconds,
                 int(snapshot.frame),
                 started_ns,
                 snapshot_completed_ns,
+                started_qpc_ns,
+                snapshot_completed_qpc_ns,
             ),
         )
         indicator = (
@@ -465,7 +470,9 @@ class ResearchNoAPersistence:
             {
                 "approval_claimed": False,
                 "assisted_execution_enabled": config.assisted_execution_enabled,
-                "confirm_key": config.confirm_key,
+                "exit_policy": "INDICATOR_DURING_VISIBLE_GUIDANCE" if config.signal_guided_exit else "DRIVER_CONFIRMATION",
+                "signal_guided_exit": config.signal_guided_exit,
+                "confirm_key": None if config.signal_guided_exit else config.confirm_key,
                 "context": config.context.value,
                 "development_values_not_policy": True,
                 "development_route_validation": {
@@ -488,8 +495,10 @@ class ResearchNoAPersistence:
                 "confirmation_end_m": route.confirmation_end,
                 "maneuver_start_m": route.initiation_start_m,
                 "maneuver_end_m": route.initiation_end_m,
-                "reject_key": config.reject_key,
+                "reject_key": None if config.signal_guided_exit else config.reject_key,
                 "response_timeout_s": config.response_timeout_s,
+                "guidance_display_duration_s": config.response_timeout_s,
+                "response_window_equals_visible_guidance": config.signal_guided_exit,
                 "route_id": route.route_id,
                 "route_version": route.route_version,
                 "route_semantic_sha256": route_data_sha256((route,)),

@@ -43,6 +43,7 @@ class ObservationLifecycle(Protocol):
     _path_outcome: str | None
     _route_was_armed: bool
     _observed_proxy_timestamp: TimestampEnvelope | None
+    _guidance_closed_timestamp: TimestampEnvelope | None
 
     def _emit(
         self,
@@ -66,6 +67,8 @@ class ObservationLifecycle(Protocol):
     def is_time_closed(self, timestamp: TimestampEnvelope) -> bool: ...
 
     def mark_not_presented(self, timestamp: TimestampEnvelope) -> None: ...
+
+    def cancel_automatic_route(self, timestamp: TimestampEnvelope) -> None: ...
 
 
 def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) -> None:
@@ -94,6 +97,10 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
         )
     subject._last_observation_frame = frame
     subject._latest_observation = observation
+    if subject.config.signal_guided_exit:
+        from src.experiment.exit_signal import refresh_guidance
+
+        refresh_guidance(subject, observation.timestamp)
     identity = (observation.road_id, observation.section_id, observation.lane_id)
     route = subject.config.route
     separated_through = (
@@ -168,7 +175,10 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
         had_navigation = subject.presentation is not None
         subject.presentation = (
             None
-            if remaining is None
+            if remaining is None or (
+                subject.config.signal_guided_exit
+                and subject._guidance_closed_timestamp is not None
+            )
             else draft_presentation(
                 subject.config,
                 remaining,
@@ -304,6 +314,10 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
     if subject._path_outcome is None or not (
         terminal_exit or terminal_missed or station_complete
     ):
+        if subject.config.signal_guided_exit:
+            from src.experiment.exit_opportunity_lifecycle import retire_abandoned_exit
+
+            retire_abandoned_exit(subject, observation)
         return
     if subject.status is ExitAssistanceStatus.COMPLETED:
         return
@@ -315,6 +329,7 @@ def observe_exit(subject: ObservationLifecycle, observation: ExitObservation) ->
     ):
         subject._decision = "MANUAL_NOCHANGE"
     subject.status = ExitAssistanceStatus.COMPLETED
+    subject.cancel_automatic_route(observation.timestamp)
     subject.presentation = None
     subject._emit(
         "lc_completed",

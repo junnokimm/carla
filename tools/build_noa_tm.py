@@ -30,6 +30,25 @@ PINNED = {
 def patch_source(source: str) -> str:
     replacements = [
         (
+            "        next_road_option = static_cast<RoadOption>(imported_actions.front());",
+            "        if (!imported_actions.empty()) {\n"
+            "          next_road_option = static_cast<RoadOption>(imported_actions.front());\n"
+            "        }",
+        ),
+        (
+            "  // We are effectively importing a path.",
+            "  // An empty explicit route cancels the owned exit plan, including\n"
+            "  // waypoints already buffered beyond the current front.\n"
+            "  if (imported_actions.empty() && parameters.GetUploadRoute(actor_id)) {\n"
+            "    while (waypoint_buffer.size() > 1u) {\n"
+            "      PopWaypoint(actor_id, track_traffic, waypoint_buffer, false);\n"
+            "    }\n"
+            "    parameters.RemoveImportedRoute(actor_id, true);\n"
+            "    parameters.RemoveImportedRoute(actor_id, false);\n"
+            "  }\n"
+            "  // We are effectively importing a path.",
+        ),
+        (
             "&& (recently_not_executed_lane_change || done_with_previous_lane_change))",
             (
                 "// Explicit requests are serialized by the application until completion.\n"
@@ -282,6 +301,7 @@ def main() -> None:
     )
     manifest = {
         "version": "p8-noa-lane-change-rpc-guard-v2",
+        "automatic_exit_route": "single-right-action-empty-route-cancel-v1",
         "rpc_guard": rpc_manifest,
         "base_inputs": PINNED,
         "libcarla_sha256": hashlib.sha256(pyd.read_bytes()).hexdigest(),

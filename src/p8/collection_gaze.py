@@ -7,7 +7,7 @@ from src.p8.collection_clock import map_tobii
 AOIS = ("FORWARD", "LEFT_MIRROR", "RIGHT_MIRROR", "TABLET")
 
 
-def gaze_metrics(samples, *, windows, alignment, eligible, hazard_start=None):
+def gaze_metrics(samples, *, windows, alignment, eligible, hazard_start=None, hazard_boundary=None):
     counts = {name: Counter() for name in ("all_active_m2", "before_hazard")}
     durations = {name: Counter() for name in counts}
     longest_loss = dict.fromkeys(counts, 0.0)
@@ -15,6 +15,7 @@ def gaze_metrics(samples, *, windows, alignment, eligible, hazard_start=None):
     rejected = Counter()
     previous = None
     aligned = []
+    qpc_clock = alignment.get("session_clock") == "SHARED_QPC"
     for row in samples:
         if row.get("record_type") != "gaze":
             continue
@@ -33,12 +34,26 @@ def gaze_metrics(samples, *, windows, alignment, eligible, hazard_start=None):
         if t is None:
             # New captures have an explicit parent/QPC callback bridge. Old worker
             # monotonic session labels are not silently considered synchronized.
-            t = row.get("parent_callback_session_s")
-            basis = "CALLBACK_BRIDGE_APPROXIMATE" if t is not None else "UNALIGNED"
+            if qpc_clock:
+                callback_ns = metadata.get("sdk_callback_host_perf_counter_ns")
+                t = (
+                    None
+                    if callback_ns is None
+                    else (callback_ns - alignment["origin_perf_counter_ns"]) / 1e9
+                )
+                basis = "QPC_CALLBACK_APPROXIMATE" if t is not None else "UNALIGNED"
+            else:
+                t = row.get("parent_callback_session_s")
+                basis = "CALLBACK_BRIDGE_APPROXIMATE" if t is not None else "UNALIGNED"
         aligned.append(
             {
                 "source_sequence": sample.get("source_sequence"),
-                "session_elapsed_s": t,
+                "session_elapsed_s": None if qpc_clock else t,
+                "analysis_elapsed_s": t if qpc_clock else None,
+                "legacy_parent_callback_session_s": row.get(
+                    "parent_callback_session_s"
+                ),
+                "clock_domain": "SHARED_QPC" if qpc_clock else "PARENT_MONOTONIC",
                 "time_basis": basis,
                 "aoi": row.get("aoi"),
                 "observation_state": row.get("observation_state"),
@@ -58,7 +73,7 @@ def gaze_metrics(samples, *, windows, alignment, eligible, hazard_start=None):
         aoi = row.get("aoi", "NO_AOI")
         state = row.get("observation_state", "UNKNOWN")
         cohorts = ["all_active_m2"]
-        if hazard_start is None or t < hazard_start:
+        if (hazard_boundary is None or hazard_boundary["available"]) and (hazard_start is None or t < hazard_start):
             cohorts.append("before_hazard")
         seq = sample.get("source_sequence")
         for name in cohorts:
@@ -81,7 +96,7 @@ def gaze_metrics(samples, *, windows, alignment, eligible, hazard_start=None):
                     and pq is not None
                     and seq == pq + 1
                     and pw == window_index
-                    and (name != "before_hazard" or pt < (hazard_start or float("inf")))
+                    and (name != "before_hazard" or hazard_start is None or pt < hazard_start)
                 ):
                     key = (
                         aoi
@@ -137,10 +152,33 @@ def gaze_metrics(samples, *, windows, alignment, eligible, hazard_start=None):
             "eligible_aois": eligible,
             "missing_rule": "UNCHECKED_OR_FAILED_AOI_NULL;UNKNOWN_NEVER_TABLET;NO_GAP_IMPUTATION",
         }
+        # Keep the raw/approximate counts inspectable, but never present a failed
+        # new alignment as an analysis-qualified, precisely bounded proportion.
+        if qpc_clock and (
+            alignment.get("status") != "SOFTWARE_ALIGNMENT_CHECKED"
+            or c["approximate_timestamp_samples"]
+        ):
+            reports[name]["analysis_sample_ratio_by_aoi"] = dict.fromkeys(AOIS)
+            reports[name]["analysis_observed_seconds_by_aoi"] = dict.fromkeys(AOIS)
+            reports[name]["time_alignment_eligibility"] = (
+                "EXCLUDED_UNVERIFIED_TIMESTAMPS"
+            )
+        else:
+            reports[name]["time_alignment_eligibility"] = (
+                "CHECKED" if qpc_clock else "LEGACY_CLOCK_POLICY"
+            )
+        if name == "before_hazard" and hazard_boundary is not None and not hazard_boundary["available"]:
+            reports[name].update(status=hazard_boundary["status"], active_window_s=None,
+                                 unobserved_or_gap_seconds=None, unobserved_or_gap_time_ratio=None)
+            reports[name]["raw_sample_ratio_by_aoi"] = dict.fromkeys((*AOIS, "NO_AOI"))
+            reports[name]["analysis_sample_ratio_by_aoi"] = dict.fromkeys(AOIS)
+            reports[name]["analysis_observed_seconds_by_aoi"] = dict.fromkeys(AOIS)
     return {
         "cohorts": reports,
         "rejected": dict(rejected),
         "windows": windows,
+        "clock_domain": "SHARED_QPC" if qpc_clock else "PARENT_MONOTONIC",
         "hazard_exclusion_start_s": hazard_start,
-        "hazard_exclusion_policy": "PREPARATION_START_TO_M2_END;ALL_ACTIVE_ALSO_REPORTED",
+        "hazard_exclusion_policy": (hazard_boundary["policy"] if hazard_boundary else "PREPARATION_START_TO_M2_END") + ";ALL_ACTIVE_ALSO_REPORTED",
+        "hazard_boundary": hazard_boundary,
     }, aligned

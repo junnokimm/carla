@@ -39,8 +39,16 @@ class ResearchExitAssistanceConfig:
     indicator_confirmation: bool = False
     eligibility_open_s: float | None = None
     eligibility_close_s: float | None = None
+    signal_guided_exit: bool = False
 
     def __post_init__(self) -> None:
+        if self.signal_guided_exit and (
+            not self.indicator_confirmation
+            or not self.assisted_execution_enabled
+        ):
+            raise ResearchExitConfigError(
+                "signal-guided exit requires indicator confirmation and assisted execution"
+            )
         if not self.route_id.strip() or not self.lc_event_id.strip():
             raise ResearchExitConfigError(
                 "route and event identities must not be blank"

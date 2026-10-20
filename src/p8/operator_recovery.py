@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import pygame
 
 from src.experiment.automation import DrivingControlMode
+from src.experiment.observation_clock import observation_ns
 from src.p8.operator_render import OperatorPage, OperatorRenderer
 from src.p8.tsxw_input import TsxwDeviceError
 
@@ -30,6 +31,7 @@ class OperatorRecovery:
             "error": f"{type(error).__name__}:{error}",
             "status": "AWAITING_OPERATOR",
             "host_started_s": started,
+            "started_perf_counter_ns": observation_ns(),
             "analysis_eligible": False,
             "gap_policy": "EXCLUDE_FROM_ACTIVE_DURATION_KEEP_HOST_TIMESTAMPS",
             "stop_request_errors": [],
@@ -69,6 +71,7 @@ class OperatorRecovery:
         paused = self.clock() - started
         self.paused_seconds += paused
         record["paused_seconds"] = paused
+        record["completed_perf_counter_ns"] = observation_ns()
         if scene is not None:
             scene.started_at += paused
         self._emit("operator_runtime_recovery", record)

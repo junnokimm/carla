@@ -14,6 +14,7 @@ from src.error_notes import append_error_note
 from src.experiment.automation import AutomationState, DrivingControlMode
 from src.experiment.automation_interaction import DriverInput
 from src.experiment.lane_change import LaneChangeDirection
+from src.experiment.observation_clock import observation_ns
 from src.p8.tsxw_input import TsxwInput, TsxwLogEvent
 from src.p8.tsxw_policy import (
     TsxwCommandState,
@@ -448,6 +449,7 @@ class ResearchDriverView(DriverView):
         return
 
     def _collect_driver_input(self, events: list[KeyEvent]) -> DriverInput:
+        poll_started_qpc_ns = observation_ns()
         source = self._research_config.driver_input_source
         if source is not None:
             return source()
@@ -516,6 +518,12 @@ class ResearchDriverView(DriverView):
             combined_events,
             active_indicator_keys,
         )
+        if self._exit_view.signal_guided_exit:
+            confirm_requested = (
+                lane_change_direction is LaneChangeDirection.RIGHT
+                and self._exit_view.signal_guidance_visible
+            )
+            reject_requested = False
         if (
             self._exit_view.indicator_confirmation
             and lane_change_direction is not LaneChangeDirection.RIGHT
@@ -545,12 +553,15 @@ class ResearchDriverView(DriverView):
             lane_change_direction=lane_change_direction,
         )
         sink = self._research_config.tsxw_event_sink
+        poll_completed_qpc_ns = observation_ns()
         if sample is not None and sink is not None:
             sink(
                 TsxwLogEvent(
                     "tsxw_input_sample",
                     json.dumps(
                         {
+                            "poll_started_perf_counter_ns": poll_started_qpc_ns,
+                            "poll_completed_perf_counter_ns": poll_completed_qpc_ns,
                             "raw": {
                                 "steering": sample.raw_steering,
                                 "brake": sample.raw_brake,
@@ -563,6 +574,7 @@ class ResearchDriverView(DriverView):
                             },
                             "effective": {
                                 "steering": collected.steering,
+                                "steering_engaged": collected.steering_engaged,
                                 "brake": collected.brake,
                                 "throttle": collected.throttle,
                                 "hand_brake": collected.hand_brake,

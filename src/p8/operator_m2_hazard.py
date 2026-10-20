@@ -6,6 +6,7 @@ from random import Random
 from uuid import uuid4
 
 from src.error_notes import append_error_note
+from src.experiment.observation_clock import observation_ns
 from src.p7.metrics import canonical_hazard_record
 from src.p7.moving_backend import MovingHazardBackend
 from src.p7.moving_config import SCENARIO_VERSION, TARGET_TTC_S, WINDOW
@@ -21,6 +22,9 @@ _PROGRAM_VERSION = "P8_M2_COLLISION_CONFIRM_STOP_V1"
 
 
 class OperatorM2Hazard:
+    backend_type = MovingHazardBackend
+    scenario_version = SCENARIO_VERSION
+    program_version = _PROGRAM_VERSION
     def __init__(
         self, session, services, config, occurrences, sink, started_at, provenance
     ):
@@ -53,7 +57,7 @@ class OperatorM2Hazard:
         self._lead_complete = False
         self._passed = False
         self.provenance = provenance
-        self.backend = MovingHazardBackend(session, config, self.emit)
+        self.backend = self.backend_type(session, config, self.emit)
         self.origin_stamp = services.stamp()
         self.emit(
             "scheduled",
@@ -84,17 +88,19 @@ class OperatorM2Hazard:
             raise
 
     def emit(self, name, payload):
+        event_observed_qpc = observation_ns()
         # P5/interaction observers can queue older stamped events after telemetry.
         # Drain them before a newly stamped scene event advances the shared clock.
         self.session.persistence.flush_events()
         self.services.emit(
             f"m2_hazard_{name}",
             {
-                "scenario_version": SCENARIO_VERSION,
+                "scenario_version": self.scenario_version,
                 "m2_active_elapsed_s": self.elapsed,
-                "program_version": _PROGRAM_VERSION,
+                "program_version": self.program_version,
                 "auto_state": self.session.bundle.automation_runtime.state.control_mode.value,
                 "scene_state": self.state,
+                "event_observed_perf_counter_ns": event_observed_qpc,
                 **payload,
             },
         )
@@ -104,6 +110,10 @@ class OperatorM2Hazard:
         tm = self.session.bundle.traffic_manager_backend
         if tm is not None and tm.lane_change_in_flight is not None:
             return "P5_OR_GENERAL_LANE_CHANGE_IN_FLIGHT"
+        if coordinator is not None and getattr(
+            coordinator, "_automatic_route_cancel_unverified", False
+        ):
+            return "P5_EXIT_ROUTE_CANCELLATION_UNVERIFIED"
         if coordinator is not None and (
             coordinator.lane_change_in_progress
             or coordinator.status.value
@@ -111,6 +121,9 @@ class OperatorM2Hazard:
         ):
             return f"P5_CONFLICT:{coordinator.status.value}"
         return None
+
+    def record_input_clock(self, mono_start, mono_end, qpc_start, qpc_end):
+        self._input_clock = (mono_start, mono_end, qpc_start, qpc_end)
 
     def after_control(self, driver_input, poll_started_ns, poll_completed_ns):
         if self.closed or self.collision_stop is not None:
@@ -130,15 +143,25 @@ class OperatorM2Hazard:
         ):
             raise P7Error("M2_V1_CACHED_WORLD_SNAPSHOT_REQUIRED")
         stamp = sample.timestamp
+        input_clock = getattr(self, "_input_clock", None)
+        self._input_clock = None
+        qpc_bounds = (
+            input_clock[2:] if input_clock is not None
+            and input_clock[:2] == (poll_started_ns, poll_completed_ns)
+            else (None, None)
+        )
         if self.elapsed - self.last_flush >= 1.0 or len(self.raw) >= 120:
             self._flush_raw()
         self.raw.append(
             {
                 "poll_started_monotonic_ns": poll_started_ns,
                 "poll_completed_monotonic_ns": poll_completed_ns,
+                "poll_started_perf_counter_ns": qpc_bounds[0],
+                "poll_completed_perf_counter_ns": qpc_bounds[1],
                 "input": asdict(driver_input),
                 "m2_active_elapsed_s": self.elapsed,
                 "observation_monotonic_ns": stamp.host.monotonic_ns,
+                "observation_perf_counter_ns": stamp.host.perf_counter_ns,
                 "frame": stamp.carla_snapshot.frame,
                 "simulation_seconds": stamp.carla_snapshot.simulation_seconds,
                 "auto_state": self.session.bundle.automation_runtime.state.control_mode.value,
@@ -391,6 +414,9 @@ class OperatorM2Hazard:
             },
         )
 
+    def display_exposure_valid(self, geometry):
+        return True
+
     def after_display_completed(self, frame):
         if (
             self.closed
@@ -413,6 +439,7 @@ class OperatorM2Hazard:
             "simulation_seconds": frame.simulation_seconds,
             "receipt_perf_counter_seconds": frame.receipt_perf_counter_seconds,
             "flip_completed_monotonic_ns": frame.flip_completed_monotonic_ns,
+            "flip_completed_perf_counter_ns": frame.flip_completed_perf_counter_ns,
             "method": "FRAME_MATCHED_PROJECTED_BOUNDS_PARTIAL_EXPOSURE_PROXY",
             "uncertainty": "MESH_PIXELS_OTHER_OCCLUDERS_PHOTONS_AND_PERCEPTION_UNVALIDATED",
             "hazard_visible_t": None,
@@ -425,6 +452,7 @@ class OperatorM2Hazard:
             WINDOW[0] <= frame_elapsed <= WINDOW[1]
             and self.backend.motion_started is not None
             and frame.simulation_seconds >= self.backend.motion_started
+            and self.display_exposure_valid(geometry)
         )
         self.first_display["frame_callback_active_elapsed_s"] = frame_elapsed
         self.first_display["normal_window_candidate"] = valid
@@ -570,8 +598,8 @@ class OperatorM2Hazard:
         attempt("raw_flush", self._flush_raw)
         record = {
             **canonical_hazard_record(None),
-            "scenario_version": SCENARIO_VERSION,
-            "program_version": _PROGRAM_VERSION,
+            "scenario_version": self.scenario_version,
+            "program_version": self.program_version,
             "auto_state_at_m2_scene_close": self.session.bundle.automation_runtime.state.control_mode.value,
             "execution_scope": "DEV_M2_INTERNAL",
             "execution_status": "FAILED"

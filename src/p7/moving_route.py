@@ -182,7 +182,7 @@ class MovingRoute:
     side: str
 
     @classmethod
-    def select(cls, world_map, pose, length, step, *, diagnostics=None):
+    def select(cls, world_map, pose, length, step, *, diagnostics=None, adjacent=True):
         if not all(isfinite(value) and value > 0 for value in (length, step)):
             raise P7Error("LANE_UNSUITABLE:INVALID_ROUTE_REQUEST")
         if diagnostics is not None:
@@ -227,6 +227,8 @@ class MovingRoute:
             source.append(next_wp)
             source_points.append(next_point)
             previous = vector
+        if not adjacent:
+            return cls(source, source, stations, "current")
         rejections = []
         for side in ("left", "right"):
             target, trace = [], {}

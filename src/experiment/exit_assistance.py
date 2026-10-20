@@ -54,6 +54,9 @@ class ExitAssistanceCoordinator:
         session_clock: SessionClock | None = None,
         assisted_submission: Callable[[], bool] | None = None,
         submission_clock: Callable[[], TimestampEnvelope] | None = None,
+        automatic_route_submission: Callable[[], bool] | None = None,
+        automatic_route_cancellation: Callable[[], bool] | None = None,
+        through_route_submission: Callable[[], bool] | None = None,
     ) -> None:
         if assisted_submission is not None and submission_clock is None:
             raise ExitPresentationError("TM submission requires its observation clock")
@@ -64,6 +67,11 @@ class ExitAssistanceCoordinator:
         self.events: list[ExitAssistanceEvent] = []
         self._event_sink = event_sink
         self._t0: TimestampEnvelope | None = None
+        # Physical resolution evidence, independent of file logging success.
+        # A timeout or a cancelled assistance request is not a passed exit.
+        self._opportunity_end_timestamp: TimestampEnvelope | None = None
+        self._opportunity_end_outcome: str | None = None
+        self._opportunity_end_reason: str | None = None
         self._frozen_mode: DrivingControlMode | None = None
         self._actual_mode: DrivingControlMode | None = None
         self._automated = False
@@ -93,6 +101,24 @@ class ExitAssistanceCoordinator:
         self._submission_clock = submission_clock
         self._active_drive_start: TimestampEnvelope | None = None
         self._active_drive_start_elapsed_s: float | None = None
+        self.logging_errors: list[str] = []
+        self._automatic_route_submission = automatic_route_submission
+        self._automatic_route_cancellation = automatic_route_cancellation
+        self._automatic_route_armed = False
+        self._through_route_submission = through_route_submission
+        self._guidance_closed_timestamp: TimestampEnvelope | None = None
+        self._guidance_hidden_timestamp: TimestampEnvelope | None = None
+        self._route_choice: str | None = None
+        self._branch_failed = False
+        self._outside_exit_since_ns = None
+        self._outside_exit_last_ns = None
+        self._exit_corridor_road_sections = frozenset(
+            [(point.road_id, point.section_id) for point in config.route.points]
+            + [segment[:2] for segment in (
+                *config.route.exit_segments, *config.route.through_segments
+            )]
+        )
+        self._automatic_route_cancel_unverified = False
 
     def start_active_drive(self, timestamp: TimestampEnvelope) -> None:
         if self._active_drive_start is not None:
@@ -159,6 +185,15 @@ class ExitAssistanceCoordinator:
         if observation is None or self.presentation is None:
             raise ExitPresentationError("exit presentation is not ready")
         if self.status is not ExitAssistanceStatus.DRAFT:
+            if self.config.signal_guided_exit:
+                return replace(
+                    self.presentation,
+                    recommendation=(
+                        self._guidance_closed_timestamp is None
+                        and state.control_mode is DrivingControlMode.NOA_ACTIVE
+                        and is_navigation_observation(self.config, observation)
+                    ),
+                )
             return replace(
                 self.presentation,
                 recommendation=(
@@ -172,7 +207,9 @@ class ExitAssistanceCoordinator:
             self.config,
             remaining,
             is_automated_branch(self.config, state.control_mode)
-            and is_confirmation_observation(self.config, observation),
+            and (is_navigation_observation(self.config, observation)
+                 if self.config.signal_guided_exit
+                 else is_confirmation_observation(self.config, observation)),
             observation.carla_frame,
             observation.route_point_index,
         )
@@ -200,7 +237,9 @@ class ExitAssistanceCoordinator:
             raise ExitPresentationError("rendered exit presentation is stale")
         if not is_navigation_observation(self.config, observation) or (
             rendered.recommendation
-            and not is_confirmation_observation(self.config, observation)
+            and not (is_navigation_observation(self.config, observation)
+                     if self.config.signal_guided_exit
+                     else is_confirmation_observation(self.config, observation))
         ):
             raise ExitPresentationError("vehicle is outside exit presentation envelope")
         self.status = ExitAssistanceStatus.PRESENTED
@@ -235,6 +274,8 @@ class ExitAssistanceCoordinator:
         state: AutomationState,
         receipt_timestamp: TimestampEnvelope,
         commit_timestamp: TimestampEnvelope | None = None,
+        *,
+        automatic_lane_change_busy: bool = False,
     ) -> None:
         commit = receipt_timestamp if commit_timestamp is None else commit_timestamp
         if self._finished:
@@ -252,6 +293,15 @@ class ExitAssistanceCoordinator:
             and state.control_mode is not previous_mode
         ):
             self._emit("lc_mode_change", commit)
+        if self.config.signal_guided_exit:
+            if self._t0 is not None and self.status is not ExitAssistanceStatus.COMPLETED:
+                from src.experiment.exit_signal import update_signal_exit
+
+                update_signal_exit(
+                    self, driver_input, state, receipt_timestamp, commit,
+                    automatic_lane_change_busy,
+                )
+            return
         if self.status not in (
             ExitAssistanceStatus.PRESENTED,
             ExitAssistanceStatus.CONFIRMED,
@@ -378,6 +428,9 @@ class ExitAssistanceCoordinator:
         """Record a rejected submission, including a deferred signal timeout."""
         if self.status is not ExitAssistanceStatus.CONFIRMED:
             return
+        if self.config.signal_guided_exit:
+            self._interrupt(timestamp, "ASSISTED_SUBMISSION_UNVERIFIED")
+            return
         self.status = ExitAssistanceStatus.INTERRUPTED
         self._emit(
             "lc_finished", timestamp, outcome="UNVERIFIED",
@@ -388,6 +441,7 @@ class ExitAssistanceCoordinator:
         self, reason: ExitTerminationReason, timestamp: TimestampEnvelope
     ) -> None:
         self._finished = True
+        self.cancel_automatic_route(timestamp)
         self.presentation = None
         if self.status in (
             ExitAssistanceStatus.COMPLETED,
@@ -409,11 +463,32 @@ class ExitAssistanceCoordinator:
 
     def _interrupt(self, timestamp: TimestampEnvelope, reason: str) -> None:
         self.status = ExitAssistanceStatus.INTERRUPTED
+        if self.config.signal_guided_exit:
+            self._finished = True
+            self.presentation = None
+            self.cancel_automatic_route(timestamp)
         if self._route_was_armed:
             self._reference.cancel()
             self._route_was_armed = False
         self._emit(
             "lc_finished", timestamp, outcome="INTERRUPTED", termination_reason=reason
+        )
+
+    def cancel_automatic_route(self, timestamp: TimestampEnvelope) -> None:
+        if not self._automatic_route_armed:
+            return
+        self._automatic_route_armed = False
+        try:
+            verified = (
+                self._automatic_route_cancellation is not None
+                and self._automatic_route_cancellation()
+            )
+        except Exception:  # noqa: BLE001 -- cancellation failure cannot stop driver control
+            verified = False
+        self._automatic_route_cancel_unverified = not verified
+        self._emit(
+            "lc_route_cancelled" if verified else "lc_route_cancel_unverified",
+            timestamp,
         )
 
     def _emit(
@@ -432,6 +507,13 @@ class ExitAssistanceCoordinator:
         presentation_window_status: str | None = None,
         highway_rejoin_status: str | None = None,
     ) -> None:
+        if event_type == "lc_completed" or (
+            event_type == "lc_opportunity_retired"
+            and termination_reason == "EXIT_CORRIDOR_LEFT"
+        ):
+            self._opportunity_end_timestamp = timestamp
+            self._opportunity_end_outcome = outcome
+            self._opportunity_end_reason = termination_reason or event_type
         event = build_exit_event(
             ExitEventData(
                 config=self.config,
@@ -462,11 +544,20 @@ class ExitAssistanceCoordinator:
                 recommendation_at_t0=(
                     None if self._t0 is None else self._recommendation_presented
                 ),
+                guidance_closed_timestamp=self._guidance_closed_timestamp,
+                guidance_hidden_timestamp=self._guidance_hidden_timestamp,
+                route_choice=self._route_choice,
             )
         )
         self.events.append(event)
         if self._event_sink is not None:
-            self._event_sink(event)
+            try:
+                self._event_sink(event)
+            except Exception as error:
+                if not self.config.signal_guided_exit:
+                    raise
+                if len(self.logging_errors) < 10:
+                    self.logging_errors.append(f"{type(error).__name__}:{error}")
 
 
 class ExitPresentationError(ValueError):

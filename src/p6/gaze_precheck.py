@@ -98,12 +98,13 @@ def evaluate_attempt(segments, errors=(), policy=DEFAULT_POLICY):
 
 def stage_quality(stage, decision):
     """None means unvalidated, not passed. Never carry an M2 decision into M1."""
-    if stage != "MODULE_2_RUNNING":
+    if stage not in ("MODULE_1_RUNNING", "MODULE_2_RUNNING"):
         return {"status": "NOT_CHECKED_FOR_THIS_STAGE", "eligible_aois": dict.fromkeys(AOIS),
                 "excluded_aois": [], "scope": "NO_PRECHECK_ASSERTION"}
-    if not decision:
-        return {"status": "M2_PRECHECK_MISSING", "eligible_aois": dict.fromkeys(AOIS, False),
-                "excluded_aois": list(AOIS), "scope": "M2"}
+    module = "M1" if stage == "MODULE_1_RUNNING" else "M2"
+    if not decision or decision.get("stage", stage) != stage:
+        return {"status": f"{module}_PRECHECK_MISSING", "eligible_aois": dict.fromkeys(AOIS, False),
+                "excluded_aois": list(AOIS), "scope": module}
     return decision
 
 

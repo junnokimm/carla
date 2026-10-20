@@ -379,7 +379,11 @@ def test_cli_builds_explicit_module_and_training_exit_templates(
     assert runtime.module_exit.context is ExitContext.MODULE
     assert runtime.training_exit is not None
     assert runtime.training_exit.context is ExitContext.TRAINING
-    assert runtime.module_exit.confirm_key == "x"
+    assert runtime.module_exit.signal_guided_exit is True
+    assert runtime.module_exit.indicator_confirmation is True
+    assert runtime.training_exit.signal_guided_exit is True
+    assert runtime.training_exit.indicator_confirmation is True
+    assert runtime.training_exit.confirm_key == "x"
     assert runtime.module_exit.reject_key == "r"
     assert runtime.module_exit.assisted_execution_enabled is True
     assert runtime.module_1_exit_window is not None

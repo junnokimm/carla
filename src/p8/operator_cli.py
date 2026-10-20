@@ -85,6 +85,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tsxw-index", type=int)
     parser.add_argument("--tsxw-name")
     parser.add_argument("--tsxw-steering-deadzone", type=float)
+    parser.add_argument(
+        "--tsxw-manual-steering-deadzone",
+        type=float,
+        help="Manual steering only; leaves the NoA steering takeover deadzone unchanged",
+    )
+    parser.add_argument(
+        "--tsxw-manual-steering-center-axis",
+        type=float,
+        help="Manual neutral only; leaves the NoA steering takeover center unchanged",
+    )
     parser.add_argument("--tsxw-steering-left-axis", type=float)
     parser.add_argument("--tsxw-steering-center-axis", type=float)
     parser.add_argument("--tsxw-steering-right-axis", type=float)
@@ -143,6 +153,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.tsxw_index,
         args.tsxw_name,
         args.tsxw_steering_deadzone,
+        args.tsxw_manual_steering_deadzone,
+        args.tsxw_manual_steering_center_axis,
         args.tsxw_steering_left_axis,
         args.tsxw_steering_center_axis,
         args.tsxw_steering_right_axis,
@@ -356,6 +368,7 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
             0.05,
             True,
             True,
+            require_centered_activation=False,
         ),
         runner_builder=build,
         host=args.host,
@@ -404,6 +417,8 @@ def _runtime_config(args: argparse.Namespace) -> OperatorRuntimeConfig:
                 index=args.tsxw_index,
                 name=args.tsxw_name,
                 steering_deadzone=args.tsxw_steering_deadzone,
+                manual_steering_deadzone=args.tsxw_manual_steering_deadzone,
+                manual_steering_center_axis=args.tsxw_manual_steering_center_axis,
                 steering_left_axis=(
                     -1.0
                     if args.tsxw_steering_left_axis is None
@@ -449,6 +464,7 @@ def _exit_template(
         reject_key="r",
         assisted_execution_enabled=assisted_execution,
         indicator_confirmation=True,
+        signal_guided_exit=True,
     )
 
 

@@ -194,6 +194,7 @@ def test_run_handles_f11_roundtrips_before_input_observer_without_recreating_sen
     monkeypatch.setattr(driver_view, "TurnSignalAudio", lambda: audio)
     monkeypatch.setattr(driver_view.time, "monotonic", lambda: next(times))
     monkeypatch.setattr(driver_view.pygame.display, "init", lambda: None)
+    monkeypatch.setattr(driver_view.pygame.display, "get_surface", lambda: None)
     monkeypatch.setattr(driver_view.pygame.display, "set_mode", set_mode)
     monkeypatch.setattr(
         driver_view.pygame.display, "get_window_size", lambda: (1280, 720)

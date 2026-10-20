@@ -1,7 +1,8 @@
 {
   "m1": "NO_SURT",
   "m2": "MANUAL",
-  "m1_exit_open_s": 0.0,
+  "exit_guidance_duration_s": 15.0,
+  "m1_exit_open_s": 180.0,
   "m1_exit_close_s": 600.0,
   "m2_exit_open_s": 100.0,
   "m2_exit_close_s": 500.0

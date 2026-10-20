@@ -142,10 +142,15 @@ def configured_exit_result(
                 summary.outcome,
                 ExitOpportunityClassification.INCOMPLETE,
             )
+            if (config.signal_guided_exit and summary.decision == "NORESPONSE"
+                    and summary.outcome == "EXIT"):
+                classification = ExitOpportunityClassification.INCOMPLETE
     elif termination_reason in (
         "USER_EXIT",
         "MODE_CHANGED_AFTER_T0",
         "DRIVER_PRIORITY_OR_MOVEMENT",
+        "MODE_CHANGED_AFTER_AUTO_START",
+        "DRIVER_SIGNAL_PRIORITY",
     ) or summary.decision in (
         "UNAVAILABLE_DRIVER_PRIORITY",
         "UNAVAILABLE_MOVEMENT_STARTED",

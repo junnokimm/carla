@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import carla
 import pytest
 
@@ -35,6 +37,7 @@ from tests.test_p8_control_delivery import (
 )
 
 
+@pytest.mark.parametrize("lateral", [0.0, -.6, .6])
 @pytest.mark.parametrize(
     "driver_input,expected,reason",
     [
@@ -49,6 +52,7 @@ def test_takeover_resends_cached_manual_value_after_deregistration(
     driver_input: DriverInput,
     expected: carla.VehicleControl,
     reason: DeactivationReason,
+    lateral: float,
 ) -> None:
     vehicle = CacheSeparatedVehicle()
 
@@ -60,6 +64,11 @@ def test_takeover_resends_cached_manual_value_after_deregistration(
             return super().apply_batch_sync(commands, do_tick)
 
     client = OrderedClient(vehicle)
+    # Keep the map's original lane center; move only the test vehicle.
+    vehicle.transform = replace(
+        vehicle.transform,
+        location=replace(vehicle.transform.location, y=vehicle.transform.location.y + lateral),
+    )
     tm = FakeTrafficManager()
     attestor = FakeTrafficManagerRuntimeAttestor()
     bundle = build_traffic_manager_noa_runtime(
@@ -72,7 +81,8 @@ def test_takeover_resends_cached_manual_value_after_deregistration(
     interaction = AutomationInteractionController(
         runtime=bundle.automation_runtime, geometry=bundle.lane_geometry,
         vehicle=vehicle, steering_target=None,
-        config=AutomationInteractionConfig(0.2, 0.1, 0.05, True, True),
+        config=AutomationInteractionConfig(
+            0.2, 0.1, 0.05, True, True, require_centered_activation=lateral == 0.0),
         event_sink=events.append,
     )
     interaction.initialize(ExperimentModule.MODULE_1, Module1Condition.NO_SURT)

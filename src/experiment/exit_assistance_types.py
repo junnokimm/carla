@@ -59,6 +59,7 @@ class ExitAssistanceConfig:
     assisted_execution_enabled: bool = True
     eligibility_open_s: float | None = None
     eligibility_close_s: float | None = None
+    signal_guided_exit: bool = False
 
     def __post_init__(self) -> None:
         match self.module, self.condition:
@@ -125,6 +126,7 @@ class ExitPresentation:
     distance_to_exit_m: float
     observation_frame: int | None
     route_point_index: int
+    signal_guided_exit: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +146,7 @@ class ExitObservation:
     target_boundary_valid: bool = False
     route_reference_distance_m: float | None = None
     route_reference_half_width_m: float | None = None
+    right_lane_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

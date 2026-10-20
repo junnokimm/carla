@@ -30,6 +30,7 @@ class Phase2EventPersistence(Protocol):
 class LaneChangeEventSink:
     def __init__(self, persistence: Phase2EventPersistence) -> None:
         self._persistence = persistence
+        self.logging_errors: list[str] = []
 
     def record(
         self,
@@ -37,16 +38,17 @@ class LaneChangeEventSink:
         payload: Mapping[str, JsonValue],
         timestamp: TimestampEnvelope,
     ) -> None:
-        self._persistence.record_phase2_event(
-            event_type,
-            json.dumps(
-                payload,
-                allow_nan=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ),
-            timestamp,
-        )
+        try:
+            self._persistence.record_phase2_event(
+                event_type,
+                json.dumps(payload, allow_nan=False, separators=(",", ":"), sort_keys=True),
+                timestamp,
+            )
+        except Exception as error:
+            if payload.get("context") != "AUTO_EXIT":
+                raise
+            if len(self.logging_errors) < 10:
+                self.logging_errors.append(f"{type(error).__name__}:{error}")
 
 
 def record_geometry_observation(
@@ -60,6 +62,7 @@ def record_geometry_observation(
         "lane_change_geometric_sample",
         {
             "request_id": tracker.request_id,
+            "context": tracker.context,
             "direction": tracker.direction.value,
             "status": result.status.value,
             "reason": result.reason,

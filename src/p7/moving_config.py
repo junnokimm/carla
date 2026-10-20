@@ -20,6 +20,13 @@ class MovingHazardConfig:
     steering_slew_per_s: float = 0.5
     lead_blueprint: str = "vehicle.mercedes.coupe_2020"
     cargo_blueprint: str = "static.prop.box01"
+    # Clear-road scene tuning; these are not driver-response thresholds.
+    target_speed_kmh: float | None = None  # None: existing TM road speed limit.
+    speed_tolerance_kmh: float = 5.0
+    stable_speed_s: float = 2.0
+    readiness_max_gap_s: float = 0.25
+    placement_timeout_s: float = 1.0
+    warning_duration_s: float = 5.0
 
     def __post_init__(self) -> None:
         if type(self.seed) is not int:

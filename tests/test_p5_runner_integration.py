@@ -59,7 +59,7 @@ def test_assisted_motion_is_gate_context_not_driver_intervention() -> None:
     effective_input = interaction.update.call_args.args[0]
     assert effective_input.lane_change_in_progress is True
     coordinator.update.assert_called_once_with(
-        driver_input, state, timestamp, timestamp
+        driver_input, state, timestamp, timestamp, automatic_lane_change_busy=False
     )
 
 

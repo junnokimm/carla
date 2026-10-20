@@ -12,11 +12,63 @@ DEFINITION = {
 }
 
 
-def hazard_metrics(events, origin_ns):
+def hazard_metrics(events, origin_ns, *, precise=False):
+    if precise:
+        # Same response rules, evaluated on the recorded observation clock only.
+        # Never fall back to monotonic for an individual missing input sample.
+        converted = []
+        missing = 0
+        for name, t, payload in events:
+            payload = dict(payload)
+            if name == "m2_hazard_display_candidate":
+                ns = payload.get("flip_completed_perf_counter_ns")
+                if ns is None:
+                    return {
+                        "status": "MISSING_DISPLAY_QPC",
+                        "clock_domain": "SHARED_QPC",
+                    }
+                payload["flip_completed_monotonic_ns"] = ns
+            elif name == "m2_hazard_raw_samples":
+                samples = []
+                for sample in payload.get("samples", []):
+                    a, b = (
+                        sample.get("poll_started_perf_counter_ns"),
+                        sample.get("poll_completed_perf_counter_ns"),
+                    )
+                    if a is None or b is None or b < a:
+                        missing += 1
+                        continue
+                    samples.append(
+                        {
+                            **sample,
+                            "poll_started_monotonic_ns": a,
+                            "poll_completed_monotonic_ns": b,
+                        }
+                    )
+                payload["samples"] = samples
+            converted.append((name, t, payload))
+        result = hazard_metrics(converted, origin_ns)
+        for old, new in (
+            ("onset_session_s", "onset_analysis_elapsed_s"),
+            ("response_session_s", "response_analysis_elapsed_s"),
+            ("response_poll_bounds_ns", "response_poll_bounds_perf_counter_ns"),
+            (
+                "automatic_brake_readback_session_s",
+                "automatic_brake_readback_analysis_elapsed_s",
+            ),
+        ):
+            if old in result:
+                result[new] = result.pop(old)
+        result.update(clock_domain="SHARED_QPC", missing_qpc_samples=missing)
+        if missing:
+            result["analysis_reaction_time_s"] = None
+            result["time_alignment_eligibility"] = "MISSING_INPUT_QPC"
+        return result
     display = next(
         (p for n, t, p in events if n == "m2_hazard_display_candidate"), None
     )
     final = next((p for n, t, p in reversed(events) if n == "m2_hazard_end"), {})
+    warning = next((p for n, _, p in events if n == "m2_hazard_warning_displayed"), None)
     collisions = [p for n, _, p in events if n == "m2_hazard_collision_stop_wait"]
     passed = any(n == "m2_hazard_cargo_passed" for n, _, _ in events)
     collision = bool(collisions or final.get("collision_stop"))
@@ -27,6 +79,7 @@ def hazard_metrics(events, origin_ns):
         "reaction_time_s": None,
         "driver_success": None,
         "human_perception_validated": False,
+        "warning": warning,
         "outcome": "COLLISION"
         if collision
         else "PASSED_WITHOUT_RECORDED_COLLISION"
@@ -161,4 +214,16 @@ def hazard_metrics(events, origin_ns):
         result["analysis_reaction_time_s"] = None
     else:
         result["analysis_reaction_time_s"] = result["reaction_time_s"]
+    if final.get("exposure_policy") == "CLEAR_ROAD_STABLE_TARGET_SPEED_NO_LEAD":
+        issues = []
+        if warning is None or final.get("warning_errors"):
+            issues.append("WARNING_NOT_CONFIRMED_OR_FAILED")
+        if final.get("occurrence_result") != "EXPOSURE_CANDIDATE":
+            issues.append("SCENE_INVALID_OR_NOT_OCCURRED")
+        if automatic_braking is not None:
+            issues.append("AUTOMATIC_BRAKE_READBACK_OBSERVED_CAUSE_UNVERIFIED")
+        result["experimental_condition_issues"] = issues
+        result["experimental_condition_eligible"] = not issues
+        if issues:
+            result["analysis_reaction_time_s"] = None
     return result

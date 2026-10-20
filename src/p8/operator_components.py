@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import asdict
 from typing import assert_never
 
 from src.experiment.context import ExperimentModule, ExperimentPhase
@@ -249,6 +250,7 @@ class OperatorComponents:
     def snapshot(self) -> dict[str, Json]:
         return {
             "provenance": self.kind,
+            "automation_interaction_policy": asdict(self.runtime.interaction_policy),
             "module_runs": [result.manifest() for result in self.runs],
             "exit_slots": {
                 stage.value: result.manifest()
