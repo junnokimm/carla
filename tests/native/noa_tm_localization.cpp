@@ -3,6 +3,7 @@
 #include "carla/trafficmanager/LocalizationStage.h"
 #include "carla/trafficmanager/Constants.h"
 #include <fstream>
+#include <algorithm>
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
@@ -15,6 +16,11 @@ public:
   }
   static void NoRandom(Parameters &p, ActorId id) {
     p.auto_lane_change.AddEntry({id, false});
+  }
+  static void ExitRoute(Parameters &p, ActorId id, bool clear = false, bool through = false) {
+    p.custom_route.AddEntry({id, clear ? Route{} : Route{static_cast<uint8_t>(
+      through ? RoadOption::Straight : RoadOption::Right)}});
+    p.upload_route.AddEntry({id, true});
   }
 };
 }}
@@ -69,6 +75,77 @@ void Run(const ctm::LocalMapPtr &map, float speed, bool right, float offset) {
   stage.Reset();
 }
 
+void RunExit(const ctm::LocalMapPtr &map, int road, int exit_road, bool cancel,
+             bool through = false, bool late_signal = false, bool near_fork = false) {
+  std::vector<ctm::ActorId> ids{126};
+  ctm::BufferMap buffers;
+  ctm::SimulationState state;
+  ctm::TrackTraffic traffic;
+  ctm::Parameters parameters;
+  std::vector<ctm::ActorId> removed;
+  ctm::LocalizationFrame output(1);
+  ctm::RandomGenerator random(42);
+  auto transform = map->GetMap().GetWaypointXODR(road, late_signal ? -3 : -4, 10.0f)->GetTransform();
+  ctm::KinematicState motion{transform.location, transform.rotation,
+                           transform.GetForwardVector() * 25.0f, 90.0f, true, false, {}};
+  state.AddActor(126, motion, {ctm::ActorType::Vehicle, 2.4f, 0.9f, 0.8f},
+                 {carla::rpc::TrafficLightState::Green, false});
+  ctm::ParametersTestPeer::NoRandom(parameters, 126);
+  ctm::LocalizationStage stage(ids, buffers, state, traffic, map, parameters, removed, output, random);
+  stage.Update(0);
+  ctm::ParametersTestPeer::ExitRoute(parameters, 126, false, through);
+  stage.Update(0);
+  if (late_signal && !near_fork) {
+    ctm::ParametersTestPeer::Force(parameters, 126, true);
+    stage.Update(0);
+    Require(buffers.at(126).front()->GetWaypoint()->GetLaneId() == -4,
+            "mainline plan suppressed late ordinary right signal");
+  }
+  if (cancel) {
+    ctm::ParametersTestPeer::ExitRoute(parameters, 126, true);
+    stage.Update(0);
+    Require(!parameters.GetUploadRoute(126), "empty route cancellation not consumed");
+    Require(parameters.GetImportedRoute(126).empty(), "exit intent retained after cancel");
+  }
+  bool reached = false;
+  bool reached_through = false;
+  bool near_signal_sent = false;
+  bool through_cleanup = false;
+  for (int cycle = 0; cycle < 180; ++cycle) {
+    const bool fork_buffered = std::any_of(buffers.at(126).begin(), buffers.at(126).end(),
+      [road](const ctm::SimpleWaypointPtr &wp) {
+        return wp->GetWaypoint()->GetRoadId() == (road == 39 ? 1184 : 774);
+      });
+    if (near_fork && !near_signal_sent && fork_buffered) {
+      ctm::ParametersTestPeer::Force(parameters, 126, true);
+      near_signal_sent = true;
+    }
+    stage.Update(0);
+    Require(removed.empty(), "exit route deleted vehicle");
+    auto &buffer = buffers.at(126);
+    Require(buffer.size() > 1, "exit buffer exhausted");
+    auto target = buffer.at(1)->GetWaypoint();
+    reached = reached || target->GetRoadId() == exit_road;
+    reached_through = reached_through || target->GetRoadId() == (road == 39 ? 1184 : 774);
+    if (through && reached_through && !through_cleanup) {
+      // The Python observer clears the one-shot plan after physical passage.
+      ctm::ParametersTestPeer::ExitRoute(parameters, 126, true);
+      through_cleanup = true;
+    }
+    auto next = target->GetTransform();
+    motion.location = next.location;
+    motion.rotation = next.rotation;
+    motion.velocity = next.GetForwardVector() * 25.0f;
+    state.UpdateKinematicState(126, motion);
+  }
+  Require(cancel || (through ? !reached && reached_through : reached),
+          "route did not select the requested exit/mainline branch");
+  Require(!near_fork || near_signal_sent, "near-fork signal was not exercised");
+  Require(parameters.GetImportedRoute(126).empty(), "one-shot route not consumed");
+  stage.RemoveActor(126);
+  stage.Reset();
+}
+
 int main(int argc, char **argv) {
   try {
     Require(argc == 2, "Town04 path required");
@@ -87,6 +164,19 @@ int main(int argc, char **argv) {
         }
     std::cout << "PASS " << count << " real LocalizationStage cases; both directions, "
               << "target retention and immediate next request\n";
+    for (bool cancel : {false, true}) {
+      RunExit(map, 39, 1191, cancel);
+      RunExit(map, 47, 782, cancel);
+    }
+    std::cout << "PASS 4 real Town04 automatic exit/cancellation cases\n";
+    for (bool late_signal : {false, true}) {
+      RunExit(map, 39, 1191, false, true, late_signal);
+      RunExit(map, 47, 782, false, true, late_signal);
+    }
+    std::cout << "PASS 4 real Town04 mainline cases, including late right signals\n";
+    RunExit(map, 39, 1191, false, true, true, true);
+    RunExit(map, 47, 782, false, true, true, true);
+    std::cout << "PASS 2 real Town04 late signals after branch prebuffering\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << "FAIL: " << error.what() << '\n';

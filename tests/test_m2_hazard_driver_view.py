@@ -11,9 +11,17 @@ from tests.test_driver_view import FakeHero, FakeWorld
 
 
 @pytest.mark.parametrize("ending", ["duration", "escape", "close", "flip_error", "obstacle_collision"])
+@pytest.mark.parametrize("clock_failure", [False, True])
 def test_active_scene_uses_existing_poll_and_selected_image_without_owning_duration(
-    monkeypatch, ending
+    monkeypatch, ending, clock_failure
 ):
+    if clock_failure:
+        from src.experiment import observation_clock
+
+        def broken_clock():
+            raise OSError("optional observation clock failed")
+
+        monkeypatch.setattr(observation_clock, "time", SimpleNamespace(perf_counter_ns=broken_clock))
     clock = SimpleNamespace(now=0.0, ns=0)
     inputs, frames, trace = [], [], []
     image = lambda frame: SimpleNamespace(
@@ -96,18 +104,26 @@ def test_active_scene_uses_existing_poll_and_selected_image_without_owning_durat
 
     def after_display(frame):
         assert trace[-1] == "flip"
+        assert (frame.flip_completed_perf_counter_ns is None) is clock_failure
         frames.append(frame)
+
+    def clock_hook(*args):
+        if clock_failure:
+            raise RuntimeError("optional logging hook failed")
 
     scene = SimpleNamespace(
         started_at=0.0,
         after_control=after_control,
         after_display_completed=after_display,
+        record_input_clock=clock_hook,
     )
+    view.gaze_end_observer = lambda: trace.append("gaze_end")
     if ending == "flip_error":
         with pytest.raises(RuntimeError, match="flip failure"):
             view.run(780, active_scene=scene)
     else:
         assert view.run(780, active_scene=scene) is (ending not in ("duration", "obstacle_collision"))
+    assert trace.index("gaze_end") < trace.index("quit")
     if ending == "obstacle_collision":
         assert len(inputs) == 1
         assert not frames

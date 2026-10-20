@@ -8,6 +8,7 @@ from src.p8.operator_ui_types import OperatorControl, OperatorUiConfig
 
 
 def run_operator_ui(controller: OperatorControl, config: OperatorUiConfig) -> int:
+    app = None
     try:
         pygame.init()
         pygame.key.set_repeat(0)
@@ -30,6 +31,7 @@ def run_operator_ui(controller: OperatorControl, config: OperatorUiConfig) -> in
             )
             app.render(screen)
             pygame.display.flip()
+            app.after_display_flip()
             app.frame_clock.tick(30)
         if not app.registered:
             return 2
@@ -49,4 +51,6 @@ def run_operator_ui(controller: OperatorControl, config: OperatorUiConfig) -> in
             else 2
         )
     finally:
+        if app is not None:
+            app.close_warning_practice()
         pygame.quit()

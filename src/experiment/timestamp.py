@@ -19,6 +19,7 @@ class HostClockTimestamp:
 
     monotonic_ns: int
     utc_ns: int
+    perf_counter_ns: int | None = None
 
     def __post_init__(self) -> None:
         if self.monotonic_ns < 0:
@@ -41,6 +42,8 @@ class CarlaSnapshotTimestamp:
     frame: int
     host_capture_started_monotonic_ns: int
     host_capture_completed_monotonic_ns: int
+    host_capture_started_perf_counter_ns: int | None = None
+    host_capture_completed_perf_counter_ns: int | None = None
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.simulation_seconds) or self.simulation_seconds < 0:

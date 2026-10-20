@@ -491,12 +491,11 @@ class MovingHazardBackend:
         )
         if self.cargo is None or self.retired:
             return None
-        if not self.lead.is_alive or not self.cargo.is_alive:
+        if (self.lead is not None and not self.lead.is_alive) or not self.cargo.is_alive:
             raise P7Error("HAZARD_ACTOR_LOST")
-        ego, lead, cargo = (
-            snapshot.find(actor.id) for actor in (self.ego, self.lead, self.cargo)
-        )
-        if any(actor is None for actor in (ego, lead, cargo)):
+        ego, cargo = (snapshot.find(actor.id) for actor in (self.ego, self.cargo))
+        lead = None if self.lead is None else snapshot.find(self.lead.id)
+        if ego is None or cargo is None or (self.lead is not None and lead is None):
             return None  # Spawn acknowledgements can precede their first snapshot.
         if self.cargo_placement_frame is None:
             # Rendering can use an older snapshot. Only the control/observation
@@ -505,9 +504,10 @@ class MovingHazardBackend:
                 return None
         if int(snapshot.frame) < self.cargo_placement_frame:
             return None
-        ep, lp, cp = (actor.get_transform() for actor in (ego, lead, cargo))
+        ep, cp = (actor.get_transform() for actor in (ego, cargo))
+        lp = None if lead is None else lead.get_transform()
         es, el = self.route.project(ep.location)
-        ls, ll = self.route.project(lp.location)
+        ls, ll = (None, None) if lp is None else self.route.project(lp.location)
         cs, cl = self.route.project(cp.location)
         tangent = self.route.pose(es).get_forward_vector()
         velocity = ego.get_velocity()
@@ -538,7 +538,7 @@ class MovingHazardBackend:
         if cs > es + self.ego_box.extent.x:
             try:
                 camera = camera or self.camera_at(ep)
-                lb = projected_bounds(self.lead_box, camera, transform=lp)
+                lb = None if lp is None else projected_bounds(self.lead_box, camera, transform=lp)
                 cb = projected_bounds(self.cargo_box, camera, transform=cp)
                 horizontal = tan(radians(self.fov / 2))
                 vertical = horizontal / self.aspect
@@ -548,7 +548,7 @@ class MovingHazardBackend:
                     and cb.bottom < vertical
                     and cb.top > -vertical
                 )
-                lead_in_front = es < ls < cs
+                lead_in_front = ls is not None and es < ls < cs
                 visible = in_view and not (lead_in_front and lb.contains(cb))
                 fully_clear = in_view and (not lead_in_front or lb.disjoint(cb))
             except P7Error:
@@ -562,10 +562,10 @@ class MovingHazardBackend:
             "frame": int(snapshot.frame),
             "simulation_seconds": snapshot.timestamp.elapsed_seconds,
             "ego_pose": pose_record(ep),
-            "lead_pose": pose_record(lp),
+            "lead_pose": None if lp is None else pose_record(lp),
             "cargo_pose": pose_record(cp),
             "ego_speed_mps": velocity.length(),
-            "lead_speed_mps": lead.get_velocity().length(),
+            "lead_speed_mps": None if lead is None else lead.get_velocity().length(),
             "closing_speed_mps": closing,
             "clearance_m": clearance,
             "ttc_candidate_s": ttc,
@@ -579,7 +579,7 @@ class MovingHazardBackend:
             "lead_station_m": ls,
             "ego_station_m": es,
             "lead_lateral_m": ll,
-            "lead_move_observed_complete": self.motion_started is not None
+            "lead_move_observed_complete": lead is not None and self.motion_started is not None
             and abs(ll - self.route.project(self.route.pose(ls, 1).location)[1]) < 0.35,
             "passed": es > cs + self.ego_box.extent.x + self.cargo_box.extent.x,
         }
@@ -707,7 +707,7 @@ class MovingHazardBackend:
         if failures:
             raise P7Error(f"CARGO_CLEANUP_FAILED:{failures}")
         self.retired = True
-        if not self.lead_handed_to_tm:
+        if self.lead is not None and not self.lead_handed_to_tm:
             self._handoff_lead("CARGO_RETIRED")
         self.emit(
             "cargo_retired",

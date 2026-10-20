@@ -63,11 +63,12 @@ class LaneChangeRequestController:
         p5: bool,
         active_tracker: LaneChangeTracker | None,
         generation: int | None,
+        automatic: bool = False,
     ) -> LaneChangeTracker | None:
         timestamp = self._persistence.source.get_host_timestamp()
         self._sequence += 1
         request_id = f"lane-request:{timestamp.host.monotonic_ns}:{self._sequence}"
-        context = "P5" if p5 else "GENERAL"
+        context = "AUTO_EXIT" if automatic else "P5" if p5 else "GENERAL"
         lc_event_id = self._correlation.lc_event_id if p5 else None
         baseline = self._persistence.source.last_snapshot_sample
         if active_tracker is not None:

@@ -165,7 +165,18 @@ class ResearchLaneChangeInteractionObserver:
             # Vehicle light commands and the server's light-state readback can
             # straddle one iteration. Wait without blocking input or re-toggling.
             if self.state.control_mode is DrivingControlMode.NOA_ACTIVE:
-                self._submit()
+                try:
+                    self._submit()
+                except (RuntimeError, ValueError, OSError) as error:
+                    if tracker.context != "AUTO_EXIT":
+                        raise
+                    now = self._persistence.source.get_host_timestamp()
+                    self._record_lifecycle(
+                        "UNVERIFIED", f"AUTO_DEFERRED_SUBMISSION:{type(error).__name__}:{error}", now
+                    )
+                    self._failed_p5_submission = now
+                    if self._executor is None or self._executor.lane_change_in_flight is None:
+                        self._tracker = None
             return
         if sample is None:
             if tracker.unverified_reason == "MISSING_POST_CONTROL_SNAPSHOT":
@@ -209,6 +220,7 @@ class ResearchLaneChangeInteractionObserver:
         *,
         p5: bool,
         submit: bool,
+        automatic: bool = False,
     ) -> None:
         self._signal_request_count += 1
         executor_ready = (
@@ -225,6 +237,7 @@ class ResearchLaneChangeInteractionObserver:
                 if executor_ready and self._executor is not None
                 else None
             ),
+            automatic=automatic,
         )
         if tracker is None:
             return
@@ -255,7 +268,7 @@ class ResearchLaneChangeInteractionObserver:
                 self._record_lifecycle("WAITING_FOR_SIGNAL", "SIGNAL_READBACK_PENDING", now)
             elif now.host.monotonic_ns - self._signal_wait_started_ns >= 1_000_000_000:
                 self._record_lifecycle("BLOCKED", "REQUESTED_SIGNAL_NOT_OBSERVED_ON", now)
-                if tracker.context == "P5":
+                if tracker.context in ("P5", "AUTO_EXIT"):
                     self._failed_p5_submission = now
                 self._tracker = None
             return False

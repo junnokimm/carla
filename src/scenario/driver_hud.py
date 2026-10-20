@@ -13,6 +13,8 @@ calculate_speed_kmh: Final = vehicle_speed.calculate_speed_kmh
 HUD_FOREGROUND: Final = (224, 245, 241)
 HUD_SECONDARY: Final = (166, 214, 208)
 HUD_SHADOW: Final = (5, 15, 18)
+# Shared vertical anchor below the speed/gear HUD and side-mirror views.
+DRIVER_NOTICE_TOP_RATIO: Final = 0.82
 
 
 class Gear(StrEnum):

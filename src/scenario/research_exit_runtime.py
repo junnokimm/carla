@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from math import cos, pi
 from typing import Protocol, runtime_checkable
 
 from src.experiment.automation import AutomationState, DrivingControlMode
@@ -64,6 +65,7 @@ class ResearchExitObservationSource:
     route: ExitRoute
     source: ResearchNoAObservationSource
     cursor: RouteProjection | None = None
+    signal_guided_exit: bool = False
 
     def observe(self) -> ExitObservation:
         sample = self.source.last_snapshot_sample
@@ -85,13 +87,30 @@ class ResearchExitObservationSource:
             )
         except ExitRouteError:
             geometric_projection = None
+            if self.signal_guided_exit and self.cursor is not None:
+                # Moving laterally on a curve (or a stationary snapshot) can
+                # shift the projected station slightly backwards. Retain the
+                # actual projection, with a bounded tolerance and a forward
+                # search cursor; never jump to another lap or road segment.
+                try:
+                    candidate = project_route(
+                        self.route, pose, start_index=self.cursor.point_index
+                    )
+                    if 0.0 <= self.cursor.distance_m - candidate.distance_m <= 1.0:
+                        geometric_projection = candidate
+                except ExitRouteError:
+                    pass
         projection = geometric_projection
-        if projection is not None and projection.distance_from_route_m > max(
-            point.lane_width_m * 1.5 for point in self.route.points
-        ):
-            projection = None
-        matched = projection is not None
         if projection is not None:
+            corridor_lanes = 3.5 if self.signal_guided_exit else 1.5
+            if projection.distance_from_route_m > max(
+                point.lane_width_m * corridor_lanes for point in self.route.points
+            ) or (self.signal_guided_exit and cos(projection.heading_error_rad) <= cos(pi / 4)):
+                projection = None
+        matched = projection is not None
+        if projection is not None and (
+            self.cursor is None or projection.distance_m >= self.cursor.distance_m
+        ):
             object.__setattr__(self, "cursor", projection)
         # A source-lane centre is not a substitute for an unobserved target.
         target_transform = None
@@ -155,6 +174,12 @@ class ResearchExitObservationSource:
                 else self.route.points[geometric_projection.point_index].lane_width_m
                 / 2.0
             ),
+            right_lane_id=(
+                sample.right_lane_id
+                if sample.right_road_id == sample.road_id
+                and sample.right_section_id == sample.section_id
+                else None
+            ),
         )
 
     def reset_cursor(self) -> None:
@@ -208,16 +233,30 @@ class ResearchExitInteractionObserver:
 
     def update(self, driver_input: DriverInput) -> AutomationState:
         receipt_timestamp = self._persistence.source.get_host_timestamp()
+        if (self.coordinator.config.signal_guided_exit
+                and self.coordinator._automatic_route_armed
+                and self.coordinator._route_choice == "EXIT"
+                and driver_input.lane_change_direction is LaneChangeDirection.LEFT):
+            self.coordinator._interrupt(receipt_timestamp, "DRIVER_SIGNAL_PRIORITY")
         assisted = self._assisted_interaction
         general = assisted if isinstance(assisted, GeneralSignalInteraction) else None
         request_count = None if general is None else general.signal_request_count
         p5_candidate = (
             assisted is not None
+            and not self.coordinator.config.signal_guided_exit
             and driver_input.exit_confirm_requested
             and driver_input.lane_change_direction is LaneChangeDirection.RIGHT
         )
         effective_input = replace(
             driver_input,
+            exit_confirm_requested=(
+                False if self.coordinator.config.signal_guided_exit
+                else driver_input.exit_confirm_requested
+            ),
+            exit_reject_requested=(
+                False if self.coordinator.config.signal_guided_exit
+                else driver_input.exit_reject_requested
+            ),
             lane_change_in_progress=(
                 driver_input.lane_change_in_progress
                 or (
@@ -237,6 +276,9 @@ class ResearchExitInteractionObserver:
             state,
             receipt_timestamp,
             commit_timestamp,
+            automatic_lane_change_busy=(
+                assisted is not None and assisted.lane_change_in_progress
+            ),
         )
         # An exit recommendation may expire/reject its confirmation on this
         # iteration. That must not swallow an otherwise ordinary NoA signal.
@@ -278,6 +320,10 @@ class ResearchExitViewBinding:
     config: ResearchExitAssistanceConfig
 
     def prepare_presentation(self) -> ExitPresentation | None:
+        if getattr(self.config, "signal_guided_exit", False):
+            from src.experiment.exit_signal import refresh_guidance
+
+            refresh_guidance(self.observer.coordinator, self.persistence.source.get_host_timestamp())
         if self.observer.presentation is None:
             return None
         if (
@@ -293,8 +339,11 @@ class ResearchExitViewBinding:
         )
         recommendation_active = (
             presentation.recommendation
-            and self.observer.coordinator.status
-            in (ExitAssistanceStatus.DRAFT, ExitAssistanceStatus.PRESENTED)
+            and (
+                self.observer.coordinator.status in (ExitAssistanceStatus.DRAFT, ExitAssistanceStatus.PRESENTED)
+                or (getattr(self.config, "signal_guided_exit", False)
+                    and self.observer.coordinator.status is ExitAssistanceStatus.CONFIRMED)
+            )
             and self.observer.state.control_mode is DrivingControlMode.NOA_ACTIVE
         )
         return (
@@ -309,6 +358,17 @@ class ResearchExitViewBinding:
             self.observer.state,
             self.persistence.source.get_host_timestamp(),
         )
+
+    def mark_hidden(self) -> None:
+        subject = self.observer.coordinator
+        if not getattr(self.config, "signal_guided_exit", False) or subject._t0 is None or subject._guidance_hidden_timestamp is not None:
+            return
+        from src.experiment.exit_signal import close_guidance
+
+        timestamp = self.persistence.source.get_host_timestamp()
+        close_guidance(subject, timestamp, "HUD_HIDDEN")
+        subject._guidance_hidden_timestamp = timestamp
+        subject._emit("lc_guidance_hidden", timestamp)
 
 
 class ResearchExitObservationError(RuntimeError):

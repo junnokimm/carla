@@ -10,7 +10,7 @@ from pathlib import Path
 RUNTIME_DIRECTORY = Path(__file__).resolve().parents[2] / "native/noa_tm"
 LIBRARY_PATH = RUNTIME_DIRECTORY / "carla/libcarla.cp312-win_amd64.pyd"
 PROJECT_LIBCARLA_SHA256 = (
-    "2af89add3e333ffcca316a5d99ece6313677c14fee3af35f89bed41a353a59e3"
+    "f69e59a5298414f68ec1a27d2d5f820961fc0a7d3a9f0195c4dac6977e43a0b5"
 )
 
 
@@ -33,4 +33,5 @@ def enable_lane_change_runtime() -> dict[str, str]:
         "sha256": digest,
         "path": str(LIBRARY_PATH),
         "rpc_receive_guard": manifest.get("version", "UNKNOWN"),
+        "automatic_exit_route": manifest.get("automatic_exit_route", "UNAVAILABLE"),
     }

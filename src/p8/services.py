@@ -19,6 +19,7 @@ from src.experiment.context import (
     StudyRunContext,
     StudyRunId,
 )
+from src.experiment.observation_clock import observation_ns
 from src.experiment.session_clock import SessionClock
 from src.experiment.timestamp import HostClockTimestamp, TimestampEnvelope
 from src.logging.csv_logger import ResearchCsvLogger
@@ -60,7 +61,14 @@ class SessionServices:
         self.assignment = assignment
         self._monotonic_ns = time.monotonic_ns if monotonic_ns is None else monotonic_ns
         self._utc_ns = time.time_ns if utc_ns is None else utc_ns
-        origin = HostClockTimestamp(self._monotonic_ns(), self._utc_ns())
+        self._observation_clock = (
+            observation_ns
+            if mode in (Mode.DEV_LIVE_DRIVE, Mode.DEV_REHEARSAL, Mode.PARTICIPANT)
+            else lambda: None
+        )
+        origin = HostClockTimestamp(
+            self._monotonic_ns(), self._utc_ns(), self._observation_clock()
+        )
         self.clock = SessionClock(origin)
         self.timeline = VirtualTimeline(origin.monotonic_ns, origin.utc_ns)
         self.profile = (
@@ -79,7 +87,9 @@ class SessionServices:
     def stamp(self) -> TimestampEnvelope:
         if self.mode in (Mode.DEV_LIVE_DRIVE, Mode.DEV_REHEARSAL, Mode.PARTICIPANT):
             return TimestampEnvelope(
-                HostClockTimestamp(self._monotonic_ns(), self._utc_ns())
+                HostClockTimestamp(
+                    self._monotonic_ns(), self._utc_ns(), self._observation_clock()
+                )
             )
         return TimestampEnvelope(
             HostClockTimestamp(
@@ -231,7 +241,12 @@ class SessionServices:
             "participant_ready": False,
             "hardware_validated": False,
             "analysis_eligible": False,
-            "collection_version": "P8_COLLECTION_V1" if self.provenance == "ACTUAL_BOUNDED_OPERATOR" else None,
+            "collection_version": "P8_COLLECTION_V2_QPC" if self.provenance == "ACTUAL_BOUNDED_OPERATOR" else None,
+            "observation_clock": {
+                "version": "P8_QPC_V1", "clock": "time.perf_counter_ns",
+                "role": "ANALYSIS_ONLY", "control_clock": "UNCHANGED_MONOTONIC",
+                "missing_policy": "NULL_AND_CONTINUE",
+            },
             "logging_health": {
                 "errors": list(getattr(self.logger, "collection_errors", ())),
                 "failure_count": getattr(self.logger, "collection_failure_count", 0),

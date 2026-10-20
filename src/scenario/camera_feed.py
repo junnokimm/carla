@@ -27,7 +27,8 @@ class DisplayedCameraFrame:
     """Selected front image after successful blit/present/flip, not photon onset.
 
     Receipt seconds retain the camera perf_counter clock. Flip completion uses
-    host monotonic_ns; do not subtract the two clocks. No image buffer is retained.
+    host monotonic_ns, with an optional QPC observation for analysis. Only the
+    latter shares a domain with receipt seconds. No image buffer is retained.
     """
 
     sensor_actor_id: int
@@ -36,6 +37,7 @@ class DisplayedCameraFrame:
     receipt_perf_counter_seconds: float | None
     flip_completed_monotonic_ns: int
     camera_transform: carla.Transform | None = None
+    flip_completed_perf_counter_ns: int | None = None
 
 
 class DriverViewPerformanceObserver(Protocol):

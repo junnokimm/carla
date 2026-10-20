@@ -4,9 +4,11 @@ from types import SimpleNamespace
 from zipfile import ZipFile
 
 import pytest
+import pygame
 
 from src.experiment.automation_interaction import DriverInput
-from src.experiment.context import Module1Condition, Module2Condition
+from src.experiment.context import ExperimentModule, Module1Condition, Module2Condition
+from src.experiment.exit_assistance import ExitAssistanceCoordinator
 from src.p8.model import Mode, Stage
 from src.p8.operator_cli import _runtime_config, build_parser
 from src.p8.operator_controller import OperatorController
@@ -22,12 +24,13 @@ from tests.research_noa_fakes import (
     FakeTrafficManagerRuntimeAttestor,
 )
 from tests.test_p8_operator_backend import StrictClock, advance_to
+from tests.test_p5_exit_assistance import ReferenceRecorder, coordinator, observation
 
 
 @pytest.mark.parametrize(
     "condition", [Module2Condition.MANUAL, Module2Condition.NOA_L2]
 )
-@pytest.mark.parametrize("termination", ["normal", "user_exit", "error", "collision", "scene_failure", "obstacle_collision", "obstacle_collision_cleanup_error"])
+@pytest.mark.parametrize("termination", ["normal", "user_exit", "error", "collision", "scene_failure", "obstacle_collision", "obstacle_collision_cleanup_error", "exit_not_presented"])
 def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime(
     tmp_path, condition, termination, monkeypatch
 ):
@@ -57,6 +60,8 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
     )
     base = _runtime_config(args)
     assert base.m2_hazard_v1.seed == 42
+    # Deterministic fake world drives at 12 m/s; production uses the road limit.
+    base = replace(base, m2_hazard_v1=replace(base.m2_hazard_v1, target_speed_kmh=43.2))
     host = StrictClock()
     worlds, views, scenes, attestations, preparations = [], [], [], [], []
 
@@ -104,8 +109,16 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                 assert controller.session.state is Stage.MODULE_2_RUNNING
                 assert active_scene.started_at == clock()
                 origin = clock()
+                # The fake driver view now presents and passes an M2 exit
+                # before exercising the real production hazard/stop lifecycle.
+                if termination != "exit_not_presented":
+                    template = coordinator(ExperimentModule.MODULE_2, condition, ReferenceRecorder([]))
+                    active_scene.session.exit_assistance = ExitAssistanceCoordinator(
+                        replace(template.config, signal_guided_exit=True),
+                        ReferenceRecorder([]), active_scene.session.persistence.record_exit,
+                    )
                 times = (
-                    [active_scene.planned - 6]
+                    [100, 200, active_scene.planned - 6]
                     + [active_scene.planned - 6 + (i + 1) * 0.1 for i in range(220)]
                     + [700, 779.9]
                 )
@@ -122,7 +135,27 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                     input_observer.update(driver)
                     scheduler.update()
                     input_observer.after_control_applied()
+                    exit_subject = active_scene.session.exit_assistance
+                    if exit_subject is not None and elapsed in (100, 200):
+                        obs = replace(
+                            observation(250 if elapsed == 100 else 1400, frame=world.frame),
+                            timestamp=active_scene.services.stamp(),
+                        )
+                        if elapsed == 200:
+                            obs = replace(obs, road_id=1184, lane_id=-4,
+                                          route_reference_distance_m=10,
+                                          route_reference_half_width_m=2)
+                        exit_subject.observe(obs)
+                        if elapsed == 100:
+                            state = active_scene.session.bundle.automation_runtime.state
+                            exit_subject.mark_presented(
+                                exit_subject.prepare_presentation(state), state,
+                                active_scene.services.stamp(),
+                            )
                     active_scene.after_control(driver, polled_start, polled_end)
+                    pygame.font.init()
+                    active_scene.draw_warning(pygame.Surface((1280, 720)))
+                    active_scene.after_warning_flip(host.monotonic_ns(), host.monotonic_ns())
                     snapshot = world.get_snapshot()
                     active_scene.after_display_completed(
                         DisplayedCameraFrame(
@@ -136,8 +169,8 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                     )
                     diagnostics.record_driver_loop_duration(0.0)
                     assert controller.session.state is Stage.MODULE_2_RUNNING
-                    fault_index = 10 if termination == "scene_failure" else 100
-                    if index == fault_index and termination != "normal":
+                    fault_index = 100
+                    if index == fault_index and termination not in ("normal", "exit_not_presented"):
                         if termination == "user_exit":
                             return True
                         if termination == "collision" or collision_end:
@@ -194,7 +227,10 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                 dt = origin + duration - clock()
                 world.step(dt, ego_speed=0)
                 host.advance(dt)
-                if termination != "scene_failure":
+                if termination == "exit_not_presented":
+                    assert active_scene.first_display is None and active_scene.backend.cargo is None
+                    assert active_scene.state == "NOT_OCCURRED" and active_scene.scene_failure is None
+                elif termination != "scene_failure":
                     assert active_scene.first_geometry and active_scene.first_display
                 return False
 
@@ -237,9 +273,9 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
     controller.execute_current_module()
     assert not scenes and all(len(world.actors) == 1 for world in worlds)
     controller.record_execution_policy_outcome(DevOutcome.PARTIAL, "offline M1")
-    for _ in range(3 if termination in ("normal", "collision", "scene_failure") or collision_end else 4):
+    for _ in range(3 if termination in ("normal", "collision", "scene_failure", "exit_not_presented") or collision_end else 4):
         controller.advance()
-    if termination in ("normal", "collision", "scene_failure") or collision_end:
+    if termination in ("normal", "collision", "scene_failure", "exit_not_presented") or collision_end:
         # Exercise the actual operator post-drive progression too: v1 returns
         # in MODULE_2_RUNNING, unlike the historical post-780 continuation.
         app = object.__new__(OperatorApp)
@@ -287,9 +323,29 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
         Stage.MODULE_2_RUNNING.value,
     ]
     record = controller._operator_components().hazard_observation
+    assert record["scenario_version"] == "M2_CLEAR_ROAD_WARNING_V2_20261020"
+    assert record["exposure_policy"] == "CLEAR_ROAD_STABLE_TARGET_SPEED_NO_LEAD"
+    if termination not in ("user_exit", "error", "exit_not_presented"):
+        assert record["warning"]["collision_warning"] is True
+        assert record["warning"]["audio"]["cue_id"] == "hazard-three-beeps-v1"
+        assert record["warning_audio"]["attempts"] == 1
+        assert record["warning_audio"]["closed"]
+        if controller.session.result_export is not None:
+            with ZipFile(controller.session.result_export.archive) as archive:
+                assert archive.testzip() is None
+                name = next(n for n in archive.namelist()
+                            if n.endswith("collection/hazard_response_metrics.json"))
+                metrics = json.loads(archive.read(name))
+                assert metrics["warning"]["audio"] == record["warning"]["audio"]
     assert record["provenance"]["client"] == "INJECTED_TEST_CLIENT"
     assert record["cleanup"] == {"failures": [], "remaining_actor_ids": []}
-    assert record["partial_data"] is (termination not in ("normal", "collision"))
+    assert record["partial_data"] is (termination not in ("normal", "collision", "exit_not_presented"))
+    if termination == "exit_not_presented":
+        assert record["occurrence_result"] == "NOT_OCCURRED"
+        assert record["scene_reason"] == "P5_M2_EXIT_COORDINATOR_UNAVAILABLE"
+        assert record["exit_sequence_at_reveal"] is None
+    else:
+        assert record["exit_sequence_at_reveal"]["physical_outcome"] == "MISSED"
     if termination == "scene_failure":
         assert record["occurrence_result"] == "INVALID"
     if collision_end:

@@ -49,6 +49,7 @@ class DriverViewPresentation:
         self._window: Window | None = None
         self.performance_observer: DriverViewPerformanceObserver | None = None
         self.gaze_observer = None
+        self.gaze_transition_observer = None
 
     def handle_events(self, events: Sequence[pygame.event.Event]) -> None:
         for event in events:
@@ -101,6 +102,11 @@ class DriverViewPresentation:
         target.blit(self._scaled_canvas, destination.topleft)
 
     def _toggle_fullscreen(self) -> None:
+        if self.gaze_transition_observer is not None:
+            try:
+                self.gaze_transition_observer()
+            except Exception:  # noqa: BLE001 -- optional gaze cannot block display switching
+                self.gaze_transition_observer = None
         if self._window is None:
             # pygame 2.6.1 stores a non-owning pg_window pointer for SDL events.
             # Keep the borrowed wrapper alive until DriverView shuts down SDL.

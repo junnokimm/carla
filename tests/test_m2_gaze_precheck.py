@@ -206,7 +206,8 @@ def test_optional_ui_loop_failure_allows_explicit_continue_without_pygame_quit(t
     def toggle(presentation):
         presentation._fullscreen = not presentation._fullscreen
 
-    events = iter([[pygame.event.Event(pygame.KEYUP, key=pygame.K_SPACE)],
+    events = iter([[pygame.event.Event(pygame.KEYUP, key=pygame.K_SPACE),
+                    pygame.event.Event(pygame.KEYDOWN, key=pygame.K_F11)],
                    [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE)],
                    [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_F8)],
                    [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)]])
@@ -233,6 +234,8 @@ def test_target_timing_ignores_settle_rows_and_passes_only_after_all_targets(tmp
             self.tablet = None
             self.observation_drops = 0
             self.layout = layout_for_view(DriverViewConfig())
+            from tests.test_pilot_gaze import geometry
+            self.geometry = geometry()
 
         def start(self):
             self.batch = samples(n=1)

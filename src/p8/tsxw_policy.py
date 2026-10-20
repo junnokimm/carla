@@ -10,6 +10,9 @@ import pygame
 from src.experiment.automation_interaction import DriverInput
 
 SDL_AXIS_POSITIVE_ENDPOINT: Final = 32767 / 32768
+# Median neutral measured in steering_neutral/20261020T113138Z-954206b9.
+# Pilot manual control only; do not use this for NoA takeover detection.
+PILOT_MANUAL_STEERING_CENTER_AXIS: Final = -0.012664794921875
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +24,9 @@ class TsxwConfig:
     steering_center_axis: float = 0.0
     steering_right_axis: float = 1.0
     brake_pressed_axis: float = -1.0
+    # None preserves legacy callers. This never changes the NoA takeover threshold.
+    manual_steering_deadzone: float | None = None
+    manual_steering_center_axis: float | None = None
 
     def __post_init__(self) -> None:
         if self.index is None and self.name is None:
@@ -37,6 +43,8 @@ class TsxwConfig:
             self.steering_right_axis,
             self.steering_deadzone,
             self.brake_pressed_axis,
+            self.effective_manual_steering_deadzone,
+            self.effective_manual_steering_center_axis,
         )
         if not all(isfinite(value) for value in values):
             raise TsxwConfigError("calibration values must be finite")
@@ -48,13 +56,42 @@ class TsxwConfig:
             <= 1.0
         ):
             raise TsxwConfigError("steering endpoints must be ordered within [-1, 1]")
+        if not (
+            self.steering_left_axis
+            < self.effective_manual_steering_center_axis
+            < self.steering_right_axis
+        ):
+            raise TsxwConfigError("manual steering center must be between the endpoints")
         if self.steering_deadzone < 0.0 or self.steering_deadzone >= min(
             self.steering_center_axis - self.steering_left_axis,
             self.steering_right_axis - self.steering_center_axis,
         ):
             raise TsxwConfigError("steering deadzone exceeds the calibrated range")
+        if self.effective_manual_steering_deadzone < 0.0 or (
+            self.effective_manual_steering_deadzone >= min(
+                self.steering_center_axis - self.steering_left_axis,
+                self.steering_right_axis - self.steering_center_axis,
+                self.effective_manual_steering_center_axis - self.steering_left_axis,
+                self.steering_right_axis - self.effective_manual_steering_center_axis,
+            )
+        ):
+            raise TsxwConfigError("manual steering deadzone exceeds the calibrated range")
         if not -1.0 <= self.brake_pressed_axis < 1.0:
             raise TsxwConfigError("brake pressed endpoint must be within [-1, 1)")
+
+    @property
+    def effective_manual_steering_deadzone(self) -> float:
+        if self.manual_steering_deadzone is not None:
+            return self.manual_steering_deadzone
+        if self.steering_deadzone is None:
+            raise TsxwConfigError("steering deadzone must be explicit")
+        return self.steering_deadzone
+
+    @property
+    def effective_manual_steering_center_axis(self) -> float:
+        if self.manual_steering_center_axis is not None:
+            return self.manual_steering_center_axis
+        return self.steering_center_axis
 
 
 class TsxwConfigError(ValueError):
@@ -74,7 +111,7 @@ class TsxwInputSample:
     steering: float
     brake: float
     throttle: float
-    steering_engaged: bool
+    steering_engaged: bool  # Legacy override threshold, not simply steering != 0.
     left_pressed: bool
     right_pressed: bool
     noa_pressed: bool
@@ -101,18 +138,29 @@ def normalize_brake_pedal(raw: float, *, pressed_axis: float) -> float:
     return normalize_pedal(raw, pressed_axis=pressed_axis)
 
 
-def normalize_steering(raw: float, config: TsxwConfig) -> float:
-    center = config.steering_center_axis
-    deadzone = config.steering_deadzone
+def normalize_steering(
+    raw: float, config: TsxwConfig, *, manual: bool = False
+) -> float:
+    """Keep the legacy override curve separate from manual steering sensitivity."""
+    center = (
+        config.effective_manual_steering_center_axis
+        if manual else config.steering_center_axis
+    )
+    # Shift the manual zero band while preserving the existing gains on both
+    # sides. Re-scaling endpoints around the shifted center would change them.
+    scale_center = config.steering_center_axis
+    deadzone = (
+        config.effective_manual_steering_deadzone if manual else config.steering_deadzone
+    )
     if deadzone is None:
         raise TsxwConfigError("steering deadzone must be explicit")
     if raw < center - deadzone:
         normalized = (raw - (center - deadzone)) / (
-            center - deadzone - config.steering_left_axis
+            scale_center - deadzone - config.steering_left_axis
         )
     elif raw > center + deadzone:
         normalized = (raw - (center + deadzone)) / (
-            config.steering_right_axis - center - deadzone
+            config.steering_right_axis - scale_center - deadzone
         )
     else:
         return 0.0

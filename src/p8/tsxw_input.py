@@ -112,6 +112,8 @@ class TsxwInput:
                     "buttons": shape[1],
                     "hats": shape[2],
                     "steering_deadzone": config.steering_deadzone,
+                    "manual_steering_deadzone": config.effective_manual_steering_deadzone,
+                    "manual_steering_center_axis": config.effective_manual_steering_center_axis,
                     "steering_left_axis": config.steering_left_axis,
                     "steering_center_axis": config.steering_center_axis,
                     "steering_right_axis": config.steering_right_axis,
@@ -182,7 +184,10 @@ class TsxwInput:
             raise
         previous = self._previous_buttons
         self._previous_buttons = buttons
-        steering = normalize_steering(raw_steering, self.config)
+        # NoA/exit driver-override decisions retain their original threshold even
+        # when small wheel movements now produce a nonzero manual control value.
+        steering_engaged = normalize_steering(raw_steering, self.config) != 0.0
+        steering = normalize_steering(raw_steering, self.config, manual=True)
         return TsxwInputSample(
             raw_steering=raw_steering,
             raw_brake=raw_brake,
@@ -192,7 +197,7 @@ class TsxwInput:
                 raw_brake, pressed_axis=self.config.brake_pressed_axis
             ),
             throttle=normalize_pedal(raw_throttle, pressed_axis=-1.0),
-            steering_engaged=steering != 0.0,
+            steering_engaged=steering_engaged,
             left_pressed=buttons[0] and not previous[0],
             right_pressed=buttons[1] and not previous[1],
             noa_pressed=buttons[2] and not previous[2],

@@ -43,6 +43,9 @@ class ExitEventData:
     presentation_window_status: str | None
     highway_rejoin_status: str | None
     recommendation_at_t0: bool | None = None
+    guidance_closed_timestamp: TimestampEnvelope | None = None
+    guidance_hidden_timestamp: TimestampEnvelope | None = None
+    route_choice: str | None = None
 
 
 def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
@@ -91,6 +94,28 @@ def build_exit_event(data: ExitEventData) -> ExitAssistanceEvent:
         if data.observed_proxy_timestamp is not None
         else None,
         "decision": data.decision,
+        "exit_policy": "INDICATOR_DURING_VISIBLE_GUIDANCE" if data.config.signal_guided_exit else "DRIVER_CONFIRMATION",
+        "guidance_display_duration_s": data.config.response_timeout_s,
+        "guidance_deadline_host_monotonic_ns": (
+            None if data.t0 is None else data.t0.host.monotonic_ns + round(data.config.response_timeout_s * 1e9)
+        ),
+        "guidance_closed_host_monotonic_ns": (
+            None if data.guidance_closed_timestamp is None else data.guidance_closed_timestamp.host.monotonic_ns
+        ),
+        "guidance_hidden_host_monotonic_ns": (
+            None if data.guidance_hidden_timestamp is None else data.guidance_hidden_timestamp.host.monotonic_ns
+        ),
+        "route_choice": data.route_choice,
+        "consent_outcome": (
+            "SIGNALLED_AND_EXITED" if data.decision == "CONFIRM" and data.outcome == "EXIT"
+            else "SIGNALLED_EXIT_NOT_COMPLETED" if data.decision == "CONFIRM" and data.outcome == "MISSED"
+            else "EXIT_WITHOUT_TIMELY_SIGNAL" if data.decision == "NORESPONSE" and data.outcome == "EXIT"
+            else None
+        ),
+        "decision_source": (
+            "DRIVER" if data.persisted_input_timestamp is not None
+            else "NO_INPUT" if data.decision == "NORESPONSE" else None
+        ),
         "indicator_onset_host_monotonic_ns": None
         if data.indicator_timestamp is None
         else data.indicator_timestamp.host.monotonic_ns,

@@ -107,6 +107,9 @@ def test_research_csv_logger_creates_distinct_files_with_ordered_headers(tmp_pat
         "carla_capture_started_host_monotonic_ns",
         "carla_capture_completed_host_monotonic_ns",
         "external_timestamps_json",
+        "host_perf_counter_ns",
+        "carla_capture_started_perf_counter_ns",
+        "carla_capture_completed_perf_counter_ns",
     )
     logger = ResearchCsvLogger(_study_run(), tmp_path)
 

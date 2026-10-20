@@ -45,9 +45,8 @@ def capture(sdk: Sdk, options: CaptureOptions, emit: Emit, *,
     def emit_pair(phase: str) -> None:
         try:
             emit(clock_pair(sdk, phase))
-        except (RuntimeError, OSError, ValueError) as error:
+        except Exception as error:  # noqa: BLE001 -- optional clock evidence must not stop gaze
             emit({"record_type": "clock_pair_error", "phase": phase, "detail": str(error)})
-            raise
 
     emit(metadata_record())
     emit_pair("START")

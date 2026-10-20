@@ -89,6 +89,7 @@ class AutomationActivationGate:
             context,
             bounding_box,
             self.config,
+            require_centered=self.config.require_centered_activation,
         )
 
 
@@ -96,7 +97,11 @@ def lane_alignment_failure(
     context: CarlaLaneGeometryContext,
     bounding_box: ActivationVehicleBoundingBox,
     config: AutomationInteractionConfig,
+    *,
+    require_centered: bool = True,
 ) -> ActivationFailureReason | None:
+    # Activation can use full-lane containment. Lane-change request/completion
+    # callers retain strict alignment by default, even with the same policy.
     geometry = context.geometry
     extent = bounding_box.extent
     location = bounding_box.location
@@ -126,7 +131,7 @@ def lane_alignment_failure(
     )
     if abs(bounding_box_lateral) + lateral_half_extent > context.lane_width_m / 2.0:
         return ActivationFailureReason.VEHICLE_STRADDLING
-    if abs(geometry.lateral_error_m) > config.center_tolerance_m:
+    if require_centered and abs(geometry.lateral_error_m) > config.center_tolerance_m:
         return ActivationFailureReason.NOT_CENTERED
     if abs(heading) > config.heading_tolerance_rad:
         return ActivationFailureReason.HEADING_MISALIGNED

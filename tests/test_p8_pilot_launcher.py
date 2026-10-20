@@ -26,15 +26,40 @@ def test_pilot_launch_builds_real_nominal_p8_runtime(m1, m2):
     args = build_parser().parse_args(argv)
     runtime = _runtime_config(args)
     assert args.training_duration == 600.0
+    assert "--fullscreen" not in argv
     assert args.drive_duration is None
     assert (args.m1, args.m2) == (m1, m2)
     assert runtime.m2_hazard_v1 is not None
     assert runtime.module_exit.route_id == "town04-exit-47"
     assert runtime.training_exit.route_id == "town04-exit-47"
+    assert runtime.module_exit.response_timeout_s == 15.0
+    assert runtime.training_exit.response_timeout_s == 15.0
     assert runtime.tsxw_config.index == 0
     assert runtime.spawn_index == 344
     assert runtime.speed_policy is None
     assert runtime.control_config.longitudinal.target_speed_kmh is None
+
+
+@pytest.mark.parametrize("duration", [0, -1, float("nan"), float("inf"), True, "15"])
+def test_invalid_guidance_duration_is_rejected_before_launch(tmp_path, duration):
+    path = tmp_path / "pilot.json"
+    original = json.dumps(settings() | {"exit_guidance_duration_s": duration})
+    path.write_text(original, encoding="utf-8")
+    with pytest.raises((ValueError, TypeError), match="진출 안내 표시 시간"):
+        run_pilot.load_pilot_settings(path)
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_configured_guidance_duration_reaches_training_and_modules(tmp_path):
+    path = tmp_path / "pilot.json"
+    original = json.dumps(settings() | {"exit_guidance_duration_s": 20.0})
+    path.write_text(original, encoding="utf-8")
+    loaded = run_pilot.load_pilot_settings(path)
+    argv = run_pilot.build_operator_args(loaded, participant_id="PILOT", run_id="RUN")
+    runtime = _runtime_config(build_parser().parse_args(argv))
+    assert runtime.module_exit.response_timeout_s == 20.0
+    assert runtime.training_exit.response_timeout_s == 20.0
+    assert path.read_text(encoding="utf-8") == original
 
 
 def test_first_launch_persists_only_explicit_missing_m2_window(tmp_path, monkeypatch):
@@ -118,7 +143,7 @@ def test_repeated_launch_uses_new_ids_and_returns_operator_exit_code(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(run_pilot.operator_cli, "main", operator_main)
     for _ in range(2):
-        assert run_pilot.main(["--config", str(config_path), "--m2", "NOA_L2"]) == 2
+        assert run_pilot.main(["--config", str(config_path), "--m1", "NO_SURT", "--m2", "NOA_L2"]) == 2
     assert received[0].participant_id != received[1].participant_id
     assert received[0].run_id != received[1].run_id
     assert all(args.m2 == "NOA_L2" for args in received)
@@ -144,7 +169,7 @@ def test_assignment_is_selected_per_run_without_changing_saved_config(
         run_pilot.operator_cli, "main",
         lambda argv: received.append(build_parser().parse_args(argv)) or 0,
     )
-    argv = ["--config", str(path)]
+    argv = ["--config", str(path), "--m1", "NO_SURT"]
     if not interactive:
         argv += ["--m2", choice]
     assert run_pilot.main(argv) == 0

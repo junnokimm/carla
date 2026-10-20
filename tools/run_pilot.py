@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from math import isfinite
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
@@ -12,11 +13,24 @@ from uuid import uuid4
 from src.experiment.context import Module1Condition, Module2Condition
 from src.p8 import operator_cli
 from src.p8.crash_recovery import register_supervised_run
+from src.p8.tsxw_policy import PILOT_MANUAL_STEERING_CENTER_AXIS
 from src.scenario.research_exit_config import ExitEligibilityWindow
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PILOT_CONFIG = Path("config/p8_pilot.json")
+M1_CHOICES = {"1": "SURT", "2": "NO_SURT"}
 M2_CHOICES = {"1": "MANUAL", "2": "NOA_L2"}
+DEFAULT_EXIT_GUIDANCE_DURATION_S = 15.0
+
+
+def select_m1_assignment(value: str | None) -> str:
+    if value is not None:
+        return M1_CHOICES.get(value, value)
+    while True:
+        choice = input("M1 배정을 선택하세요 (1=SuRT 시행, 2=SuRT 미시행/NO_SURT): ").strip()
+        if choice in M1_CHOICES:
+            return M1_CHOICES[choice]
+        print("1 또는 2를 입력하세요. 배정 선택 전에는 실험이 시작되지 않습니다.")
 
 
 def select_m2_assignment(value: str | None) -> str:
@@ -33,6 +47,13 @@ def load_pilot_settings(path: Path) -> dict:
     settings = json.loads(path.read_text(encoding="utf-8-sig"))
     Module1Condition(settings["m1"])
     Module2Condition(settings["m2"])
+    guidance_duration = settings.get(
+        "exit_guidance_duration_s", DEFAULT_EXIT_GUIDANCE_DURATION_S
+    )
+    if isinstance(guidance_duration, bool) or not isinstance(guidance_duration, (int, float)):
+        raise TypeError("진출 안내 표시 시간은 숫자여야 해.")
+    if not isfinite(guidance_duration) or guidance_duration <= 0.0:
+        raise ValueError("진출 안내 표시 시간은 유한한 양수여야 해.")
     missing = [
         key for key in ("m2_exit_open_s", "m2_exit_close_s") if settings[key] is None
     ]
@@ -90,6 +111,11 @@ def build_operator_args(
         "0",
         "--tsxw-steering-deadzone",
         "0.02",
+        # Reduce manual play without lowering the NoA steering takeover threshold.
+        "--tsxw-manual-steering-deadzone",
+        "0.005",
+        "--tsxw-manual-steering-center-axis",
+        str(PILOT_MANUAL_STEERING_CENTER_AXIS),
         "--exit-route-manifest",
         "config/town04_exit_routes_dev_v3.json",
         "--exit-route-id",
@@ -101,7 +127,7 @@ def build_operator_args(
         "--exit-navigation-trigger-distance-m",
         "1000",
         "--exit-response-timeout-s",
-        "5",
+        str(settings.get("exit_guidance_duration_s", DEFAULT_EXIT_GUIDANCE_DURATION_S)),
         "--exit-lateral-onset-threshold-m",
         "0.15",
         "--m1-exit-open-s",
@@ -124,7 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=PILOT_CONFIG)
     parser.add_argument("--participant-id")
-    parser.add_argument("--m1", choices=[item.value for item in Module1Condition])
+    parser.add_argument(
+        "--m1",
+        choices=[*M1_CHOICES, *[item.value for item in Module1Condition]],
+        help="1=SuRT 시행, 2=SuRT 미시행/NO_SURT; 생략하면 터미널에서 선택",
+    )
     parser.add_argument("--gaze-config", type=Path, default=Path("config/p8_gaze.json"))
     parser.add_argument("--no-gaze", action="store_true", help="시선 수집을 명시적으로 끄고 주행")
     parser.add_argument(
@@ -136,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     os.chdir(PROJECT_ROOT)
     try:
         settings = load_pilot_settings(args.config)
+        settings["m1"] = select_m1_assignment(args.m1)
         settings["m2"] = select_m2_assignment(args.m2)
     except KeyboardInterrupt:
         print("설정 입력을 취소했어. 주행은 시작되지 않았어.")
@@ -143,8 +174,6 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, KeyError, TypeError, EOFError) as error:
         print(f"파일럿 설정을 확인해 줘: {error}")
         return 2
-    if args.m1 is not None:
-        settings["m1"] = args.m1
     tag = uuid4().hex
     participant_id = args.participant_id or f"PILOT-{tag}"
     run_id = f"P8-PILOT-{tag}"
@@ -153,6 +182,17 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"훈련 600초 → M1 600초 ({settings['m1']}) → 휴식 → "
         f"M2 780초 ({settings['m2']}) → 결과 ZIP 저장",
+        flush=True,
+    )
+    print(
+        "M1 SuRT 기록은 관리자가 선택한 배정입니다. "
+        "별도 SuRT 앱의 실제 수행·반응 기록은 앱에서 따로 저장해 주세요.",
+        flush=True,
+    )
+    print(
+        "훈련 조작 안내: NoA가 켜져 있을 때 깜빡이를 켜면 해당 방향의 인접 차로로 이동합니다.\n"
+        "여러 차로를 이동할 때는 차선 변경 완료 후 깜빡이를 다시 켜 주세요.\n"
+        "출구 안내에 따라 우측 깜빡이로 가장 오른쪽 진출 차로에 도달하면 NoA가 진출을 이어갑니다.",
         flush=True,
     )
     operator_args = build_operator_args(settings, participant_id=participant_id, run_id=run_id)

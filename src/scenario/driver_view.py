@@ -12,6 +12,7 @@ import pygame
 from src.error_notes import append_error_note
 from src.experiment.automation import AutomationState
 from src.experiment.automation_interaction import DriverInput
+from src.experiment.observation_clock import observation_ns, record_input_clock
 from src.scenario.active_scene import ActiveDriveScene
 from src.scenario.camera_feed import (
     CameraFeed,
@@ -313,6 +314,7 @@ class DriverView:
             presentation = DriverViewPresentation(self._config.window_size, screen)
             presentation.performance_observer = self._performance_observer
             presentation.gaze_observer = getattr(self, "gaze_observer", None)
+            presentation.gaze_transition_observer = getattr(self, "gaze_transition_observer", None)
             clock = pygame.time.Clock()
             started_at = (
                 time.monotonic() if active_scene is None else active_scene.started_at
@@ -401,7 +403,9 @@ class DriverView:
                             time.monotonic_ns() if active_scene is not None else 0
                         )
                         try:
+                            poll_started_qpc_ns = observation_ns()
                             collected_input = self._collect_driver_input(events)
+                            poll_completed_qpc_ns = observation_ns()
                             poll_completed_ns = (
                                 time.monotonic_ns() if active_scene is not None else 0
                             )
@@ -443,6 +447,10 @@ class DriverView:
                             observer.timestamp() if observer is not None else 0.0
                         )
                         try:
+                            record_input_clock(
+                                active_scene, poll_started_ns, poll_completed_ns,
+                                poll_started_qpc_ns, poll_completed_qpc_ns,
+                            )
                             active_scene.after_control(
                                 collected_input, poll_started_ns, poll_completed_ns
                             )
@@ -488,6 +496,9 @@ class DriverView:
                         self._hazard_front_frame = None
                     try:
                         self._draw(presentation.canvas)
+                        warning = getattr(active_scene, "draw_warning", None)
+                        if warning is not None:
+                            warning(presentation.canvas)
                         presentation.present()
                     finally:
                         if observer is not None:
@@ -497,11 +508,15 @@ class DriverView:
                     flip_started_at = observer.timestamp() if observer is not None else 0.0
                     try:
                         pygame.display.flip()
+                        flip_completed_qpc_ns = observation_ns()
                         flip_completed_ns = (
                             time.monotonic_ns()
                             if display_continuation is not None or active_scene is not None
                             else None
                         )
+                        warning_flip = getattr(active_scene, "after_warning_flip", None)
+                        if warning_flip is not None:
+                            warning_flip(flip_completed_ns, flip_completed_qpc_ns)
                     finally:
                         if observer is not None:
                             observer.record_duration(
@@ -533,6 +548,7 @@ class DriverView:
                                 selected[3],
                                 flip_completed_ns,
                                 selected[4],
+                                flip_completed_qpc_ns,
                             )
                         )
                         if display_continuation is not None:
@@ -583,6 +599,12 @@ class DriverView:
         finally:
             self._capture_hazard_display = False
             self._hazard_front_frame = None
+            gaze_end = getattr(self, "gaze_end_observer", None)
+            if gaze_end is not None:
+                try:
+                    gaze_end()
+                except Exception:  # noqa: BLE001 -- optional gaze lifecycle never owns driving
+                    pass
             try:
                 try:
                     self._turn_signal_audio.close()

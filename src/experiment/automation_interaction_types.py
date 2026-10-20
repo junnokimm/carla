@@ -55,6 +55,7 @@ class AutomationInteractionConfig:
     driver_brake_threshold: float
     button_deactivation_enabled: bool
     steering_deactivation_enabled: bool = False
+    require_centered_activation: bool = True
 
     def __post_init__(self) -> None:
         values = (

@@ -11,7 +11,23 @@
  
      SimpleWaypointPtr change_over_point = AssignLaneChange(actor_id, vehicle_location, vehicle_speed,
                                                             force_lane_change, lane_change_direction);
-@@ -448,9 +450,20 @@
+@@ -179,6 +181,15 @@
+ 
+   Path imported_path = parameters.GetCustomPath(actor_id);
+   Route imported_actions = parameters.GetImportedRoute(actor_id);
++  // An empty explicit route cancels the owned exit plan, including
++  // waypoints already buffered beyond the current front.
++  if (imported_actions.empty() && parameters.GetUploadRoute(actor_id)) {
++    while (waypoint_buffer.size() > 1u) {
++      PopWaypoint(actor_id, track_traffic, waypoint_buffer, false);
++    }
++    parameters.RemoveImportedRoute(actor_id, true);
++    parameters.RemoveImportedRoute(actor_id, false);
++  }
+   // We are effectively importing a path.
+   if (!imported_path.empty()) {
+ 
+@@ -448,9 +459,20 @@
      if (change_over_point != nullptr) {
        const float change_over_distance = cg::Math::Clamp(1.5f * vehicle_speed, MIN_WPT_DISTANCE, MAX_WPT_DISTANCE);
        const SimpleWaypointPtr starting_point = change_over_point;
@@ -33,3 +49,14 @@
        }
      }
    }
+@@ -585,7 +607,9 @@
+       // If we are switching to a new RoadOption, it means the current one is already fully imported.
+       if (latest_road_option != next_wp_selection->GetRoadOption() && next_road_option == next_wp_selection->GetRoadOption()) {
+         imported_actions.erase(imported_actions.begin());
+-        next_road_option = static_cast<RoadOption>(imported_actions.front());
++        if (!imported_actions.empty()) {
++          next_road_option = static_cast<RoadOption>(imported_actions.front());
++        }
+       }
+     }
+     if (imported_actions.empty()) {

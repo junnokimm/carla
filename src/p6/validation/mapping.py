@@ -13,6 +13,10 @@ class ValidationError(RuntimeError):
         return self.detail
 
 
+class WindowSpansMonitors(ValidationError):
+    """Temporary window placement, not a broken Win32 handle."""
+
+
 @dataclass(frozen=True, slots=True)
 class WindowGeometry:
     desktop: Rect
@@ -27,12 +31,27 @@ class WindowGeometry:
         if any(rect.width <= 0 or rect.height <= 0
                for rect in (self.desktop, self.monitor, self.client)):
             raise ValidationError("Empty Windows geometry")
-        if min(self.surface_size) <= 0 or not self.client.within(self.monitor):
-            raise ValidationError("Client must fit entirely within one monitor")
+        if min(self.surface_size) <= 0:
+            raise ValidationError("Empty rendering surface")
+        if not self.client.within(self.monitor):
+            raise WindowSpansMonitors("Client must fit entirely within one monitor")
 
     @property
     def display_mapping(self) -> DisplayMapping:
         return DisplayMapping(self.desktop, self.monitor, self.client, False, False, self.surface_size)
+
+
+def surface_viewport(surface_size, logical_size) -> Rect:
+    """Same integer-rounded aspect fit as DriverViewPresentation, without SDL."""
+    sw, sh = surface_size
+    lw, lh = logical_size
+    if sw * lh <= sh * lw:
+        width, height = sw, sw * int(lh) // int(lw)
+    else:
+        width, height = sh * int(lw) // int(lh), sh
+    if min(width, height) <= 0:
+        raise ValidationError("Empty aspect-fit viewport")
+    return Rect((sw - width) // 2, (sh - height) // 2, width, height)
 
 
 def to_render_point(normalized: Point, observed: WindowGeometry, *,
@@ -40,20 +59,12 @@ def to_render_point(normalized: Point, observed: WindowGeometry, *,
     point, reason = observed.display_mapping.preview_to_client(normalized)
     if point is None or logical_size is None:
         return point, reason
-    # Undo the same integer-rounded aspect fit used by DriverViewPresentation.
-    # Windows/DPI coordinates above belong to the physical display surface;
-    # AOI rectangles below belong to the unchanged logical driving canvas.
-    sw, sh = observed.surface_size
-    lw, lh = logical_size
-    if sw * lh <= sh * lw:
-        width, height = sw, sw * int(lh) // int(lw)
-    else:
-        width, height = sh * int(lw) // int(lh), sh
-    viewport = Rect((sw - width) // 2, (sh - height) // 2, width, height)
+    viewport = surface_viewport(observed.surface_size, logical_size)
     if not viewport.contains(point):
         return None, "OUTSIDE_VIEWPORT"
-    return Point((point.x - viewport.x) * lw / width,
-                 (point.y - viewport.y) * lh / height), None
+    lw, lh = logical_size
+    return Point((point.x - viewport.x) * lw / viewport.width,
+                 (point.y - viewport.y) * lh / viewport.height), None
 
 
 def candidate_aoi(point: Point, layout: AoiLayout) -> str:

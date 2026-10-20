@@ -15,8 +15,11 @@ from src.p6.gaze_duration import GazeDuration
 from src.p6.gaze_precheck import AOIS, analysis_seconds, stage_quality
 from src.p6.models import Validity
 from src.p6.pilot_aoi import classify_screen, layout_for_view, layout_record
+from src.p6.pilot_mapping_evidence import aoi_schema, mapping_evidence
 from src.p6.tobii.client import TobiiProcessSource
+from src.p6.validation.mapping import WindowSpansMonitors
 from src.p6.validation.windows import WindowProbe
+from src.p8.pilot_display import mapping_issue, mapping_signature
 
 
 def notice(status, **details):
@@ -33,9 +36,23 @@ class PilotGaze:
         self.directory = services.directory
         self.run_id = str(services.context.study_run_id)
         self.participant_id = str(services.context.participant_id)
+        self.study_conditions = {
+            key: getattr(services.context, key, None)
+            for key in ("module_1_condition", "module_2_condition")
+        }
         self.origin_ns = services.clock.origin.monotonic_ns
+        self.origin_perf_ns = getattr(services.clock.origin, "perf_counter_ns", None)
         self.stage = stage.value
-        self.gaze_quality = deepcopy(stage_quality(self.stage, getattr(services, "m2_gaze_quality", None)))
+        self.condition = next(
+            (value for key, value in self.study_conditions.items()
+             if self.stage.startswith(key.removesuffix("_condition").upper() + "_")),
+            None,
+        )
+        module = "m1" if self.stage == "MODULE_1_RUNNING" else "m2"
+        self.gaze_quality = deepcopy(stage_quality(self.stage, getattr(services, f"{module}_gaze_quality", None)))
+        self.expected_mapping = self.gaze_quality.get("display_mapping")
+        self.require_fullscreen = self.expected_mapping is not None
+        self.mapping_checked = False
         self.layout = layout_for_view(view_config)
         self.source_factory, self.probe_factory = source_factory, probe_factory
         self.stop = threading.Event()
@@ -49,6 +66,9 @@ class PilotGaze:
         self.geometry = None
         self.geometry_ns = 0
         self.geometry_key = None
+        self.geometry_issue = None
+        self.mapping_id = None
+        self.evidence_geometry = None
         self.monitor = None
         if not hasattr(services, "pilot_gaze_monitor"):
             services.pilot_gaze_monitor = {}
@@ -77,6 +97,8 @@ class PilotGaze:
 
     def present(self, display_size):
         # Called only by the renderer, never reads/consumes keyboard or wheel events.
+        if self.closed_ns is not None:
+            return
         now = time.monotonic_ns()
         self.last_present_ns = now
         if now < self._next_publish and display_size == self._display_size:
@@ -91,12 +113,27 @@ class PilotGaze:
             self.presentation = None
             self._error("PRESENTATION", error)
 
+    def suspend_presentation(self):
+        # Called before SDL can replace a window. Queued samples remain raw,
+        # but cannot inherit coordinates from a different window generation.
+        self.presentation = None
+        self._next_publish = 0
+        self.geometry_key = None
+
+    def end_presentation(self):
+        # No disk I/O or wait here. Close the observation window BEFORE SDL quit.
+        if self.closed_ns is None:
+            self.closed_ns = time.monotonic_ns()
+            self.closed_perf_ns = time.perf_counter_ns()
+        self.suspend_presentation()
+        self.stop.set()
+
     def _error(self, phase, error):
         detail = f"{phase}:{type(error).__name__}:{error}"
         if detail not in self.errors and len(self.errors) < 32:
             self.errors.append(detail)
-        if self.stage == "MODULE_2_RUNNING":
-            if phase in ("COLLECTION", "WORKER", "DURATION"):
+        if self.stage in ("MODULE_1_RUNNING", "MODULE_2_RUNNING"):
+            if phase in ("COLLECTION", "WORKER", "DURATION", "MAPPING", "MAPPING_VALIDATION"):
                 self._exclude_aois(AOIS, detail)
             elif phase == "TABLET_PROFILE":
                 self._exclude_aois(("TABLET",), detail)
@@ -128,7 +165,7 @@ class PilotGaze:
                 self.tablet_binding = ("DISPLAY_BINDING_MATCHED_AT_CAPTURE_START"
                                        if self.tablet.display_matches(record)
                                        else "TABLET_DISPLAY_BINDING_MISMATCH_OR_UNAVAILABLE")
-                if self.stage == "MODULE_2_RUNNING" and self.tablet_binding != "DISPLAY_BINDING_MATCHED_AT_CAPTURE_START":
+                if self.stage in ("MODULE_1_RUNNING", "MODULE_2_RUNNING") and self.tablet_binding != "DISPLAY_BINDING_MATCHED_AT_CAPTURE_START":
                     self._exclude_aois(("TABLET",), self.tablet_binding)
                 notice("TABLET_MAPPING_STATUS", stage=self.stage, binding=self.tablet_binding,
                        mapping_status=self.tablet.profile["status"])
@@ -142,7 +179,7 @@ class PilotGaze:
                 self._record(self.gaze, {"record_type": "tablet_profile", "profile": self.tablet.profile,
                                          "sha256": self.tablet.sha256})
                 checked_hash = self.gaze_quality.get("tablet_profile_sha256")
-                if self.stage == "MODULE_2_RUNNING" and checked_hash != self.tablet.sha256:
+                if self.stage in ("MODULE_1_RUNNING", "MODULE_2_RUNNING") and checked_hash != self.tablet.sha256:
                     self.gaze_quality["eligible_aois"]["TABLET"] = False
                     self.gaze_quality["excluded_aois"] = sorted(set(self.gaze_quality["excluded_aois"]) | {"TABLET"})
                     self.gaze_quality["tablet_profile_changed_since_precheck"] = True
@@ -166,6 +203,8 @@ class PilotGaze:
                                       "session_alignment": "START_HOST_CLOCK_PAIR_APPROXIMATE"})
 
     def _mapping(self, callback_ns):
+        if self.closed_ns is not None:
+            return "PRESENTATION_ENDED"
         presentation = self.presentation
         now = time.monotonic_ns()
         if presentation is None or now - self.last_present_ns > 1_000_000_000:
@@ -180,24 +219,66 @@ class PilotGaze:
         if key != self.geometry_key or now - self.geometry_ns >= 250_000_000:
             probe = self.probe_factory()
             try:
-                self.geometry = probe.snapshot(hwnd, size)
-                self.focused = probe.focused(hwnd)
+                geometry = probe.snapshot(hwnd, size)
+                focused = probe.focused(hwnd)
+            except WindowSpansMonitors:
+                # Dragging across monitors cannot be mapped to either display.
+                # Keep raw samples, retry on the usual cadence, and recover once
+                # the operator finishes moving the window. Do not reuse geometry.
+                self.geometry, self.focused = None, False
+                self.geometry_ns, self.geometry_key = now, key
+                self.geometry_issue = "WINDOW_SPANS_MONITORS"
+                return self.geometry_issue
+            except Exception:
+                # A deliberate lifecycle change during this probe is not a
+                # failed active-window mapping. Never reuse its cached geometry.
+                if self.closed_ns is not None or self.presentation is not presentation:
+                    return "PRESENTATION_ENDED" if self.closed_ns is not None else "PRESENTATION_CHANGED"
+                raise
             finally:
                 probe.close()
+            if self.closed_ns is not None or self.presentation is not presentation:
+                return "PRESENTATION_ENDED" if self.closed_ns is not None else "PRESENTATION_CHANGED"
+            self.geometry, self.focused = geometry, focused
             self.geometry_ns = now
             self.geometry_key = key
-            self._record(self.gaze, {"record_type": "mapping", "host_monotonic_ns": now,
-                                     "geometry": asdict(self.geometry)})
+            self.geometry_issue = None
+            record = {"record_type": "mapping", "host_monotonic_ns": now,
+                      "geometry": asdict(self.geometry)}
+            if self.geometry != self.evidence_geometry:
+                mapping_id, definition = mapping_evidence(self.geometry, self.layout)
+                record.update(mapping_id=mapping_id, definition=definition)
+                self._record(self.gaze, record)
+                self.mapping_id, self.evidence_geometry = mapping_id, self.geometry
+            else:
+                self._record(self.gaze, record | {"mapping_id": self.mapping_id})
+        if self.geometry_issue:
+            return self.geometry_issue
         if not self.focused:
             return "WINDOW_NOT_FOCUSED"
+        if self.require_fullscreen and mapping_issue(self.geometry) == "FULLSCREEN_MAPPING_REQUIRED":
+            # Windowed startup / manual F11 transitions are temporarily unmapped.
+            # Resume classification only after the checked fullscreen mapping returns.
+            return "FULLSCREEN_MAPPING_REQUIRED"
         if self.monitor is None:
-            self.monitor = (self.config.get("monitor_name") or self.monitor_binding.get("name")
+            checked_monitor = (self.expected_mapping or {}).get("monitor_name")
+            # A precheck is the operator's explicit selection of the driving display.
+            precheck_monitor = (self.geometry.monitor_name if self.require_fullscreen and
+                                self.stage in ("MODULE_1_PREPARE", "MODULE_2_PREPARE") else None)
+            self.monitor = (self.config.get("monitor_name") or checked_monitor or precheck_monitor
+                            or self.monitor_binding.get("name")
                             or self.geometry.monitor_name)
             self.monitor_binding["name"] = self.monitor
         if self.geometry.monitor_name != self.monitor:
             return "TRACKER_MONITOR_MISMATCH"
         if not self.config.get("display_confirmed", False):
             return "DISPLAY_MAPPING_NOT_CONFIRMED"
+        if self.require_fullscreen:
+            issue = mapping_issue(self.geometry, self.expected_mapping)
+            if issue:
+                self._error("MAPPING_VALIDATION", RuntimeError(issue))
+                return issue
+            self.mapping_checked = True
         return None
 
     def _sample(self, sample):
@@ -215,8 +296,15 @@ class PilotGaze:
             reason = self._mapping(parent_callback_ns if parent_callback_ns is not None else callback_ns)
         except Exception as error:
             reason = "MAPPING_UNAVAILABLE"
+            # Retry the entire observation/evidence write; do not classify using
+            # new geometry whose mapping definition failed to reach the log.
+            self.geometry_key = None
             self._error("MAPPING", error)
+        if reason is not None:
+            self.counts[f"mapping_reason:{reason}"] += 1
         eyes = [eye for eye in (sample.left, sample.right) if eye.validity is Validity.VALID]
+        screen_gaze = ({"x": sum(e.x for e in eyes) / len(eyes),
+                        "y": sum(e.y for e in eyes) / len(eyes)} if eyes else None)
         tracked = tracked_eyes(sample)
         mapping_reason = reason
         aoi, point = "NO_AOI", None
@@ -229,8 +317,7 @@ class PilotGaze:
         else:
             state = "VALID_UNMAPPED"
         if eyes and reason is None:
-            aoi, point = classify_screen(sum(e.x for e in eyes) / len(eyes),
-                                         sum(e.y for e in eyes) / len(eyes),
+            aoi, point = classify_screen(screen_gaze["x"], screen_gaze["y"],
                                          self.geometry, self.layout)
             state = aoi if aoi != "NO_AOI" else "VALID_UNMAPPED"
         if tracked and mapping_reason is None and self.tablet is not None:
@@ -254,7 +341,8 @@ class PilotGaze:
         self.last_sequence = sample.source_sequence
         self._record(self.gaze, {
             "record_type": "gaze", "run_id": self.run_id, "participant_id": self.participant_id,
-            "stage": self.stage, "synthetic": False, "sample": asdict(sample),
+            "stage": self.stage, "condition": self.condition,
+            "synthetic": False, "sample": asdict(sample),
             "sdk_callback_host_monotonic_ns": callback_ns, "ipc_receive_monotonic_ns": now,
             "duration_callback_perf_counter_ns": callback_perf_ns,
             "duration_eligible": duration_eligible,
@@ -263,6 +351,10 @@ class PilotGaze:
             "session_time_basis": "SDK_CALLBACK_HOST_NOT_DEVICE_ACQUISITION",
             "clock_sync_validated": False, "sequence_gap": gap,
             "aoi": aoi, "aoi_reason": reason, "render_point": point,
+            "mapping_id": self.mapping_id if mapping_reason is None else None,
+            "mapping_reason": mapping_reason,
+            "screen_gaze_display_normalized": screen_gaze,
+            "tablet_profile_sha256": getattr(self.tablet, "sha256", None),
             "aoi_version": self.layout.version, "aoi_validation_status": "NOT_VALIDATED",
             "fusion_policy": "SCREEN_MEAN_DISPLAY_VALID_EYES;TABLET_PER_EYE_AGREEMENT",
             "mapping_observed_monotonic_ns": self.geometry_ns,
@@ -303,10 +395,13 @@ class PilotGaze:
                 self.wire, self.gaze, self.intervals = wire, gaze, intervals
                 self._load_tablet()
                 self._record(gaze, {"record_type": "metadata", "run_id": self.run_id,
+                                   "condition": self.condition, "study_conditions": self.study_conditions,
                                    "stage": self.stage, "session_origin_monotonic_ns": self.origin_ns,
+                                   "session_origin_perf_counter_ns": self.origin_perf_ns,
                                    "duration_start_host_monotonic_ns": self.started_ns,
                                    "duration_start_perf_counter_ns": self.started_perf_ns,
                                    "layout": layout_record(self.layout), "config": self.config,
+                                   "aoi_schema": aoi_schema(),
                                    "gaze_precheck": self.gaze_quality,
                                    "error_policy": "RECORD_AND_CONTINUE"})
                 self.source = self.source_factory(Path(self.config["tobii_python"]).resolve(),
@@ -359,9 +454,18 @@ class PilotGaze:
         try:
             (self.pending / "summary.json").write_text(json.dumps({
                 "run_id": self.run_id, "stage": self.stage, "counts": dict(self.counts),
+                "condition": self.condition, "study_conditions": self.study_conditions,
                 "errors": self.errors, "session_action": "CONTINUE",
                 "status": "FAILED" if self.errors else "COLLECTED" if self.counts["samples"] else "NO_SAMPLES",
-                "aoi_validated": False, "clock_sync_validated": False,
+                "aoi_validated": bool(self.gaze_quality.get("passed") and self.mapping_checked
+                                      and all(self.gaze_quality["eligible_aois"].values())),
+                "clock_sync_validated": False,
+                "display_mapping_checked": self.mapping_checked,
+                "expected_display_mapping": self.expected_mapping,
+                "last_display_mapping": mapping_signature(self.geometry) if self.geometry else None,
+                "last_mapping_id": self.mapping_id,
+                "aoi_schema_version": "pilot-aoi-evidence-v1",
+                "aoi_evidence": "gaze.jsonl: metadata.aoi_schema; mapping.definition; tablet_profile",
                 "tablet_status": self._tablet_status(), "tablet_binding": self.tablet_binding,
                 "tablet_profile_sha256": self.tablet.sha256 if self.tablet else None,
                 "tablet_unobserved_targets": self.tablet.profile.get("missing_targets", []) if self.tablet else [],
@@ -370,14 +474,13 @@ class PilotGaze:
                 "analysis_seconds_by_aoi": analysis_seconds(self.duration.summary(), self.gaze_quality)
                 if self.duration else dict.fromkeys(AOIS),
                 "observation_window_closed": self.closed_ns is not None,
+                "mapping_lifecycle_policy": "END_BEFORE_SDL_QUIT;TRANSITION_SAMPLES_UNMAPPED;REAL_ERRORS_RETAINED",
             }, indent=2), encoding="utf-8")
         except Exception as error:
             notice("GAZE_SUMMARY_FAILED_CONTINUE", reason=str(error))
 
     def close(self):
-        self.closed_ns = time.monotonic_ns()
-        self.closed_perf_ns = time.perf_counter_ns()
-        self.stop.set()
+        self.end_presentation()
         if self.thread is not None:
             self.thread.join(timeout=1.5)
             if self.thread.is_alive():
@@ -441,6 +544,8 @@ class PilotGazeScope:
                 self.collector = PilotGaze(self.services, self.stage, self.viewer._config, self.config_path)
                 self.collector.start()
                 self.viewer.gaze_observer = self.collector.present
+                self.viewer.gaze_end_observer = self.collector.end_presentation
+                self.viewer.gaze_transition_observer = self.collector.suspend_presentation
         except Exception as error:
             notice("GAZE_START_FAILED_CONTINUE", reason=str(error))
         return self
@@ -449,6 +554,8 @@ class PilotGazeScope:
         if self.collector is not None:
             try:
                 self.viewer.gaze_observer = None
+                self.viewer.gaze_end_observer = None
+                self.viewer.gaze_transition_observer = None
                 self.collector.close()
             except Exception as error:
                 notice("GAZE_CLOSE_FAILED_CONTINUE", reason=str(error))

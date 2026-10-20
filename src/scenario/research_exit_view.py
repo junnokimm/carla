@@ -34,6 +34,8 @@ class ExitViewBinding(Protocol):
 
     def mark_presented(self, rendered: ExitPresentation) -> None: ...
 
+    def mark_hidden(self) -> None: ...
+
 
 class ResearchExitViewController:
     def __init__(self, window_size: tuple[int, int]) -> None:
@@ -65,6 +67,18 @@ class ResearchExitViewController:
     def indicator_confirmation(self) -> bool:
         return self._binding is not None and self._binding.config.indicator_confirmation
 
+    @property
+    def signal_guided_exit(self) -> bool:
+        return self._binding is not None and getattr(self._binding.config, "signal_guided_exit", False)
+
+    @property
+    def signal_guidance_visible(self) -> bool:
+        if not self.signal_guided_exit or self._active_recommendation is None:
+            return False
+        current = self._binding.prepare_presentation()
+        return (current is not None and current.recommendation
+                and current.lc_event_id == self._active_recommendation.lc_event_id)
+
     def draw(self, screen: pygame.Surface, *, hud_enabled: bool) -> None:
         if not hud_enabled or self._prepared is None or self._binding is None:
             self._active_recommendation = None
@@ -80,6 +94,8 @@ class ResearchExitViewController:
     def mark_after_flip(self) -> None:
         prepared = self._prepared
         if not self._drawn or prepared is None or self._binding is None:
+            if self.signal_guided_exit:
+                self._binding.mark_hidden()
             return
         if prepared.lc_event_id not in self._presented_event_ids:
             self._binding.mark_presented(prepared)
@@ -94,7 +110,7 @@ class ResearchExitViewController:
         events: list[KeyEvent],
         active_indicator_keys: frozenset[int] = frozenset(),
     ) -> tuple[bool, bool]:
-        if self._binding is None:
+        if self._binding is None or getattr(self._binding.config, "signal_guided_exit", False):
             return False, False
         if self._active_recommendation is not None:
             current = self._binding.prepare_presentation()

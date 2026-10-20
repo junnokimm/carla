@@ -35,6 +35,7 @@ def clear_completed_signal(
             "lane_change_signal_autooff",
             {
                 "request_id": tracker.request_id,
+                "context": tracker.context,
                 "completion_host_monotonic_ns": completion_timestamp.host.monotonic_ns,
                 "before_host_monotonic_ns": None,
                 "before_result": f"UNVERIFIED:{type(error).__name__}:{error}",
@@ -75,6 +76,7 @@ def clear_completed_signal(
         "lane_change_signal_autooff",
         {
             "request_id": tracker.request_id,
+            "context": tracker.context,
             "completion_host_monotonic_ns": completion_timestamp.host.monotonic_ns,
             "before_host_monotonic_ns": before_timestamp.host.monotonic_ns,
             "before_result": "RETURNED",

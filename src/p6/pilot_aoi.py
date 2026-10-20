@@ -3,6 +3,7 @@
 from dataclasses import asdict
 
 from src.p6.aoi import AoiLayout, DisplayMapping, Point, Polygon, Rect
+from src.p6.validation.mapping import to_render_point
 
 
 def layout_for_view(config):
@@ -14,9 +15,13 @@ def layout_for_view(config):
         Rect(*rect.bounds)
         for rect in (rendered.left_mirror, rendered.right_mirror, rendered.rear_mirror)
     )
-    # Keep the existing road/HUD boundary at 500/720 of the logical canvas.
-    # Cut the raised side mirrors out of that region; the rest is unassigned.
+    # Preserve the road region and extend only its central portion to include
+    # lowered notices (top=82%, text ends before 89%). Avoid the side mirrors
+    # and the external tablet's observed directions near the lower right.
     bottom = height * 500 / 720
+    notice_bottom = height * 0.89
+    notice_left = max(left.x + left.width + 1, width * 0.22)
+    notice_right = min(right.x - 1, width * 0.78)
     # One pixel separates adjacent AOIs, including their polygon boundaries.
     shoulder = min(bottom, left.y, right.y) - 1
     points = [(0, 0), (width, 0)]
@@ -25,11 +30,13 @@ def layout_for_view(config):
         points += [(width, rear.y - 1), (rear.x - 1, rear.y - 1),
                    (rear.x - 1, rear.y + rear.height + 1), (width, rear.y + rear.height + 1)]
     points += [(width, shoulder), (right.x - 1, shoulder), (right.x - 1, bottom),
+               (notice_right, bottom), (notice_right, notice_bottom),
+               (notice_left, notice_bottom), (notice_left, bottom),
                (left.x + left.width + 1, bottom), (left.x + left.width + 1, shoulder),
                (0, shoulder)]
     bounds = Rect(0, 0, width, height)
     return AoiLayout(
-        "pilot-render-layout-v1", DisplayMapping(bounds, bounds, bounds, False, False),
+        "pilot-render-layout-v2-notice-forward", DisplayMapping(bounds, bounds, bounds, False, False),
         Polygon(tuple(Point(*point) for point in points)), rear, left, right,
         None, (), False, rear_available=config.rear_mirror_enabled,
     )
@@ -54,25 +61,9 @@ def classify_screen(x, y, geometry, layout):
     """Map display-normalized gaze through the same aspect-fit viewport as F11."""
     if layout.validate().issues:
         return "INVALID_LAYOUT", None
-    if not (0 <= x < 1 and 0 <= y < 1):
+    point, _ = to_render_point(Point(x, y), geometry, logical_size=layout.mapping.render_size)
+    if point is None:
         return "NO_AOI", None
-    monitor, client = geometry.monitor, geometry.client
-    screen = Point(monitor.x + x * monitor.width, monitor.y + y * monitor.height)
-    if not client.contains(screen):
-        return "NO_AOI", None
-    # Physical client pixels and rendering surface pixels can differ with DPI.
-    sw, sh = geometry.surface_size
-    px = (screen.x - client.x) * sw / client.width
-    py = (screen.y - client.y) * sh / client.height
-    lw, lh = layout.mapping.render_size
-    if sw * lh <= sh * lw:
-        vw, vh = sw, sw * int(lh) // int(lw)
-    else:
-        vw, vh = sh * int(lw) // int(lh), sh
-    viewport = Rect((sw - vw) // 2, (sh - vh) // 2, vw, vh)
-    if not viewport.contains(Point(px, py)):
-        return "NO_AOI", None
-    point = Point((px - viewport.x) * lw / vw, (py - viewport.y) * lh / vh)
     for name, region in (("LEFT_MIRROR", layout.left), ("RIGHT_MIRROR", layout.right),
                          ("REAR_MIRROR", layout.rear), ("FORWARD", layout.forward)):
         if region.contains(point):

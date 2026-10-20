@@ -17,7 +17,7 @@ from src.p8.operator_exit_result import (
     technical_exit_result,
 )
 from src.p8.operator_live_evidence import after_cleanup_evidence, live_evidence
-from src.p8.operator_m2_continuation import ContinuingM2Hazard
+from src.p8.clear_road_hazard import ClearRoadM2Hazard
 from src.p8.operator_metrics import event_count, reduce_module_run
 from src.p8.operator_model import ModuleRunResult, OperatorRuntimeConfig
 from src.p8.operator_recovery import OperatorRecovery
@@ -98,7 +98,7 @@ class OperatorRunExecutor:
                             raise P8Error("OPERATOR_SHARED_RESOURCE_IDENTITY_MISMATCH")
                         if v1_enabled:
                             actual.active_scene_factory = lambda session, origin: (
-                                ContinuingM2Hazard(
+                                ClearRoadM2Hazard(
                                     session,
                                     self.services,
                                     self.runtime.m2_hazard_v1,

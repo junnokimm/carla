@@ -700,22 +700,40 @@ class ResearchNoARunner:
                         ),
                         eligibility_open_s=exit_config.eligibility_open_s,
                         eligibility_close_s=exit_config.eligibility_close_s,
+                        signal_guided_exit=exit_config.signal_guided_exit,
                     ),
                     route_reference,
                     persistence.record_exit,
                     session_clock=session_clock,
                     assisted_submission=(
                         None
-                        if lane_change_interaction is None
+                        if lane_change_interaction is None or exit_config.signal_guided_exit
                         else lane_change_interaction.submit_confirmed_p5
                     ),
                     submission_clock=persistence.source.get_host_timestamp,
+                    automatic_route_submission=(
+                        bundle.traffic_manager_backend.submit_automatic_exit_route
+                        if exit_config.signal_guided_exit and bundle.traffic_manager_backend is not None
+                        else None
+                    ),
+                    automatic_route_cancellation=(
+                        bundle.traffic_manager_backend.cancel_automatic_exit_route
+                        if exit_config.signal_guided_exit and bundle.traffic_manager_backend is not None
+                        else None
+                    ),
+                    through_route_submission=(
+                        bundle.traffic_manager_backend.submit_exit_through_route
+                        if exit_config.signal_guided_exit and bundle.traffic_manager_backend is not None
+                        else None
+                    ),
                 )
                 persistence.record_exit_config(exit_config, exit_route)
                 interaction = ResearchExitInteractionObserver(
                     interaction,
                     exit_assistance,
-                    ResearchExitObservationSource(exit_route, source),
+                    ResearchExitObservationSource(
+                        exit_route, source, signal_guided_exit=exit_config.signal_guided_exit
+                    ),
                     persistence,
                 )
                 exit_view_binding = ResearchExitViewBinding(
