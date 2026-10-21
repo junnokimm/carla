@@ -43,7 +43,7 @@ def test_explicit_assignments_bypass_prompts_and_leave_config_unchanged(tmp_path
     monkeypatch.setattr("builtins.input", lambda _: pytest.fail("unexpected prompt"))
     monkeypatch.setattr(run_pilot.operator_cli, "main",
                         lambda argv: received.append(build_parser().parse_args(argv)) or 0)
-    assert run_pilot.main(["--config", str(path), "--m1", m1, "--m2", m2]) == 0
+    assert run_pilot.main(["--config", str(path), "--participant-id", "001", "--session-type", "test", "--m1", m1, "--m2", m2]) == 0
     assert received[0].m1 == run_pilot.M1_CHOICES.get(m1, m1)
     assert received[0].m2 == run_pilot.M2_CHOICES[m2]
     assert path.read_text(encoding="utf-8") == original
@@ -63,7 +63,7 @@ def test_cancel_m2_after_selecting_m1_never_starts_experiment(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("builtins.input", answer)
     monkeypatch.setattr(run_pilot.operator_cli, "main", lambda _: pytest.fail("launched"))
-    assert run_pilot.main(["--config", str(path)]) == code
+    assert run_pilot.main(["--config", str(path), "--participant-id", "001", "--session-type", "test"]) == code
     assert len(prompts) == 2
 
 
@@ -210,7 +210,7 @@ def test_terminal_assignment_survives_modules_gaze_reports_and_zip(tmp_path, mon
         return 0
 
     monkeypatch.setattr(run_pilot.operator_cli, "main", execute)
-    assert run_pilot.main(["--config", str(pilot)]) == 0
+    assert run_pilot.main(["--config", str(pilot), "--participant-id", "001", "--session-type", "test"]) == 0
     assert all("M1" in prompt for prompt in prompts[:3])
     assert all("M2" in prompt for prompt in prompts[3:])
     controller = chosen["controller"]

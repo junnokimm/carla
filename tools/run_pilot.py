@@ -8,11 +8,15 @@ import os
 from math import isfinite
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from uuid import uuid4
 
 from src.experiment.context import Module1Condition, Module2Condition
 from src.p8 import operator_cli
 from src.p8.crash_recovery import register_supervised_run
+from src.p8.pilot_identity import (
+    reserve_pilot_run,
+    select_participant,
+    select_session_type,
+)
 from src.p8.tsxw_policy import PILOT_MANUAL_STEERING_CENTER_AXIS
 from src.scenario.research_exit_config import ExitEligibilityWindow
 
@@ -149,7 +153,9 @@ def build_operator_args(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=PILOT_CONFIG)
-    parser.add_argument("--participant-id")
+    parser.add_argument("--participant-id", "--participant-number", help="참가자 번호; 생략하면 터미널에서 입력")
+    parser.add_argument("--session-type", choices=["1", "2", "test", "pilot"],
+                        help="1=test, 2=pilot; 생략하면 터미널에서 선택")
     parser.add_argument(
         "--m1",
         choices=[*M1_CHOICES, *[item.value for item in Module1Condition]],
@@ -166,19 +172,20 @@ def main(argv: list[str] | None = None) -> int:
     os.chdir(PROJECT_ROOT)
     try:
         settings = load_pilot_settings(args.config)
+        participant_id = select_participant(args.participant_id)
+        session_type = select_session_type(args.session_type)
         settings["m1"] = select_m1_assignment(args.m1)
         settings["m2"] = select_m2_assignment(args.m2)
+        run_id = reserve_pilot_run(Path("data/p8_operator"), participant_id, session_type)
+        register_supervised_run(Path("data/p8_operator") / run_id, participant_id)
     except KeyboardInterrupt:
         print("설정 입력을 취소했어. 주행은 시작되지 않았어.")
         return 130
     except (OSError, ValueError, KeyError, TypeError, EOFError) as error:
         print(f"파일럿 설정을 확인해 줘: {error}")
         return 2
-    tag = uuid4().hex
-    participant_id = args.participant_id or f"PILOT-{tag}"
-    run_id = f"P8-PILOT-{tag}"
-    register_supervised_run(Path("data/p8_operator") / run_id, participant_id)
-    print(f"파일럿 ID: {participant_id}\nRun ID: {run_id}", flush=True)
+    print(f"참가자 번호: {participant_id}\n저장 유형: {session_type}\nRun ID: {run_id}", flush=True)
+    print(f"결과 ZIP 예정 경로: {(Path('data/p8_operator/_exports') / (run_id + '.zip')).resolve()}", flush=True)
     print(
         f"훈련 600초 → M1 600초 ({settings['m1']}) → 휴식 → "
         f"M2 780초 ({settings['m2']}) → 결과 ZIP 저장",
@@ -196,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
     operator_args = build_operator_args(settings, participant_id=participant_id, run_id=run_id)
+    operator_args += ["--session-type", session_type]
     if not args.no_gaze:
         operator_args += ["--gaze-config", str(args.gaze_config)]
     return operator_cli.main(operator_args)
