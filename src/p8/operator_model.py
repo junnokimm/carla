@@ -52,6 +52,7 @@ class RegistrationRequest:
     m2_condition: Module2Condition | None = None
     route_id: str | None = None
     session_type: str | None = None  # test/pilot label; does not change execution mode
+    m2_only_test: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +198,7 @@ class ModuleRunResult:
     nominal_request: bool = False
     exit_opportunity: ExitOpportunityResult | None = None
     collision_stop: dict[str, Json] | None = None
+    hazard_extension: dict[str, Json] | None = None
 
     @property
     def window_complete(self) -> bool:
@@ -205,7 +207,7 @@ class ModuleRunResult:
             and self.nominal_request
             and self.actual_active_drive_s >= self.planned_duration_s
             and not self.user_exited
-            and self.completion_reason == "TIME_LIMIT_REACHED"
+            and self.completion_reason in ("TIME_LIMIT_REACHED", "HAZARD_EXTENSION_COMPLETE")
         )
 
     def manifest(self) -> dict[str, Json]:
@@ -229,6 +231,7 @@ class ModuleRunResult:
             "runtime_closed_session_s": self.runtime_closed_session_s,
             "completion_reason": self.completion_reason,
             "collision_stop": self.collision_stop,
+            "hazard_extension": self.hazard_extension,
             "training_completed_early": self.training_completed_early,
             "nominal_request": self.nominal_request,
             "window_complete": self.window_complete,
@@ -256,6 +259,7 @@ class OperatorSnapshot:
     result_export: OperatorResultExport | None = None
     hazard_status: str | None = None
     module_2_condition: Module2Condition | None = None
+    m2_only_test: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -211,6 +211,7 @@ class DriverView:
         self._training_completed_early = False
         self.operator_recovery = None
         self.collision_stop = None
+        self.drive_extension = None
 
     @property
     def feeds(self) -> tuple[CameraFeed, ...]:
@@ -308,6 +309,7 @@ class DriverView:
             raise RuntimeError("read-only view cannot run the vehicle-control loop")
         self._training_completed_early = False
         self.collision_stop = None
+        self.drive_extension = None
         try:
             screen = self._open_display()
             self._initialize_input()
@@ -332,7 +334,15 @@ class DriverView:
                     break
                 with nullcontext() if recovery is None else recovery.guard(active_scene):
                     boundary_events = None
-                    if continuation is None and time.monotonic() - started_at - (0.0 if recovery is None else recovery.paused_seconds) >= duration:
+                    elapsed = (time.monotonic() - started_at - (0.0 if recovery is None else recovery.paused_seconds)
+                               if continuation is None else 0.0)
+                    extend_drive = False
+                    if continuation is None and elapsed >= duration:
+                        extend = getattr(active_scene, "should_extend_drive", None)
+                        if extend is not None:
+                            extend_drive = extend(elapsed, duration)
+                            self.drive_extension = getattr(active_scene, "duration_extension", None)
+                    if continuation is None and elapsed >= duration and not extend_drive:
                         if continuation_factory is None:
                             break
                         # Honor a queued user exit before acquiring hazard resources.

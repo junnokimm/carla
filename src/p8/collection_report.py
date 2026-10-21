@@ -463,6 +463,8 @@ def build_reports(directory, *, output_directory=None):
             "participant_id": manifest["participant_id"],
             "source_session_state": manifest.get("state"),
             "source_completion_status": manifest.get("completion_status"),
+            **({"execution_scope": "M2_ONLY_TEST", "m1_performed": False}
+               if manifest.get("execution_scope") == "M2_ONLY_TEST" else {}),
             "active_windows": windows,
             "status": "PARTIAL"
             if errors or health.get("failure_count")

@@ -121,7 +121,7 @@ def test_actual_lane_change_keeps_blocking_after_exit_retirement_then_rechecks_s
     scene.session.exit_assistance = subject
     tick(scene, world, scene.planned - 6)
     assert scene.last_readiness["checks"]["exit_conflict_free"]["status"] == "FAIL"
-    assert scene.last_readiness["checks"]["target_speed_available"]["status"] == "NOT_CHECKED"
+    assert scene.last_readiness["checks"]["moving_speed_eligible"]["status"] == "NOT_CHECKED"
     leave_corridor(subject)
     tm = scene.session.bundle.traffic_manager_backend
     tm.lane_change_in_flight = "ordinary driver lane change"
@@ -155,7 +155,8 @@ def test_unverified_exit_route_cancellation_blocks_hazard_but_keeps_driving(tmp_
     tick(scene, world, scene.planned - 6)
     assert scene.last_reason == "P5_EXIT_ROUTE_CANCELLATION_UNVERIFIED"
     tick(scene, world, 601 - clock())
-    assert scene.state == "NOT_OCCURRED" and scene.scene_failure is None
+    assert scene.state == "SCHEDULED" and scene.scene_failure is None
     tick(scene, world, 780 - clock())
-    scene.finalize("M2_END")
+    assert scene.should_extend_drive(clock(), 780)
+    scene.finalize("USER_EXIT")
     assert world.vehicle.is_alive and world.vehicle.applied_controls == []

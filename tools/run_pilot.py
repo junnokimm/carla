@@ -163,18 +163,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--gaze-config", type=Path, default=Path("config/p8_gaze.json"))
     parser.add_argument("--no-gaze", action="store_true", help="시선 수집을 명시적으로 끄고 주행")
+    parser.add_argument("--m2-only", action="store_true", help="훈련·M1·휴식 없이 M2만 실행; test로 저장")
     parser.add_argument(
         "--m2",
         choices=[*M2_CHOICES, *[item.value for item in Module2Condition]],
         help="1=MANUAL, 2=NoA; 생략하면 터미널에서 선택",
     )
     args = parser.parse_args(argv)
+    if args.m2_only and args.session_type not in (None, "1", "test"):
+        parser.error("--m2-only는 test 저장 유형만 사용할 수 있습니다.")
+    if args.m2_only and args.m1 is not None:
+        parser.error("--m2-only에서는 M1을 실시하지 않으므로 --m1을 지정하지 마세요.")
     os.chdir(PROJECT_ROOT)
     try:
         settings = load_pilot_settings(args.config)
         participant_id = select_participant(args.participant_id)
-        session_type = select_session_type(args.session_type)
-        settings["m1"] = select_m1_assignment(args.m1)
+        session_type = "test" if args.m2_only else select_session_type(args.session_type)
+        if not args.m2_only:
+            settings["m1"] = select_m1_assignment(args.m1)
         settings["m2"] = select_m2_assignment(args.m2)
         run_id = reserve_pilot_run(Path("data/p8_operator"), participant_id, session_type)
         register_supervised_run(Path("data/p8_operator") / run_id, participant_id)
@@ -187,15 +193,17 @@ def main(argv: list[str] | None = None) -> int:
     print(f"참가자 번호: {participant_id}\n저장 유형: {session_type}\nRun ID: {run_id}", flush=True)
     print(f"결과 ZIP 예정 경로: {(Path('data/p8_operator/_exports') / (run_id + '.zip')).resolve()}", flush=True)
     print(
-        f"훈련 600초 → M1 600초 ({settings['m1']}) → 휴식 → "
-        f"M2 780초 ({settings['m2']}) → 결과 ZIP 저장",
+        ("M2 단독 테스트: 경고음 안내 → M2 안내·시선 확인 → " if args.m2_only else
+         f"훈련 600초 → M1 600초 ({settings['m1']}) → 휴식 → ") +
+        f"M2 기본 780초 ({settings['m2']}, 위험사건 대기 시 연장) → 결과 ZIP 저장",
         flush=True,
     )
-    print(
-        "M1 SuRT 기록은 관리자가 선택한 배정입니다. "
-        "별도 SuRT 앱의 실제 수행·반응 기록은 앱에서 따로 저장해 주세요.",
-        flush=True,
-    )
+    if not args.m2_only:
+        print(
+            "M1 SuRT 기록은 관리자가 선택한 배정입니다. "
+            "별도 SuRT 앱의 실제 수행·반응 기록은 앱에서 따로 저장해 주세요.",
+            flush=True,
+        )
     print(
         "훈련 조작 안내: NoA가 켜져 있을 때 깜빡이를 켜면 해당 방향의 인접 차로로 이동합니다.\n"
         "여러 차로를 이동할 때는 차선 변경 완료 후 깜빡이를 다시 켜 주세요.\n"
@@ -204,6 +212,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     operator_args = build_operator_args(settings, participant_id=participant_id, run_id=run_id)
     operator_args += ["--session-type", session_type]
+    if args.m2_only:
+        operator_args.append("--m2-only")
     if not args.no_gaze:
         operator_args += ["--gaze-config", str(args.gaze_config)]
     return operator_cli.main(operator_args)

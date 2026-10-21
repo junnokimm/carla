@@ -57,6 +57,10 @@ class OperatorController:
     def register_id(self, request: RegistrationRequest) -> OperatorSnapshot:
         if self._session is not None:
             raise P8Error("OPERATOR_SESSION_ALREADY_REGISTERED")
+        if request.m2_only_test and (
+            self.mode is not Mode.DEV_REHEARSAL or request.session_type != "test"
+        ):
+            raise P8Error("M2_ONLY_REQUIRES_DEV_TEST_SESSION")
         if self.mode is Mode.PARTICIPANT:
             require_participant_ready(self.readiness, source_kind="REAL")
         expected_route_id = (
@@ -76,6 +80,7 @@ class OperatorController:
             monotonic_ns=self._monotonic_ns,
             utc_ns=self._utc_ns,
             session_type=request.session_type,
+            m2_only_test=request.m2_only_test,
         )
 
         def create_components(
@@ -102,6 +107,8 @@ class OperatorController:
         )
         self._session = session
         session.initialize()
+        if request.m2_only_test:
+            session.start_m2_test()
         return self.snapshot()
 
     def record_actual(self, receipt: Receipt) -> OperatorSnapshot:
@@ -232,6 +239,7 @@ class OperatorController:
             deletion_status=str(post["deletion_status"]),
             result_export=session.result_export,
             module_2_condition=session.services.context.module_2_condition,
+            m2_only_test=session.services.m2_only_test,
             hazard_status=(
                 None
                 if hazard is None

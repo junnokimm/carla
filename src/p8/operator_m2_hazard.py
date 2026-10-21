@@ -417,6 +417,9 @@ class OperatorM2Hazard:
     def display_exposure_valid(self, geometry):
         return True
 
+    def exposure_time_valid(self, elapsed):
+        return WINDOW[0] <= elapsed <= WINDOW[1]
+
     def after_display_completed(self, frame):
         if (
             self.closed
@@ -449,7 +452,7 @@ class OperatorM2Hazard:
             geometry["snapshot_callback_runtime_monotonic_s"] - self.started_at
         )
         valid = (
-            WINDOW[0] <= frame_elapsed <= WINDOW[1]
+            self.exposure_time_valid(frame_elapsed)
             and self.backend.motion_started is not None
             and frame.simulation_seconds >= self.backend.motion_started
             and self.display_exposure_valid(geometry)

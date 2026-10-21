@@ -36,6 +36,11 @@ class OperatorApp:
     def start(self) -> None:
         self.controller.register_id(self.config.registration)
         self.registered = True
+        if self.config.registration.m2_only_test:
+            self.status = "M2 단독 테스트 · 훈련·M1·휴식 미실시"
+            if getattr(getattr(self.controller, "runtime", None), "m2_hazard_v1", None) is not None:
+                self.warning_practice = WarningSoundPractice(self.controller, m2_only_test=True)
+            return
         self.controller.advance()
         self.controller.record_execution_policy_outcome(
             DevOutcome.SKIPPED,
@@ -147,7 +152,8 @@ class OperatorApp:
                 self.warning_practice.play("R_REPLAY")
             elif key == pygame.K_SPACE and self.warning_practice.acknowledge():
                 self.warning_practice = None
-                self._run_training()
+                if not self.config.registration.m2_only_test:
+                    self._run_training()
                 # Do not forward the acknowledgement or a queued repeat into
                 # the post-training stage when the drive returns.
                 self.discard_key_batch = True

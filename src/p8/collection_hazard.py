@@ -214,7 +214,9 @@ def hazard_metrics(events, origin_ns, *, precise=False):
         result["analysis_reaction_time_s"] = None
     else:
         result["analysis_reaction_time_s"] = result["reaction_time_s"]
-    if final.get("exposure_policy") == "CLEAR_ROAD_STABLE_TARGET_SPEED_NO_LEAD":
+    if final.get("exposure_policy") in (
+        "CLEAR_ROAD_STABLE_TARGET_SPEED_NO_LEAD", "CLEAR_ROAD_CURRENT_SPEED_TTC4_NO_LEAD",
+    ):
         issues = []
         if warning is None or final.get("warning_errors"):
             issues.append("WARNING_NOT_CONFIRMED_OR_FAILED")

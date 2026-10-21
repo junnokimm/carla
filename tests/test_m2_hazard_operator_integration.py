@@ -30,9 +30,10 @@ from tests.test_p5_exit_assistance import ReferenceRecorder, coordinator, observ
 @pytest.mark.parametrize(
     "condition", [Module2Condition.MANUAL, Module2Condition.NOA_L2]
 )
-@pytest.mark.parametrize("termination", ["normal", "user_exit", "error", "collision", "scene_failure", "obstacle_collision", "obstacle_collision_cleanup_error", "exit_not_presented"])
+@pytest.mark.parametrize("termination", ["normal", "extended", "user_exit", "error", "collision", "scene_failure", "obstacle_collision", "obstacle_collision_cleanup_error", "exit_not_presented"])
+@pytest.mark.parametrize("m2_only", [False, True])
 def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime(
-    tmp_path, condition, termination, monkeypatch
+    tmp_path, condition, termination, monkeypatch, m2_only
 ):
     collision_end = termination.startswith("obstacle_collision")
     args = build_parser().parse_args(
@@ -60,7 +61,7 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
     )
     base = _runtime_config(args)
     assert base.m2_hazard_v1.seed == 42
-    # Deterministic fake world drives at 12 m/s; production uses the road limit.
+    # A legacy target field must not constrain the measured-speed policy.
     base = replace(base, m2_hazard_v1=replace(base.m2_hazard_v1, target_speed_kmh=43.2))
     host = StrictClock()
     worlds, views, scenes, attestations, preparations = [], [], [], [], []
@@ -122,9 +123,18 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                     + [active_scene.planned - 6 + (i + 1) * 0.1 for i in range(220)]
                     + [700, 779.9]
                 )
+                if termination == "extended":
+                    times = ([100, 200, active_scene.planned - 6, 601, 780, 800]
+                             + [800 + (i + 1) * .1 for i in range(170)])
                 for index, elapsed in enumerate(times):
+                    if termination == "extended" and clock() - origin >= duration:
+                        extend = active_scene.should_extend_drive(clock() - origin, duration)
+                        self.drive_extension = active_scene.duration_extension
+                        if not extend:
+                            break
                     dt = origin + elapsed - clock()
-                    world.step(dt, ego_y=-3.5 if active_scene.first_geometry else 0)
+                    world.step(dt, ego_speed=0 if termination == "extended" and elapsed < 800 else 12,
+                               ego_y=-3.5 if active_scene.first_geometry else 0)
                     host.advance(dt)
                     # Genuine interaction boundary: driver override after exposure.
                     driver = DriverInput(
@@ -170,7 +180,7 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                     diagnostics.record_driver_loop_duration(0.0)
                     assert controller.session.state is Stage.MODULE_2_RUNNING
                     fault_index = 100
-                    if index == fault_index and termination not in ("normal", "exit_not_presented"):
+                    if index == fault_index and termination not in ("normal", "extended", "exit_not_presented"):
                         if termination == "user_exit":
                             return True
                         if termination == "collision" or collision_end:
@@ -224,12 +234,13 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                             assert active_scene.scene_failure is not None
                         else:
                             raise RuntimeError("injected offline error")
-                dt = origin + duration - clock()
+                dt = max(0.0, origin + duration - clock())
                 world.step(dt, ego_speed=0)
                 host.advance(dt)
                 if termination == "exit_not_presented":
                     assert active_scene.first_display is None and active_scene.backend.cargo is None
-                    assert active_scene.state == "NOT_OCCURRED" and active_scene.scene_failure is None
+                    assert active_scene.state == "SCHEDULED" and active_scene.scene_failure is None
+                    assert active_scene.should_extend_drive(duration, duration)
                 elif termination != "scene_failure":
                     assert active_scene.first_geometry and active_scene.first_display
                 return False
@@ -268,15 +279,24 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
             "M2-INTEGRATION-RUN",
             m1_condition=Module1Condition.NO_SURT,
             m2_condition=condition,
+            session_type="test" if m2_only else None,
+            m2_only_test=m2_only,
         )
     )
-    advance_to(controller, Stage.MODULE_1_RUNNING)
-    controller.execute_current_module()
-    assert not scenes and all(len(world.actors) == 1 for world in worlds)
-    controller.record_execution_policy_outcome(DevOutcome.PARTIAL, "offline M1")
-    for _ in range(3 if termination in ("normal", "collision", "scene_failure", "exit_not_presented") or collision_end else 4):
-        controller.advance()
-    if termination in ("normal", "collision", "scene_failure", "exit_not_presented") or collision_end:
+    app_path = termination in ("normal", "extended", "collision", "scene_failure", "exit_not_presented") or collision_end
+    if m2_only:
+        assert controller.session.state is Stage.MODULE_2_PREPARE
+        assert not worlds and not controller._operator_components().runs
+        if not app_path:
+            controller.advance()
+    else:
+        advance_to(controller, Stage.MODULE_1_RUNNING)
+        controller.execute_current_module()
+        assert not scenes and all(len(world.actors) == 1 for world in worlds)
+        controller.record_execution_policy_outcome(DevOutcome.PARTIAL, "offline M1")
+        for _ in range(3 if app_path else 4):
+            controller.advance()
+    if termination in ("normal", "extended", "collision", "scene_failure", "exit_not_presented") or collision_end:
         # Exercise the actual operator post-drive progression too: v1 returns
         # in MODULE_2_RUNNING, unlike the historical post-780 continuation.
         app = object.__new__(OperatorApp)
@@ -309,7 +329,14 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                 assert result.deactivation_count == 0  # terminal stop is not a driver override
                 assert result.automation_on_seconds < 600
         else:
-            assert result.actual_active_drive_s == pytest.approx(780)
+            if termination == "extended":
+                assert 810 < result.actual_active_drive_s < 820
+                assert result.completion_reason == "HAZARD_EXTENSION_COMPLETE"
+                assert result.hazard_extension["status"] == "COMPLETE"
+                assert result.hazard_extension["started_active_s"] == pytest.approx(780)
+                assert result.hazard_extension["extension_s"] > 30
+            else:
+                assert result.actual_active_drive_s == pytest.approx(780)
             assert result.window_complete
             assert controller.session.state is Stage.SESSION_COMPLETE
         assert controller._operator_components().hazard_loop is None
@@ -318,14 +345,14 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
             controller.execute_current_module()
         assert controller.session.closed is (termination == "user_exit")
     assert len(scenes) == 1 and scenes[0].closed
-    assert preparations == [
+    assert preparations == ([Stage.MODULE_2_RUNNING.value] if m2_only else [
         Stage.TRAINING.value,
         Stage.MODULE_1_RUNNING.value,
         Stage.MODULE_2_RUNNING.value,
-    ]
+    ])
     record = controller._operator_components().hazard_observation
-    assert record["scenario_version"] == "M2_CLEAR_ROAD_WARNING_V2_20261020"
-    assert record["exposure_policy"] == "CLEAR_ROAD_STABLE_TARGET_SPEED_NO_LEAD"
+    assert record["scenario_version"] == "M2_CURRENT_SPEED_TTC4_EXTEND_V3_20261021"
+    assert record["exposure_policy"] == "CLEAR_ROAD_CURRENT_SPEED_TTC4_NO_LEAD"
     if termination not in ("user_exit", "error", "exit_not_presented"):
         assert record["warning"]["collision_warning"] is True
         assert record["warning"]["audio"]["cue_id"] == "hazard-three-beeps-v1"
@@ -338,9 +365,18 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                             if n.endswith("collection/hazard_response_metrics.json"))
                 metrics = json.loads(archive.read(name))
                 assert metrics["warning"]["audio"] == record["warning"]["audio"]
+                if termination == "extended":
+                    assert metrics["status"] != "NO_DISPLAY_ONSET"
+                    name = next(n for n in archive.namelist() if n.endswith("session_manifest.json"))
+                    manifest = json.loads(archive.read(name))
+                    saved_m2 = manifest["components"]["module_runs"][-1]
+                    assert saved_m2["actual_active_drive_s"] > 810
+                    assert saved_m2["hazard_extension"]["status"] == "COMPLETE"
+                    assert saved_m2["nominal_on_proportion"] == pytest.approx(1.0 if condition is Module2Condition.NOA_L2 else 0.0)
+                    assert record["display_candidate"]["frame_callback_active_elapsed_s"] > 800
     assert record["provenance"]["client"] == "INJECTED_TEST_CLIENT"
     assert record["cleanup"] == {"failures": [], "remaining_actor_ids": []}
-    assert record["partial_data"] is (termination not in ("normal", "collision", "exit_not_presented"))
+    assert record["partial_data"] is (termination not in ("normal", "extended", "collision", "exit_not_presented"))
     if termination == "exit_not_presented":
         assert record["occurrence_result"] == "NOT_OCCURRED"
         assert record["scene_reason"] == "P5_M2_EXIT_COORDINATOR_UNAVAILABLE"
@@ -364,3 +400,16 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
     assert controller._done_claim().participant_ready is False
     if not controller.session.closed:
         controller.abort("TEST_OPERATOR_STOP")
+    if m2_only:
+        with ZipFile(controller.session.result_export.archive) as archive:
+            assert archive.testzip() is None
+            def saved_json(suffix):
+                return json.loads(archive.read(next(n for n in archive.namelist() if n.endswith(suffix))))
+            saved = saved_json("session_manifest.json")
+            assert saved["execution_scope"] == "M2_ONLY_TEST"
+            assert "MODULE_1_RUNNING" in saved["not_performed_stages"]
+            assert not saved["m1_assignment_applied"]
+            assert not any(s["stage"] in saved["not_performed_stages"] for s in saved["stages"])
+            assert all(r["stage"] == "MODULE_2_RUNNING" for r in saved["components"]["module_runs"])
+            assert saved_json("surt_external_link.json")["status"] == "NOT_APPLICABLE_M1_NOT_PERFORMED"
+            assert saved_json("collection_status.json")["active_windows"]["MODULE_1"] == []

@@ -3,7 +3,7 @@
 
 def external_surt_reference(manifest, windows):
     condition = manifest["study_context"]["module_1_condition"]
-    return {
+    result = {
         "schema_version": "EXTERNAL_SURT_REFERENCE_V1",
         "status": "EXTERNAL_APP_COLLECTS_SEPARATELY"
         if condition == "SURT"
@@ -29,3 +29,14 @@ def external_surt_reference(manifest, windows):
         "timeout_count": None,
         "missing_value_rule": "EXTERNAL_LOG_NOT_READ_IS_NULL_NOT_ZERO",
     }
+    if manifest.get("execution_scope") == "M2_ONLY_TEST":
+        result.update(
+            status="NOT_APPLICABLE_M1_NOT_PERFORMED",
+            execution_scope="M2_ONLY_TEST",
+            m1_condition=None,
+            m1_surt_assigned=False,
+            m1_active_windows_session_s=[],
+            condition_basis="M1_NOT_PERFORMED_IN_M2_ONLY_TEST",
+            tablet_clock_alignment="NOT_APPLICABLE_M1_NOT_PERFORMED",
+        )
+    return result

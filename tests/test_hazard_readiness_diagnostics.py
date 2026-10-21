@@ -7,22 +7,21 @@ from tests.test_clear_road_hazard import expose, setup
 from tests.test_m2_hazard_v1 import tick
 
 
-def test_target_and_speed_failures_are_distinct_from_unchecked_conditions(tmp_path):
+def test_low_speed_failure_is_distinct_from_unchecked_conditions_and_missing_target(tmp_path):
     scene, world, _, _, records, _ = setup(tmp_path)
     tick(scene, world, scene.planned - 6, speed=8 / 3.6)
     evidence = scene.last_readiness
-    assert evidence["target_speed_kmh"] == 43.2
+    assert evidence["target_speed_kmh"] is None
     assert evidence["ego_speed_kmh"] == 8
-    assert evidence["target_source"] == "EXISTING_TM_ROAD_SPEED_LIMIT_ZERO_PERCENT_DIFFERENCE"
-    assert evidence["checks"]["target_speed_available"]["status"] == "PASS"
-    assert evidence["checks"]["speed_in_tolerance"]["status"] == "FAIL"
+    assert evidence["speed_basis"] == "MEASURED_AT_REVEAL"
+    assert evidence["checks"]["moving_speed_eligible"]["reason"] == "STOPPED_OR_LOW_SPEED"
     assert evidence["checks"]["route_available"]["status"] == "NOT_CHECKED"
     assert evidence["checks"]["approach_clear"]["status"] == "NOT_CHECKED"
     world.vehicle.speed_limit_kmh = 0
     tick(scene, world, 1.1)
     assert scene.last_readiness["target_speed_kmh"] is None
-    assert scene.last_readiness["checks"]["target_speed_available"]["reason"] == "TARGET_SPEED_UNAVAILABLE"
-    assert scene.last_readiness["checks"]["speed_in_tolerance"]["status"] == "NOT_CHECKED"
+    assert scene.last_readiness["checks"]["moving_speed_eligible"]["status"] == "PASS"
+    assert scene.last_readiness["checks"]["route_available"]["status"] == "PASS"
     scene.finalize("M2_END")
     assert records[-1]["last_readiness"] == scene.last_readiness
 
@@ -34,7 +33,7 @@ def test_lead_vehicle_failure_has_actor_evidence(tmp_path):
     world.actors.append(lead)
     tick(scene, world, 1.1)
     evidence = scene.last_readiness
-    assert evidence["checks"]["speed_in_tolerance"]["status"] == "PASS"
+    assert evidence["checks"]["moving_speed_eligible"]["status"] == "PASS"
     assert evidence["checks"]["approach_clear"]["reason"] == "APPROACH_CORRIDOR_OCCUPIED"
     assert evidence["blocking_actor_id"] == 999
     assert evidence["checks"]["camera_available"]["status"] == "NOT_CHECKED"
@@ -50,12 +49,12 @@ def test_new_interlock_attempt_does_not_reuse_old_pass_or_make_extra_rpcs(tmp_pa
     scene.session.bundle.traffic_manager_backend.lane_change_in_flight = "changing"
     def forbidden():
         raise AssertionError("No readiness RPC while the interlock is active")
-    monkeypatch.setattr(scene.backend, "target_speed", forbidden)
+    monkeypatch.setattr(scene.backend, "preflight", forbidden)
     tick(scene, world, 1.1)
     current = scene.last_readiness
     assert current["checks"]["approach_clear"]["status"] == "NOT_CHECKED"
     assert current["target_speed_kmh"] is None
-    assert current["checks"]["target_speed_available"]["reason"] == "P5_OR_GENERAL_LANE_CHANGE_IN_FLIGHT"
+    assert current["checks"]["moving_speed_eligible"]["reason"] == "P5_OR_GENERAL_LANE_CHANGE_IN_FLIGHT"
     assert previous["checks"]["approach_clear"]["status"] == "PASS"
     assert scene.scene_failure is None
     scene.finalize("M2_END")

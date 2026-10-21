@@ -78,17 +78,18 @@ def test_unexperienced_or_unresolved_exit_cannot_spawn_hazard_and_drive_continue
     assert not scene.claimed and scene.scene_failure is None
     check = scene.last_readiness["checks"]["exit_before_hazard"]
     assert check["status"] == "FAIL" and check["reason"].startswith("P5_M2_EXIT")
-    assert scene.last_readiness["checks"]["target_speed_available"]["status"] == "NOT_CHECKED"
+    assert scene.last_readiness["checks"]["moving_speed_eligible"]["status"] == "NOT_CHECKED"
     tick(scene, world, 601 - clock())
-    assert scene.state == "NOT_OCCURRED"
+    assert scene.state == "SCHEDULED"
     tick(scene, world, 780 - clock())
-    scene.finalize("M2_END")
+    assert scene.should_extend_drive(clock(), 780)
+    scene.finalize("USER_EXIT")
     assert records[-1]["occurrence_result"] == "NOT_OCCURRED"
     assert records[-1]["event_order_policy"] == POLICY
     assert records[-1]["exit_sequence_at_reveal"] is None
     assert records[-1]["last_readiness"]["checks"]["exit_before_hazard"]["status"] == "FAIL"
     assert world.vehicle.is_alive and world.vehicle.applied_controls == []
-    assert any(kind == "m2_hazard_not_occurred" for kind, _ in events)
+    assert any(kind == "m2_hazard_m2_extension_started" for kind, _ in events)
 
 
 @pytest.mark.parametrize("mode", ["MANUAL", "NOA_ACTIVE"])

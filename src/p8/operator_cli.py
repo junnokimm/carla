@@ -63,13 +63,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session-type", choices=("test", "pilot"),
                         help="Label a new DEV pilot run; allow separate runs for the same participant number")
     parser.add_argument("--assignment-file", type=Path)
+    parser.add_argument("--m2-only", action="store_true",
+                        help="DEV test only: start at M2 preparation; no training or M1 run")
     parser.add_argument("--m1", choices=[item.value for item in Module1Condition])
     parser.add_argument("--m2", choices=[item.value for item in Module2Condition])
     parser.add_argument("--ack-dev-live", action="store_true")
     parser.add_argument(
         "--m2-hazard-v1",
         action="store_true",
-        help="DEV: moving hazard inside M2, random 400..600s",
+        help="DEV: current-speed TTC4 hazard in M2; planned 400..600s, extend for readiness",
     )
     parser.add_argument(
         "--m2-hazard-seed", type=int, help="Optional reproducible dedicated hazard seed"
@@ -126,6 +128,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     mode = Mode(args.mode)
+    if args.m2_only and (
+        mode is not Mode.DEV_REHEARSAL or args.session_type != "test"
+        or args.drive_duration is not None
+    ):
+        parser.error("--m2-only requires DEV_REHEARSAL, --session-type test and nominal duration")
     if args.session_type is not None and mode is not Mode.DEV_REHEARSAL:
         parser.error("--session-type is DEV_REHEARSAL-only")
     if args.m2_hazard_seed is not None and not args.m2_hazard_v1:
@@ -234,6 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         m2_condition=None if args.m2 is None else Module2Condition(args.m2),
         route_id=None if runtime.module_exit is None else runtime.module_exit.route_id,
         session_type=args.session_type,
+        m2_only_test=args.m2_only,
     )
     controller = OperatorController(
         args.output_root,

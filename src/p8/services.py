@@ -26,7 +26,7 @@ from src.logging.csv_logger import ResearchCsvLogger
 from src.logging.research_event import ResearchEvent
 from src.p7.types import Json
 from src.p8.collection_safe_logger import NonfatalResearchCsvLogger
-from src.p8.model import Mode, P8Error, Stage, TimingProfile, VirtualTimeline
+from src.p8.model import SEQUENCE, Mode, P8Error, Stage, TimingProfile, VirtualTimeline
 
 if TYPE_CHECKING:
     from src.scenario.research_noa_log_setup import OpenResearchLog
@@ -44,11 +44,15 @@ class SessionServices:
         monotonic_ns: Callable[[], int] | None = None,
         utc_ns: Callable[[], int] | None = None,
         session_type: str | None = None,
+        m2_only_test: bool = False,
     ) -> None:
+        if m2_only_test and (mode is not Mode.DEV_REHEARSAL or session_type != "test"):
+            raise P8Error("M2_ONLY_REQUIRES_DEV_TEST_SESSION")
         if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,100}", run_id) is None:
             raise P8Error("UNSAFE_RUN_ID")
         self.directory = root / run_id
         self.session_type = session_type
+        self.m2_only_test = m2_only_test
         self.directory.mkdir(parents=True, exist_ok=False)
         self.context = StudyRunContext(
             StudyRunId(run_id),
@@ -167,6 +171,7 @@ class SessionServices:
         event_stage = self.stage if stage is None else stage
         body = {
             **(payload or {}),
+            **({"execution_scope": "M2_ONLY_TEST"} if self.m2_only_test else {}),
             "orchestration_stage": event_stage.value,
             "participant_run": False,
             "development_mode": self.mode is not Mode.PARTICIPANT,
@@ -225,6 +230,12 @@ class SessionServices:
 
     def manifest_base(self) -> dict[str, Json]:
         return {
+            **({"execution_scope": "M2_ONLY_TEST",
+                "not_performed_stages": [stage.value for stage in
+                    SEQUENCE[1:SEQUENCE.index(Stage.MODULE_2_PREPARE)]],
+                "m1_assignment_applied": False,
+                "full_protocol_performed": False}
+               if self.m2_only_test else {}),
             **({"session_type": self.session_type,
                 "result_archive_basename": f"{self.context.study_run_id}.zip"}
                if self.session_type is not None else {}),

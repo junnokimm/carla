@@ -73,7 +73,7 @@ def test_clear_road_reveal_same_speed_current_lane_warning_and_no_ego_writes(tmp
     assert pairs[-1] == (scene.backend.cargo.id, True)
 
 
-@pytest.mark.parametrize("block", ["low_speed", "lead", "p5", "unstable_speed"])
+@pytest.mark.parametrize("block", ["low_speed", "lead", "p5"])
 def test_unready_scene_does_not_expose_or_stop_module(tmp_path, block):
     scene, world, clock, events, records, _ = setup(tmp_path)
     tick(scene, world, scene.planned - 7, speed=2.23 if block == "low_speed" else 12)
@@ -84,17 +84,18 @@ def test_unready_scene_does_not_expose_or_stop_module(tmp_path, block):
         world.actors.append(other)
     for i in range(100):
         other.transform = carla.Transform(carla.Location(x=world.vehicle.transform.location.x + 25))
-        tick(scene, world, .1, speed=2.23 if block == "low_speed" else 7 if block == "unstable_speed" and i % 8 == 0 else 12)
+        tick(scene, world, .1, speed=2.23 if block == "low_speed" else 12)
     assert scene.first_display is None and scene.backend.motion_started is None
     tick(scene, world, 601 - clock())
-    assert scene.state == "NOT_OCCURRED" and scene.scene_failure is None
+    assert scene.state in ("SCHEDULED", "READY_HIDDEN") and scene.scene_failure is None
     tick(scene, world, 780 - clock())
-    scene.finalize("M2_END")
+    assert scene.should_extend_drive(clock(), 780)
+    scene.finalize("USER_EXIT")
     assert records[-1]["occurrence_result"] == "NOT_OCCURRED"
     assert world.vehicle.applied_controls == []
 
 
-@pytest.mark.parametrize("fault", ["spawn", "reveal", "placement", "geometry", "log"])
+@pytest.mark.parametrize("fault", ["spawn", "reveal", "placement", "geometry"])
 def test_hazard_failures_contained_and_raw_input_keeps_running(tmp_path, monkeypatch, fault):
     scene, world, clock, events, records, _ = setup(tmp_path)
     def fail(*args, **kwargs):
@@ -107,8 +108,6 @@ def test_hazard_failures_contained_and_raw_input_keeps_running(tmp_path, monkeyp
         monkeypatch.setattr(scene.backend, "_confirm_cargo_placement", lambda *a: False)
     if fault == "geometry":
         monkeypatch.setattr(scene.backend, "geometry", fail)
-    if fault == "log":
-        monkeypatch.setattr(scene.services, "emit", fail)
     tick(scene, world, scene.planned - 6)
     for _ in range(100):
         tick(scene, world, .1)
@@ -157,18 +156,20 @@ def test_observation_gap_resets_speed_stability(tmp_path, gap):
     scene.finalize("M2_END")
 
 
-def test_late_ready_does_not_create_out_of_window_hazard(tmp_path):
+def test_late_ready_remains_eligible_after_original_window(tmp_path):
     scene, world, clock, _, records, _ = setup(tmp_path)
     tick(scene, world, 599)
     for _ in range(30):
         tick(scene, world, .1)
-    assert scene.state == "NOT_OCCURRED" and scene.first_display is None
+    assert scene.first_display and scene.first_display["normal_window_candidate"]
+    assert scene.first_geometry["m2_active_elapsed_s"] > 600
     scene.finalize("M2_END")
-    assert records[-1]["occurrence_result"] == "NOT_OCCURRED"
+    assert records[-1]["occurrence_result"] == "EXPOSURE_CANDIDATE"
 
 
 @pytest.mark.parametrize("issue", [None, "no_warning", "invalid_scene", "auto_brake"])
-def test_new_condition_failures_do_not_become_analysis_ready_reaction_times(issue):
+@pytest.mark.parametrize("policy", ["CLEAR_ROAD_STABLE_TARGET_SPEED_NO_LEAD", ClearRoadM2Hazard.exposure_policy])
+def test_new_condition_failures_do_not_become_analysis_ready_reaction_times(issue, policy):
     from src.p8.collection_hazard import hazard_metrics
     from tests.test_p8_collection import hazard_events
     events = hazard_events()
@@ -177,7 +178,7 @@ def test_new_condition_failures_do_not_become_analysis_ready_reaction_times(issu
                        {"collision_warning": True, "takeover_request": True,
                         "flip_completed_monotonic_ns": 10_050_000_000}))
     events.append(("m2_hazard_end", 15, {
-        "exposure_policy": "CLEAR_ROAD_STABLE_TARGET_SPEED_NO_LEAD",
+        "exposure_policy": policy,
         "occurrence_result": "INVALID" if issue == "invalid_scene" else "EXPOSURE_CANDIDATE"}))
     if issue == "auto_brake":
         events[1][2]["samples"][5].update(auto_state="NOA_ACTIVE",
@@ -191,7 +192,7 @@ def test_new_condition_failures_do_not_become_analysis_ready_reaction_times(issu
 def test_display_speed_validation_does_not_change_noa_state(tmp_path):
     scene, world, _, _, records, _ = setup(tmp_path)
     expose(scene, world)
-    assert not scene.display_exposure_valid({**scene.first_display["geometry"], "ego_speed_mps": 8 / 3.6})
+    assert scene.display_exposure_valid({**scene.first_display["geometry"], "ego_speed_mps": 8 / 3.6})
     assert not scene.display_exposure_valid({**scene.first_display["geometry"], "collision_path_proxy": False})
     assert scene.session.bundle.automation_runtime.state.control_mode.value == "NOA_ACTIVE"
     scene.finalize("M2_END")

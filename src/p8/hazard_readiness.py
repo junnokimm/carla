@@ -21,8 +21,10 @@ def readiness_record(scene, sample, blocker, reason, preflight_complete):
         else {"status": "PASS"}
     )
     checks["exposure_window"] = {
-        "status": "PASS" if WINDOW[0] <= scene.elapsed <= WINDOW[1] else "FAIL",
-        "window_s": list(WINDOW),
+        "status": "PASS" if scene.exposure_time_valid(scene.elapsed) else "FAIL",
+        "planned_draw_window_s": list(WINDOW),
+        "window_s": [scene.planned, None],
+        "expiry_policy": "WAIT_FOR_SUITABLE_SECTION_EXTEND_M2",
     }
     checks["planned_time_reached"] = {
         "status": "PASS" if scene.elapsed >= scene.planned else "FAIL",
@@ -33,11 +35,12 @@ def readiness_record(scene, sample, blocker, reason, preflight_complete):
         if preflight_complete and scene.stable_since is not None and scene.clear_since is not None
         else None
     )
-    checks["stable_speed_and_clear_road"] = {
+    checks["eligible_motion_and_clear_road"] = {
         "status": "NOT_CHECKED" if held is None
         else "PASS" if held >= scene.config.stable_speed_s else "FAIL",
         "observed_hold_s": held, "required_hold_s": scene.config.stable_speed_s,
         "reason": reason if held is None else None,
+        "speed_matching_required": False,
     }
     coordinator = scene.session.exit_assistance
     return {

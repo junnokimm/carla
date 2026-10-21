@@ -196,6 +196,33 @@ class ExperimentSession:
         self.services.emit("execution_policy_stage_outcome", policy)
         self._save("RUNNING")
 
+    def start_m2_test(self) -> None:
+        """Enter a new, explicitly scoped test; never fabricate prior module runs."""
+        if (
+            not self.services.m2_only_test
+            or self.services.mode is not Mode.DEV_REHEARSAL
+            or self.services.session_type != "test"
+            or self.closed
+            or self.state is not Stage.SESSION_CREATED
+            or len(self.records) != 1
+            or self.components is None
+            or self.components.kind != "ACTUAL_BOUNDED_OPERATOR"
+        ):
+            raise P8Error("M2_ONLY_REQUIRES_FRESH_OPERATOR_TEST_SESSION")
+        self.components.leave(self.state)
+        self._end_record("DEV_COMPLETED", "M2_ONLY_TEST_INITIALIZED")
+        self.state = self.services.stage = Stage.MODULE_2_PREPARE
+        self.receipts = {}
+        self._begin_record(started=False)
+        self.components.enter(self.state)
+        self._activate_record()
+        self.services.emit("m2_only_test_started", {
+            "not_performed_stages": self.services.manifest_base()["not_performed_stages"],
+            "prior_module_completion_inferred": False,
+            "m2_exit_before_hazard_required": True,
+        })
+        self._save("RUNNING")
+
     def transition(self, target: Stage) -> None:
         if self.closed or self.state in (Stage.ABORTED, Stage.SESSION_COMPLETE):
             raise P8Error("TERMINAL_SESSION")

@@ -95,6 +95,9 @@ def stage_page(snapshot: OperatorSnapshot, status: str) -> OperatorPage:
             raise P8Error("INTERNAL_OPERATIONAL_STAGE_HAS_NO_SCREEN")
         case unreachable:
             assert_never(unreachable)
+    if snapshot.m2_only_test:
+        header = "M2 단독 테스트 / " + header
+        body = ("훈련·M1·휴식은 실시하지 않았습니다. 전체 실험 결과가 아닙니다.", *body)
     return OperatorPage(header, title, body, controls, status)
 
 

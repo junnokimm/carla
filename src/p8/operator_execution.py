@@ -188,6 +188,7 @@ class OperatorRunExecutor:
             if report is None:
                 raise P8Error("ACTUAL_BOUNDED_RUN_REPORT_MISSING")
             collision_stop = getattr(actual.viewer, "collision_stop", None)
+            extension = getattr(actual.viewer, "drive_extension", None)
             result = reduce_module_run(
                 path,
                 fallback_rows=(self.services.logger.fallback_rows(offset)
@@ -212,6 +213,8 @@ class OperatorRunExecutor:
                     if report.user_exited
                     else "COMPLETED_WITH_RUNTIME_INTERRUPTION"
                     if actual is not None and actual.viewer.operator_recovery.paused_seconds > 0
+                    else "HAZARD_EXTENSION_COMPLETE"
+                    if extension is not None and extension.get("status") == "COMPLETE"
                     else "TIME_LIMIT_REACHED"
                 ),
                 training_completed_early=report.training_completed_early,
@@ -219,6 +222,8 @@ class OperatorRunExecutor:
             )
             if collision_stop is not None:
                 result = replace(result, collision_stop=dict(collision_stop.record))
+            if extension is not None:
+                result = replace(result, hazard_extension=dict(extension))
             exit_result = (
                 not_configured_exit_result()
                 if exit_config is None

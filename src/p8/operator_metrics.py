@@ -126,7 +126,7 @@ def reduce_module_run(
             and stage in (Stage.MODULE_1_RUNNING, Stage.MODULE_2_RUNNING)
             and actual_active_drive_s >= planned_duration_s
             and not user_exited
-            and completion_reason == "TIME_LIMIT_REACHED"
+            and completion_reason in ("TIME_LIMIT_REACHED", "HAZARD_EXTENSION_COMPLETE")
             else None
         ),
         user_exited=user_exited,
