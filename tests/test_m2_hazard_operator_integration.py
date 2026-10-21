@@ -235,7 +235,8 @@ def test_cli_config_actual_runner_session_and_physical_backend_share_m2_lifetime
                 return False
 
         def viewer_factory(world_arg, hero, view_config):
-            assert view_config.vehicle_audio_source is None
+            assert callable(view_config.vehicle_audio_source)
+            assert callable(view_config.vehicle_audio_status_sink)
             viewer = View(view_config)
             views.append(viewer)
             return viewer

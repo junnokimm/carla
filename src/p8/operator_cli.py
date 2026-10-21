@@ -60,6 +60,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--participant-id", required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--session-type", choices=("test", "pilot"),
+                        help="Label a new DEV pilot run; allow separate runs for the same participant number")
     parser.add_argument("--assignment-file", type=Path)
     parser.add_argument("--m1", choices=[item.value for item in Module1Condition])
     parser.add_argument("--m2", choices=[item.value for item in Module2Condition])
@@ -124,6 +126,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     mode = Mode(args.mode)
+    if args.session_type is not None and mode is not Mode.DEV_REHEARSAL:
+        parser.error("--session-type is DEV_REHEARSAL-only")
     if args.m2_hazard_seed is not None and not args.m2_hazard_v1:
         parser.error("--m2-hazard-seed requires --m2-hazard-v1")
     if args.m2_hazard_v1 and (
@@ -229,6 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         m1_condition=None if args.m1 is None else Module1Condition(args.m1),
         m2_condition=None if args.m2 is None else Module2Condition(args.m2),
         route_id=None if runtime.module_exit is None else runtime.module_exit.route_id,
+        session_type=args.session_type,
     )
     controller = OperatorController(
         args.output_root,

@@ -6,29 +6,60 @@ import pygame
 import pytest
 
 from src.scenario import driver_view, research_noa_view
+from src.scenario.recorded_vehicle_audio import (
+    RecordedVehicleAudioPlayback as VehicleAudioPlayback,
+)
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.scenario.research_noa_view import (
     ResearchDriverViewConfig,
     ResearchLiveDriverView,
 )
 from src.scenario.research_performance_summary import build_performance_summary
-from src.scenario.vehicle_audio_playback import VehicleAudioPlayback
+from tests.recorded_vehicle_audio_fakes import RecordedFakeMixer as FakeMixer
+from tests.recorded_vehicle_audio_fakes import recorded_test_bank
 from tests.test_driver_view import FakeHero, FakeWorld
 from tests.test_vehicle_audio_model import state
-from tests.vehicle_audio_fakes import FakeMixer, small_bank
 
 
-@pytest.mark.parametrize("ending", ["duration", "f8", "escape", "window", "error"])
-def test_actual_view_loop_audio_cleanup_before_pygame_quit(monkeypatch, ending):
+@pytest.mark.parametrize(
+    "ending,audio_fault",
+    [(ending, None) for ending in ("duration", "f8", "escape", "window", "error")]
+    + [
+        ("duration", fault)
+        for fault in ("asset", "play", "queue", "volume", "source", "summary")
+    ],
+)
+def test_actual_view_loop_audio_cleanup_before_pygame_quit(
+    monkeypatch, ending, audio_fault
+):
     mixer = FakeMixer()
     events = []
     summaries = []
+
+    def bank_provider(*args):
+        if audio_fault == "asset":
+            raise FileNotFoundError("missing approved recording")
+        return recorded_test_bank(*args)
+
+    def source():
+        if audio_fault == "source":
+            raise RuntimeError("optional cached audio observation failed")
+        return state(mixer.now, speed_kmh=40, throttle=0.7)
+
+    def summary_sink(value):
+        summaries.append(value)
+        if audio_fault == "summary":
+            raise OSError("optional audio summary write failed")
+
     monkeypatch.setattr(pygame, "mixer", mixer)
     monkeypatch.setattr(
         research_noa_view,
         "VehicleAudioPlayback",
         lambda backend: VehicleAudioPlayback(
-            backend, bank_provider=small_bank, wait=mixer.wait
+            backend,
+            bank_provider=bank_provider,
+            wait=mixer.wait,
+            clock=lambda: mixer.now,
         ),
     )
     monkeypatch.setattr(driver_view, "DriverHudRenderer", lambda *a, **kw: object())
@@ -76,8 +107,8 @@ def test_actual_view_loop_audio_cleanup_before_pygame_quit(monkeypatch, ending):
         FakeHero(),
         ResearchDriverViewConfig(
             training_early_finish=True,
-            vehicle_audio_source=lambda: state(mixer.now, speed_kmh=40, throttle=0.7),
-            vehicle_audio_status_sink=summaries.append,
+            vehicle_audio_source=source,
+            vehicle_audio_status_sink=summary_sink,
         ),
     )
     view._vehicle_audio.clock = lambda: mixer.now
@@ -94,6 +125,8 @@ def test_actual_view_loop_audio_cleanup_before_pygame_quit(monkeypatch, ending):
 
     monkeypatch.setattr(view, "_draw", draw)
     view.attach()  # Fake sensors, Fake mixer. Production preparation wiring.
+    if audio_fault in ("play", "queue", "volume"):
+        mixer.fail = audio_fault
     diagnostics = ResearchNoADiagnostics(lambda: mixer.now)
     if ending == "error":
         # Backend stop failures are recorded; finite grains still expire independently.
@@ -109,7 +142,14 @@ def test_actual_view_loop_audio_cleanup_before_pygame_quit(monkeypatch, ending):
     assert view._vehicle_audio.playback.closed
     assert len(summaries) == 1
     summary = json.loads(summaries[0])
-    assert summary["grain_launches"] >= 2 and summary["rpm_source"] == "estimated_rpm"
+    if audio_fault not in (None, "summary"):
+        assert summary["error"]
+    else:
+        assert summary["chunk_starts"] >= 3
+    if audio_fault == "summary":
+        assert "summary unavailable" in view._vehicle_audio.error
+    assert summary["asset"] == "honda-crv-recorded-preview-v1"
+    assert summary["rpm_source"] == "NOT_USED_RECORDED_LAYERS"
     if ending == "error":
         assert summary["cleanup_errors"]
     performance = json.loads(
@@ -127,7 +167,7 @@ def test_actual_view_loop_audio_cleanup_before_pygame_quit(monkeypatch, ending):
 
 
 @pytest.mark.parametrize("audio_enabled", [False, True])
-def test_operator_audio_default_off_and_explicit_runner_opt_in(
+def test_operator_recorded_audio_default_on_and_runner_can_disable(
     tmp_path, monkeypatch, audio_enabled
 ):
     from src.p8.model import Stage
@@ -138,7 +178,7 @@ def test_operator_audio_default_off_and_explicit_runner_opt_in(
     original_runner = backend.ResearchNoARunner
 
     def runner(config, **kwargs):
-        assert config.vehicle_audio is False  # Actual P8 builder, all three Stages.
+        assert config.vehicle_audio is True  # Actual P8 builder, all three Stages.
         return original_runner(replace(config, vehicle_audio=audio_enabled), **kwargs)
 
     monkeypatch.setattr(backend, "ResearchNoARunner", runner)

@@ -18,6 +18,10 @@ def claim_registration(
     request: RegistrationRequest,
     mode: Mode,
 ) -> ParticipantAssignment:
+    if request.session_type is not None and (
+        mode is not Mode.DEV_REHEARSAL or request.session_type not in ("test", "pilot")
+    ):
+        raise P8Error("SESSION_TYPE_REQUIRES_NEW_DEV_TEST_OR_PILOT_RUN")
     if SAFE_ID.fullmatch(request.participant_id) is None:
         raise P8Error("RESEARCH_ID_MUST_BE_PATH_SAFE_NOT_A_NAME")
     if SAFE_ID.fullmatch(request.run_id) is None:
@@ -57,8 +61,13 @@ def claim_registration(
     if request.route_id is not None and assignment.route_id != request.route_id:
         raise P8Error("ASSIGNMENT_EXIT_ROUTE_MISMATCH")
     claims = root / "_registration_claims"
+    if request.session_type is not None:
+        # Explicitly labelled test/pilot launches may repeat a participant number,
+        # but must still claim a new run. All other registration policies stay intact.
+        claims = claims / "_pilot_runs"
     claims.mkdir(parents=True, exist_ok=True)
-    target = claims / f"{request.participant_id}.json"
+    claim_id = request.run_id if request.session_type is not None else request.participant_id
+    target = claims / f"{claim_id}.json"
     try:
         with target.open("x", encoding="utf-8") as output:
             json.dump(
@@ -66,10 +75,13 @@ def claim_registration(
                     "participant_id": request.participant_id,
                     "run_id": request.run_id,
                     "mode": mode.value,
+                    "session_type": request.session_type,
                     "restart_policy": "NO_AUTOMATIC_RESUME",
                 },
                 output,
             )
     except FileExistsError as error:
+        if request.session_type is not None:
+            raise P8Error("RUN_ID_ALREADY_CLAIMED_NO_AUTO_RESUME") from error
         raise P8Error("PARTICIPANT_ID_ALREADY_CLAIMED_NO_AUTO_RESUME") from error
     return assignment

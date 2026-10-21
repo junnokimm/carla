@@ -43,10 +43,12 @@ class SessionServices:
         provenance: str = "DEV_STUB",
         monotonic_ns: Callable[[], int] | None = None,
         utc_ns: Callable[[], int] | None = None,
+        session_type: str | None = None,
     ) -> None:
         if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,100}", run_id) is None:
             raise P8Error("UNSAFE_RUN_ID")
         self.directory = root / run_id
+        self.session_type = session_type
         self.directory.mkdir(parents=True, exist_ok=False)
         self.context = StudyRunContext(
             StudyRunId(run_id),
@@ -223,6 +225,9 @@ class SessionServices:
 
     def manifest_base(self) -> dict[str, Json]:
         return {
+            **({"session_type": self.session_type,
+                "result_archive_basename": f"{self.context.study_run_id}.zip"}
+               if self.session_type is not None else {}),
             "schema_version": 1,
             "participant_id": self.context.participant_id,
             "run_id": self.context.study_run_id,

@@ -34,6 +34,12 @@ from src.scenario.driver_view import (
     RuntimeIterationScheduler,
 )
 from src.scenario.iteration_light_state import IterationLightState
+from src.scenario.recorded_vehicle_audio import (
+    RecordedVehicleAudioPlayback as VehicleAudioPlayback,
+)
+from src.scenario.recorded_vehicle_audio import (
+    RecordedVehicleAudioRuntime as VehicleAudioRuntime,
+)
 from src.scenario.research_camera_diagnostics import ResearchCameraDiagnostics
 from src.scenario.research_camera_metadata import ResearchCameraRunMeasurements
 from src.scenario.research_exit_view import (
@@ -45,8 +51,6 @@ from src.scenario.research_lane_change_input import LaneChangeRequestInput
 from src.scenario.research_noa_control_delivery import ControlSender
 from src.scenario.research_noa_diagnostics import ResearchNoADiagnostics
 from src.scenario.vehicle_audio_model import VehicleAudioState
-from src.scenario.vehicle_audio_playback import VehicleAudioPlayback
-from src.scenario.vehicle_audio_runtime import VehicleAudioRuntime
 from src.vehicle.driving_mode import DrivingMode
 
 

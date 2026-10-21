@@ -11,6 +11,8 @@ from time import perf_counter_ns
 
 import pygame
 
+from src.scenario.recorded_vehicle_audio import duck_vehicle_audio_for_warning
+
 CUE_ID = "hazard-three-beeps-v1"
 TONE_SECONDS = 0.16
 GAP_SECONDS = 0.10
@@ -76,6 +78,13 @@ class HazardWarningAudio:
             "request_started_perf_counter_ns": None,
             "request_completed_perf_counter_ns": None,
         }
+        # Lower already-playing AND queued cabin recordings before the cue.
+        # Keep this independent of playback so a ducking error cannot suppress it.
+        try:
+            result["vehicle_audio_ducking"] = duck_vehicle_audio_for_warning(self.mixer, DURATION_SECONDS)
+        except Exception as error:  # noqa: BLE001 -- visual/audio warning still proceeds
+            result["vehicle_audio_ducking"] = {"status": "FAILED", "reason": str(error)}
+            self._error("duck", error)
         try:
             result["request_started_perf_counter_ns"] = self.clock_ns()
             if self.closed or self.sound is None:

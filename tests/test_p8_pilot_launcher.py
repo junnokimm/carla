@@ -143,9 +143,9 @@ def test_repeated_launch_uses_new_ids_and_returns_operator_exit_code(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(run_pilot.operator_cli, "main", operator_main)
     for _ in range(2):
-        assert run_pilot.main(["--config", str(config_path), "--m1", "NO_SURT", "--m2", "NOA_L2"]) == 2
-    assert received[0].participant_id != received[1].participant_id
-    assert received[0].run_id != received[1].run_id
+        assert run_pilot.main(["--config", str(config_path), "--participant-id", "001", "--session-type", "test", "--m1", "NO_SURT", "--m2", "NOA_L2"]) == 2
+    assert received[0].participant_id == received[1].participant_id == "001"
+    assert [item.run_id for item in received] == ["001_test", "001_test_02"]
     assert all(args.m2 == "NOA_L2" for args in received)
     assert all(args.gaze_config == Path("config/p8_gaze.json") for args in received)
     assert json.loads(config_path.read_text())["m2"] == "MANUAL"
@@ -169,7 +169,7 @@ def test_assignment_is_selected_per_run_without_changing_saved_config(
         run_pilot.operator_cli, "main",
         lambda argv: received.append(build_parser().parse_args(argv)) or 0,
     )
-    argv = ["--config", str(path), "--m1", "NO_SURT"]
+    argv = ["--config", str(path), "--participant-id", "001", "--session-type", "test", "--m1", "NO_SURT"]
     if not interactive:
         argv += ["--m2", choice]
     assert run_pilot.main(argv) == 0

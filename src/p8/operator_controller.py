@@ -75,6 +75,7 @@ class OperatorController:
             provenance="ACTUAL_BOUNDED_OPERATOR",
             monotonic_ns=self._monotonic_ns,
             utc_ns=self._utc_ns,
+            session_type=request.session_type,
         )
 
         def create_components(
@@ -92,7 +93,11 @@ class OperatorController:
         session = ExperimentSession(
             services,
             self.readiness,
-            OccurrenceRegistry(self.root / "_dev_occurrences"),
+            OccurrenceRegistry(
+                self.root / "_dev_occurrences" / "_pilot_runs" / request.run_id
+                if request.session_type is not None
+                else self.root / "_dev_occurrences"
+            ),
             create_components,
         )
         self._session = session

@@ -51,6 +51,7 @@ class RegistrationRequest:
     m1_condition: Module1Condition | None = None
     m2_condition: Module2Condition | None = None
     route_id: str | None = None
+    session_type: str | None = None  # test/pilot label; does not change execution mode
 
 
 @dataclass(frozen=True, slots=True)
